@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Settings • Piticko Bot{% endblock %}
+{% block eyebrow %}Konfigurace{% endblock %}
+{% block heading %}Settings{% endblock %}
+
+{% block content %}
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>🧩</span>
+        <small>Verze</small>
+        <strong class="small-stat">{{ settings.version }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>⏱️</span>
+        <small>YouTube interval</small>
+        <strong class="small-stat">{{ settings.check_interval }}s</strong>
+    </article>
+    <article class="stat-card">
+        <span>🔑</span>
+        <small>YouTube API</small>
+        {% if settings.youtube_api_key %}<strong class="ok-text">OK</strong>{% else %}<strong class="off-text">Chybí</strong>{% endif %}
+    </article>
+    <article class="stat-card">
+        <span>🐘</span>
+        <small>PostgreSQL</small>
+        {% if settings.postgres_enabled %}<strong class="ok-text">ON</strong>{% else %}<strong class="off-text">OFF</strong>{% endif %}
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Podrobnosti</h2>
+            <p>Aktuální konfigurace dashboardu.</p>
+        </div>
+    </div>
+
+    <div class="settings-list">
+        <div><span>Databázový soubor</span><strong>{{ settings.database }}</strong></div>
+        <div><span>Databáze existuje</span><strong>{% if settings.database_exists %}Ano{% else %}Ne{% endif %}</strong></div>
+        <div><span>Log soubor</span><strong>{{ settings.log_file }}</strong></div>
+        <div><span>Log existuje</span><strong>{% if settings.log_file_exists %}Ano{% else %}Ne{% endif %}</strong></div>
+    </div>
+</section>
+{% endblock %}

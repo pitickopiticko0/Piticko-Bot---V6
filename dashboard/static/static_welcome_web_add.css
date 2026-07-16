@@ -1,0 +1,19 @@
+
+textarea {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    resize: vertical;
+}
+
+.button.danger {
+    background: rgba(54, 124, 43, 0.15);
+    border-color: rgba(54, 124, 43, 0.45);
+    color: var(--off);
+    margin-top: 18px;
+    cursor: pointer;
+}
