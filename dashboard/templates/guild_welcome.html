@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome • {{ selected_guild.name }}{% endblock %}
+{% block eyebrow %}Welcome systém{% endblock %}
+{% block heading %}{{ selected_guild.name }}{% endblock %}
+
+{% block content %}
+<section class="two-column">
+    <article class="panel form-panel">
+        <div class="panel-head">
+            <div>
+                <h2>Nastavit welcome</h2>
+                <p>Vyber kanál, volitelnou roli a text zprávy pro nové členy.</p>
+            </div>
+        </div>
+
+        <form class="form-grid" method="post" action="/guild/{{ selected_guild.id }}/welcome/save">
+            <label>
+                <span>Welcome Channel ID</span>
+                <input
+                    name="channel_id"
+                    type="number"
+                    required
+                    placeholder="123456789012345678"
+                    value="{{ settings.channel_id if settings else '' }}"
+                >
+            </label>
+
+            <label>
+                <span>Role ID</span>
+                <input
+                    name="role_id"
+                    type="number"
+                    placeholder="Volitelné"
+                    value="{{ settings.role_id if settings and settings.role_id else '' }}"
+                >
+            </label>
+
+            <label class="wide">
+                <span>Welcome zpráva</span>
+                <textarea name="welcome_message" required rows="7" placeholder="👋 Vítej {user} na serveru **{server}**!">{{ settings.message if settings else "👋 Vítej {user} na serveru **{server}**! Jsi náš {members}. člen." }}</textarea>
+            </label>
+
+            <button class="btn primary" type="submit">💾 Uložit welcome</button>
+        </form>
+
+        <p class="hint">Proměnné: <strong>{user}</strong>, <strong>{username}</strong>, <strong>{server}</strong>, <strong>{members}</strong></p>
+    </article>
+
+    <article class="panel preview-panel">
+        <div class="panel-head">
+            <div>
+                <h2>Náhled</h2>
+                <p>Orientační vzhled welcome embedu.</p>
+            </div>
+        </div>
+
+        <div class="discord-preview">
+            <div class="preview-title">🎉 Nový člen!</div>
+            <p>{{ settings.message if settings else "👋 Vítej @User na serveru **" ~ selected_guild.name ~ "**!" }}</p>
+            <div class="preview-meta">
+                <span>Server: {{ selected_guild.name }}</span>
+                <span>Členů: 123</span>
+            </div>
+        </div>
+
+        {% if settings %}
+        <div class="settings-list">
+            <div><span>Stav</span>{% if settings.enabled %}<strong class="ok-text">Zapnuto</strong>{% else %}<strong class="off-text">Vypnuto</strong>{% endif %}</div>
+            <div><span>Kanál</span><strong>{{ settings.channel_id or "Nenastaveno" }}</strong></div>
+            <div><span>Role</span><strong>{{ settings.role_id or "Žádná" }}</strong></div>
+        </div>
+
+        <form method="post" action="/guild/{{ selected_guild.id }}/welcome/disable" onsubmit="return confirm('Opravdu vypnout welcome systém?');">
+            <button class="btn ghost danger" type="submit">Vypnout welcome</button>
+        </form>
+        {% else %}
+        <p class="empty">Welcome zatím není nastavený.</p>
+        {% endif %}
+    </article>
+</section>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard • Piticko Bot{% endblock %}
+{% block eyebrow %}Přehled systému{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div>
+        <h2>Vyber server</h2>
+        <p>Správa YouTube odběrů a welcome zpráv je nově vždy navázaná na konkrétní Discord server.</p>
+    </div>
+</section>
+
+{% if guilds %}
+<section class="server-grid">
+    {% for guild in guilds %}
+    <a class="server-card" href="/guild/{{ guild.id }}">
+        <div class="server-icon">{{ guild.name[0] }}</div>
+        <div>
+            <strong>{{ guild.name }}</strong>
+            <span>{{ guild.id }}</span>
+        </div>
+        <em>Otevřít →</em>
+    </a>
+    {% endfor %}
+</section>
+{% else %}
+<section class="panel">
+    <p class="empty">Discord nevrátil žádné servery, které můžeš spravovat.</p>
+</section>
+{% endif %}
+
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>🌐</span>
+        <small>Servery v DB</small>
+        <strong>{{ stats.guilds }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>📺</span>
+        <small>YouTube kanály</small>
+        <strong>{{ stats.youtube_channels }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>🔔</span>
+        <small>Odběry</small>
+        <strong>{{ stats.subscriptions }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>🎬</span>
+        <small>Uložená videa</small>
+        <strong>{{ stats.videos }}</strong>
+    </article>
+</section>
+{% endblock %}

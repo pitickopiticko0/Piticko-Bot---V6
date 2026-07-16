@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ selected_guild.name }} • Piticko Bot{% endblock %}
+{% block eyebrow %}Server Dashboard{% endblock %}
+{% block heading %}{{ selected_guild.name }}{% endblock %}
+
+{% block content %}
+<section class="stats-grid">
+    <article class="stat-card">
+        <span>📺</span>
+        <small>YouTube odběry</small>
+        <strong>{{ stats.youtube_subscriptions }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>🔔</span>
+        <small>Aktivní odběry</small>
+        <strong>{{ stats.active_youtube_subscriptions }}</strong>
+    </article>
+    <article class="stat-card">
+        <span>👋</span>
+        <small>Welcome</small>
+        {% if stats.welcome_enabled %}
+            <strong class="ok-text">ON</strong>
+        {% else %}
+            <strong class="off-text">OFF</strong>
+        {% endif %}
+    </article>
+    <article class="stat-card">
+        <span>🆔</span>
+        <small>Server ID</small>
+        <strong class="small-stat">{{ selected_guild.id }}</strong>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Rychlé akce</h2>
+            <p>Vyber, co chceš na tomto serveru spravovat.</p>
+        </div>
+    </div>
+
+    <div class="action-grid">
+        <a class="action-card" href="/guild/{{ selected_guild.id }}/youtube">
+            <span>📺</span>
+            <strong>YouTube oznámení</strong>
+            <p>Přidání, pozastavení nebo odebrání sledovaných kanálů.</p>
+        </a>
+        <a class="action-card" href="/guild/{{ selected_guild.id }}/welcome">
+            <span>👋</span>
+            <strong>Welcome systém</strong>
+            <p>Nastavení zprávy, kanálu a automatické role pro nové členy.</p>
+        </a>
+    </div>
+</section>
+{% endblock %}

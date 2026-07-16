@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}YouTube • {{ selected_guild.name }}{% endblock %}
+{% block eyebrow %}YouTube oznámení{% endblock %}
+{% block heading %}{{ selected_guild.name }}{% endblock %}
+
+{% block content %}
+<section class="panel form-panel">
+    <div class="panel-head">
+        <div>
+            <h2>Přidat YouTube odběr</h2>
+            <p>Bot bude kontrolovat nový obsah a posílat oznámení do vybraného Discord kanálu.</p>
+        </div>
+    </div>
+
+    <form class="form-grid" method="post" action="/guild/{{ selected_guild.id }}/youtube/add">
+        <label class="wide">
+            <span>YouTube URL</span>
+            <input name="youtube_url" type="url" required placeholder="https://www.youtube.com/@martinbrokespc">
+        </label>
+
+        <label>
+            <span>Discord Channel ID</span>
+            <input name="discord_channel_id" type="number" required placeholder="123456789012345678">
+        </label>
+
+        <label>
+            <span>Mention Role ID</span>
+            <input name="mention_role_id" type="number" placeholder="Volitelné">
+        </label>
+
+        <button class="btn primary" type="submit">＋ Přidat odběr</button>
+    </form>
+
+    <p class="hint">ID získáš v Discordu přes Developer Mode → pravé tlačítko → Copy ID.</p>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>Sledované kanály</h2>
+            <p>Správa odběrů pouze pro tento server.</p>
+        </div>
+    </div>
+
+    {% if rows %}
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>YouTube</th>
+                    <th>Discord kanál</th>
+                    <th>Role</th>
+                    <th>Stav</th>
+                    <th>Akce</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <a href="{{ row.youtube_url }}" target="_blank">{{ row.youtube_name }}</a>
+                        <small>{{ row.youtube_channel_id }}</small>
+                    </td>
+                    <td>{{ row.discord_channel_id }}</td>
+                    <td>{{ row.mention_role_id or "Žádná" }}</td>
+                    <td>
+                        {% if row.enabled %}
+                            <span class="badge success">Aktivní</span>
+                        {% else %}
+                            <span class="badge danger">Pozastaveno</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="actions">
+                            {% if row.enabled %}
+                            <form method="post" action="/guild/{{ selected_guild.id }}/youtube/pause">
+                                <input type="hidden" name="youtube_channel_id" value="{{ row.youtube_channel_id }}">
+                                <button class="icon-btn" title="Pozastavit">⏸️</button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="/guild/{{ selected_guild.id }}/youtube/resume">
+                                <input type="hidden" name="youtube_channel_id" value="{{ row.youtube_channel_id }}">
+                                <button class="icon-btn" title="Obnovit">▶️</button>
+                            </form>
+                            {% endif %}
+
+                            <form method="post" action="/guild/{{ selected_guild.id }}/youtube/remove" onsubmit="return confirm('Opravdu odebrat odběr?');">
+                                <input type="hidden" name="youtube_channel_id" value="{{ row.youtube_channel_id }}">
+                                <button class="icon-btn danger" title="Odebrat">🗑️</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p class="empty">Tento server zatím nemá žádné YouTube odběry.</p>
+    {% endif %}
+</section>
+{% endblock %}
