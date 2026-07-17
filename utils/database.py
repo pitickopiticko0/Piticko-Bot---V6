@@ -181,6 +181,21 @@ class Database:
                 )
             """)
 
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS makejpc_products (
+                    product_code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    price TEXT,
+                    availability TEXT,
+                    product_url TEXT NOT NULL,
+                    image_url TEXT,
+                    announced INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
             conn.commit()
 
     def _init_sqlite(self):
@@ -234,6 +249,21 @@ class Database:
                     role_id INTEGER,
                     enabled INTEGER NOT NULL DEFAULT 0,
                     message TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS makejpc_products (
+                    product_code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    price TEXT,
+                    availability TEXT,
+                    product_url TEXT NOT NULL,
+                    image_url TEXT,
+                    announced INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
             """)
@@ -532,6 +562,148 @@ class Database:
                 WHERE guild_id = ?
             """, (self.now(), guild_id))
             conn.commit()
+
+
+    def makejpc_product_exists(self, product_code: str) -> bool:
+        with self.connect() as conn:
+            row = conn.execute("""
+                SELECT product_code
+                FROM makejpc_products
+                WHERE product_code = ?
+            """, (product_code,)).fetchone()
+            return row is not None
+
+    def count_makejpc_products(self) -> int:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM makejpc_products"
+            ).fetchone()
+            return int(row["c"])
+
+    def add_makejpc_product(
+        self,
+        product_code: str,
+        name: str,
+        price: str,
+        availability: str,
+        product_url: str,
+        image_url: Optional[str],
+        announced: bool = True,
+    ):
+        with self.connect() as conn:
+            if self.using_postgres:
+                conn.execute("""
+                    INSERT INTO makejpc_products (
+                        product_code,
+                        name,
+                        price,
+                        availability,
+                        product_url,
+                        image_url,
+                        announced,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (product_code) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        price = EXCLUDED.price,
+                        availability = EXCLUDED.availability,
+                        product_url = EXCLUDED.product_url,
+                        image_url = EXCLUDED.image_url,
+                        announced = CASE
+                            WHEN makejpc_products.announced = 1 THEN 1
+                            ELSE EXCLUDED.announced
+                        END,
+                        updated_at = EXCLUDED.updated_at
+                """, (
+                    product_code,
+                    name,
+                    price,
+                    availability,
+                    product_url,
+                    image_url,
+                    int(announced),
+                    self.now(),
+                    self.now(),
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO makejpc_products (
+                        product_code,
+                        name,
+                        price,
+                        availability,
+                        product_url,
+                        image_url,
+                        announced,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(product_code) DO UPDATE SET
+                        name = excluded.name,
+                        price = excluded.price,
+                        availability = excluded.availability,
+                        product_url = excluded.product_url,
+                        image_url = excluded.image_url,
+                        announced = CASE
+                            WHEN makejpc_products.announced = 1 THEN 1
+                            ELSE excluded.announced
+                        END,
+                        updated_at = excluded.updated_at
+                """, (
+                    product_code,
+                    name,
+                    price,
+                    availability,
+                    product_url,
+                    image_url,
+                    int(announced),
+                    self.now(),
+                    self.now(),
+                ))
+
+            conn.commit()
+
+    def update_makejpc_product(
+        self,
+        product_code: str,
+        name: str,
+        price: str,
+        availability: str,
+        product_url: str,
+        image_url: Optional[str],
+    ):
+        with self.connect() as conn:
+            conn.execute("""
+                UPDATE makejpc_products
+                SET name = ?,
+                    price = ?,
+                    availability = ?,
+                    product_url = ?,
+                    image_url = ?,
+                    updated_at = ?
+                WHERE product_code = ?
+            """, (
+                name,
+                price,
+                availability,
+                product_url,
+                image_url,
+                self.now(),
+                product_code,
+            ))
+            conn.commit()
+
+    def get_makejpc_products(self, limit: int = 100):
+        with self.connect() as conn:
+            return conn.execute("""
+                SELECT *
+                FROM makejpc_products
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
 
     def stats(self):
         with self.connect() as conn:
