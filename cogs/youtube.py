@@ -15,12 +15,24 @@ def build_video_embed(
     channel_name: str,
     thumbnail: str | None,
     published_at: str | None,
+    live: bool = False,
 ) -> discord.Embed:
+    if live:
+        embed_title = "🔴 Živý stream"
+        description = f"**{channel_name} právě vysílá živě!**\\n\\n**{title}**"
+        color = discord.Color.red()
+        time_field_name = "Spuštěno"
+    else:
+        embed_title = "📺 Nové video"
+        description = f"**{title}**"
+        color = EMBED_COLOR
+        time_field_name = "Publikováno"
+
     embed = discord.Embed(
-        title="📺 Nové video",
-        description=f"**{title}**",
+        title=embed_title,
+        description=description,
         url=url,
-        color=EMBED_COLOR,
+        color=color,
     )
 
     embed.add_field(
@@ -33,7 +45,7 @@ def build_video_embed(
 
     if published_text:
         embed.add_field(
-            name="Publikováno",
+            name=time_field_name,
             value=published_text,
             inline=False,
         )
@@ -425,11 +437,22 @@ class YouTube(commands.GroupCog, name="youtube"):
             )
             return
 
+        if latest.live:
+            latest_description = (
+                f"🔴 **{selected['youtube_name']} právě vysílá živě!**"
+            )
+            latest_color = discord.Color.red()
+        else:
+            latest_description = (
+                f"Poslední video z kanálu **{selected['youtube_name']}**"
+            )
+            latest_color = EMBED_COLOR
+
         embed = discord.Embed(
             title=latest.title,
             url=latest.url,
-            description=f"Poslední video z kanálu **{selected['youtube_name']}**",
-            color=EMBED_COLOR,
+            description=latest_description,
+            color=latest_color,
         )
 
         if latest.thumbnail:
@@ -558,7 +581,7 @@ class YouTube(commands.GroupCog, name="youtube"):
 
     @app_commands.command(
         name="test",
-        description="Pošle testovací YouTube oznámení do nastaveného kanálu.",
+        description="Pošle testovací oznámení videa nebo streamu.",
     )
     @app_commands.describe(
         youtube_channel_id="YouTube kanál",
@@ -621,6 +644,7 @@ class YouTube(commands.GroupCog, name="youtube"):
             channel_name=sub["youtube_name"],
             thumbnail=latest.thumbnail,
             published_at=latest.published_at,
+            live=latest.live,
         )
 
         await discord_channel.send(
@@ -644,7 +668,7 @@ class YouTube(commands.GroupCog, name="youtube"):
 
     @app_commands.command(
         name="check",
-        description="Ručně zkontroluje nová videa pro tento server.",
+        description="Ručně zkontroluje nová videa a živé streamy.",
     )
     @app_commands.checks.has_permissions(administrator=True)
     async def check(self, interaction: discord.Interaction):
@@ -717,7 +741,7 @@ class YouTube(commands.GroupCog, name="youtube"):
             )
 
         await interaction.followup.send(
-            f"✅ Kontrola dokončena.\nNová videa: **{found}**\nOdesláno: **{sent}**",
+            f"✅ Kontrola dokončena.\nNová videa/streamy: **{found}**\nOdesláno: **{sent}**",
             ephemeral=True,
         )
 

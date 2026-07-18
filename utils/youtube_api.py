@@ -150,6 +150,19 @@ class YouTubeAPI:
         if not video_id:
             return None
 
+        video_data = await self._get(
+            "videos",
+            {
+                "part": "snippet,liveStreamingDetails",
+                "id": video_id,
+            },
+        )
+
+        live = False
+        if video_data.get("items"):
+            live_snippet = video_data["items"][0].get("snippet", {})
+            live = live_snippet.get("liveBroadcastContent") == "live"
+
         thumbnails = snippet.get("thumbnails", {})
 
         return YouTubeVideo(
@@ -163,6 +176,7 @@ class YouTubeAPI:
                 or thumbnails.get("default", {})
             ).get("url"),
             published_at=snippet.get("publishedAt"),
+            live=live,
         )
 
 
