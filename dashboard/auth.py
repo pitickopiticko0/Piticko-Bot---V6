@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-
 load_dotenv()
 
 DISCORD_API = "https://discord.com/api"
@@ -38,11 +37,11 @@ def build_login_url() -> str:
 
     url = f"{DISCORD_AUTH_URL}?{urlencode(params)}"
 
-    print("==== OAUTH DEBUG ====")
+    print("========== OAUTH CONFIG ==========")
     print("CLIENT_ID:", CLIENT_ID)
     print("REDIRECT_URI:", REDIRECT_URI)
     print("LOGIN_URL:", url)
-    print("=====================")
+    print("==================================")
 
     return url
 
@@ -75,19 +74,27 @@ async def login(request: Request):
 async def login_error():
     return {
         "error": (
-            "Discord OAuth není nastavený. "
-            "Zkontroluj DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET "
-            "a DASHBOARD_REDIRECT_URI."
+            "Discord OAuth není nastavený.\n"
+            "Zkontroluj DISCORD_CLIENT_ID,\n"
+            "DISCORD_CLIENT_SECRET a\n"
+            "DASHBOARD_REDIRECT_URI."
         )
     }
 
 
 @router.get("/auth/callback")
 async def auth_callback(request: Request, code: str | None = None):
+
+    print("\n========== CALLBACK ==========")
+    print("CODE:", code)
+    print("REDIRECT_URI:", REDIRECT_URI)
+
     if not code:
+        print("ERROR: OAuth code nebyl předán.")
         return RedirectResponse("/login-page", status_code=303)
 
     if not is_dashboard_configured():
+        print("ERROR: Dashboard není správně nakonfigurován.")
         return RedirectResponse("/login-error", status_code=303)
 
     data = {
@@ -102,59 +109,81 @@ async def auth_callback(request: Request, code: str | None = None):
         "Content-Type": "application/x-www-form-urlencoded",
     }
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
+
+        print("Žádám Discord o Access Token...")
+
         token_response = await client.post(
             DISCORD_TOKEN_URL,
             data=data,
             headers=headers,
         )
 
+        print("TOKEN STATUS:", token_response.status_code)
+        print("TOKEN BODY:")
+        print(token_response.text)
+
         if token_response.status_code != 200:
-            print("TOKEN ERROR:", token_response.status_code, token_response.text)
+            print("OAuth token selhal.")
             request.session.clear()
             return RedirectResponse("/login-page", status_code=303)
 
         token_data = token_response.json()
         access_token = token_data["access_token"]
 
+        print("Access token získán.")
+
         user_response = await client.get(
             f"{DISCORD_API}/users/@me",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={
+                "Authorization": f"Bearer {access_token}"
+            },
         )
+
+        print("USER STATUS:", user_response.status_code)
+        print(user_response.text)
 
         guilds_response = await client.get(
             f"{DISCORD_API}/users/@me/guilds",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers={
+                "Authorization": f"Bearer {access_token}"
+            },
         )
 
+        print("GUILDS STATUS:", guilds_response.status_code)
+        print(guilds_response.text)
+
     if user_response.status_code != 200:
-        print("USER ERROR:", user_response.status_code, user_response.text)
+        print("Discord nevrátil uživatele.")
         request.session.clear()
         return RedirectResponse("/login-page", status_code=303)
 
     user = user_response.json()
     guilds = guilds_response.json() if guilds_response.status_code == 200 else []
 
-    print("==== DISCORD GUILDS RAW ====")
-    for g in guilds:
-        print(
-            g.get("name"),
-            g.get("id"),
-            "owner=", g.get("owner"),
-            "permissions=", g.get("permissions"),
-        )
-    print("============================")
-
     manageable_guilds = []
+
+    print("\n===== GUILDS =====")
 
     for guild in guilds:
         permissions = int(guild.get("permissions", 0))
-        is_owner = guild.get("owner", False)
-        has_manage_guild = bool(permissions & 0x20)
-        has_administrator = bool(permissions & 0x8)
 
-        if is_owner or has_manage_guild or has_administrator:
+        owner = guild.get("owner", False)
+        manage = bool(permissions & 0x20)
+        admin = bool(permissions & 0x8)
+
+        print(
+            guild["name"],
+            guild["id"],
+            "owner=", owner,
+            "manage=", manage,
+            "admin=", admin,
+        )
+
+        if owner or manage or admin:
             manageable_guilds.append(guild)
+
+    print("==================")
 
     request.session["user"] = {
         "id": user["id"],
@@ -165,6 +194,11 @@ async def auth_callback(request: Request, code: str | None = None):
 
     request.session["guilds"] = manageable_guilds
     request.session["access_token"] = access_token
+
+    print("LOGIN SUCCESS")
+    print("User:", user["username"])
+    print("Serverů:", len(manageable_guilds))
+    print("==============================\n")
 
     return RedirectResponse("/", status_code=303)
 
