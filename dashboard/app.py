@@ -22,13 +22,21 @@ from utils.youtube_api import YouTubeAPIError, youtube_api
 BASE_DIR = Path(__file__).parent
 SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "change-this-dashboard-secret-key")
 
+if SECRET_KEY == "change-this-dashboard-secret-key":
+    print(
+        "WARNING: DASHBOARD_SECRET_KEY není nastavený. "
+        "Na Renderu nastav dlouhý náhodný klíč."
+    )
+
 app = FastAPI(title="Piticko Bot Dashboard", version=VERSION)
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
+    session_cookie="piticko_dashboard_session",
     same_site="lax",
-    https_only=False,
+    https_only=True,
+    max_age=60 * 60 * 24 * 7,
 )
 
 app.include_router(auth_router)
@@ -135,6 +143,13 @@ async def login_page(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
+    print("==== DASHBOARD SESSION DEBUG ====")
+    print("SESSION KEYS:", list(request.session.keys()))
+    print("HAS USER:", bool(request.session.get("user")))
+    print("GUILDS COUNT:", len(request.session.get("guilds", [])))
+    print("COOKIE NAMES:", list(request.cookies.keys()))
+    print("=================================")
+
     redirect = require_user(request)
     if redirect:
         return redirect
