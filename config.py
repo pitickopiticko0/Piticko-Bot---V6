@@ -24,7 +24,7 @@ BOT_NAME = "Piticko Bot"
 
 # Pro vývoj můžeš vložit ID serveru.
 # 0 = globální synchronizace slash příkazů
-GUILD_ID = 1517546884615504065
+GUILD_ID = 0
 
 # =====================================================
 # YouTube
