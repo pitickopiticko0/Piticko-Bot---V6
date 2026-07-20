@@ -135,6 +135,19 @@ class Database:
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS makejpc_products (
+                    product_code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    price TEXT,
+                    availability TEXT,
+                    product_url TEXT NOT NULL,
+                    image_url TEXT,
+                    announced INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     def _init_sqlite(self):
@@ -192,6 +205,19 @@ class Database:
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS makejpc_products (
+                    product_code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    price TEXT,
+                    availability TEXT,
+                    product_url TEXT NOT NULL,
+                    image_url TEXT,
+                    announced INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     def add_guild(self, guild_id: int, guild_name: str):
@@ -486,6 +512,13 @@ class Database:
                 WHERE guild_id = ?
             """, (self.now(), guild_id))
             conn.commit()
+
+    def makejpc_product_exists(self, product_code:str)->bool:
+        with self.connect() as conn:
+            return conn.execute("SELECT product_code FROM makejpc_products WHERE product_code=?", (product_code,)).fetchone() is not None
+    def count_makejpc_products(self)->int:
+        with self.connect() as conn:
+            return int(conn.execute("SELECT COUNT(*) AS c FROM makejpc_products").fetchone()["c"])
 
     def stats(self):
         with self.connect() as conn:
