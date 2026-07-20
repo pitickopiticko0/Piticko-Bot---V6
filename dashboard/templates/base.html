@@ -2,27 +2,70 @@
 <html lang="cs">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{{ page_title }} · Piticko Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090b12">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Piticko Bot Dashboard – správa Discord serverů a modulů.">
+
+  <title>{{ page_title|default('Dashboard') }} · Piticko Dashboard</title>
+
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
 
   {% if user %}
   <header class="topbar">
-    <a class="brand" href="/">
-      <span class="brand-mark">P</span>
-      <span><strong>Piticko</strong><small>Dashboard V3</small></span>
+    <a class="brand" href="/" aria-label="Piticko Dashboard – přehled">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span>
+        <strong>Piticko</strong>
+        <small>Dashboard V3</small>
+      </span>
     </a>
-    <nav>
-      <a href="/">Přehled</a>
-      <a href="/health" target="_blank">Stav API</a>
+
+    <nav class="main-nav" aria-label="Hlavní navigace">
+      <a
+        href="/"
+        {% if request.url.path == '/' %}class="active" aria-current="page"{% endif %}
+      >Přehled</a>
+
+      {% if guild %}
+      <a
+        href="/server/{{ guild.id }}"
+        {% if request.url.path == '/server/' ~ guild.id|string %}class="active" aria-current="page"{% endif %}
+      >Server</a>
+      <a href="/server/{{ guild.id }}#welcome">Welcome</a>
+      <a href="/server/{{ guild.id }}#youtube">YouTube</a>
+      <a href="/server/{{ guild.id }}#general">Nastavení</a>
+      {% endif %}
+
+      <a href="/health" target="_blank" rel="noopener noreferrer">Stav API</a>
     </nav>
+
     <div class="account">
-      <div class="avatar">{{ (user.global_name or user.username or 'P')[:1] }}</div>
-      <div><strong>{{ user.global_name or user.username }}</strong><small>Přihlášen</small></div>
+      {% if user.avatar and user.id %}
+        <img
+          class="avatar"
+          src="https://cdn.discordapp.com/avatars/{{ user.id }}/{{ user.avatar }}.{% if user.avatar[:2] == 'a_' %}gif{% else %}png{% endif %}?size=128"
+          alt="Avatar uživatele {{ user.global_name or user.username or 'Discord uživatel' }}"
+          width="38"
+          height="38"
+          loading="lazy"
+        >
+      {% else %}
+        <div class="avatar" aria-hidden="true">
+          {{ (user.global_name or user.username or 'P')[:1]|upper }}
+        </div>
+      {% endif %}
+
+      <div>
+        <strong>{{ user.global_name or user.username or 'Discord uživatel' }}</strong>
+        <small>Přihlášen</small>
+      </div>
+
       <a class="button subtle" href="/logout">Odhlásit</a>
     </div>
   </header>
@@ -32,6 +75,7 @@
     {% block content %}{% endblock %}
   </main>
 
-  <script src="{{ url_for('static', path='/dashboard.js') }}"></script>
+  <script src="{{ url_for('static', path='/dashboard.js') }}" defer></script>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>
