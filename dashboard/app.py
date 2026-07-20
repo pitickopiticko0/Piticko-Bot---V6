@@ -1,468 +1,268 @@
 import os
+import time
 from pathlib import Path
-from typing import Optional
-from urllib.parse import quote
+from typing import Any
 
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from dotenv import load_dotenv
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from config import CHECK_INTERVAL, DATABASE, LOG_FILE, VERSION, YOUTUBE_API_KEY
-from dashboard.auth import get_user, require_user, router as auth_router
-from dashboard.api.health import router as health_router
-from dashboard.api.stats import router as stats_router
-from dashboard.api.welcome import router as welcome_router
-from dashboard.api.youtube import router as youtube_router
-from utils.database import db
-from utils.youtube_api import YouTubeAPIError, youtube_api
+from dashboard.auth import router as auth_router
+from dashboard.storage import DashboardStorage
 
 
-BASE_DIR = Path(__file__).parent
-SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "change-this-dashboard-secret-key")
+load_dotenv()
 
-if SECRET_KEY == "change-this-dashboard-secret-key":
-    print(
-        "WARNING: DASHBOARD_SECRET_KEY není nastavený. "
-        "Na Renderu nastav dlouhý náhodný klíč."
-    )
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+storage = DashboardStorage()
 
-app = FastAPI(title="Piticko Bot Dashboard", version=VERSION)
+SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Chybí proměnná DASHBOARD_SECRET_KEY.")
+
+app = FastAPI(
+    title="Piticko Dashboard V3",
+    version="3.0.0",
+)
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="piticko_dashboard_session",
     same_site="lax",
-    https_only=True,
+    https_only=os.getenv("DASHBOARD_HTTPS_ONLY", "true").lower() == "true",
     max_age=60 * 60 * 24 * 7,
 )
 
+app.mount(
+    "/static",
+    StaticFiles(directory=str(BASE_DIR / "static")),
+    name="static",
+)
+
 app.include_router(auth_router)
-app.include_router(health_router)
-app.include_router(stats_router)
-app.include_router(youtube_router)
-app.include_router(welcome_router)
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-static_dir = BASE_DIR / "static"
-static_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+STARTED_AT = time.time()
 
 
-def redirect_with_message(url: str, status: str, message: str) -> RedirectResponse:
-    return RedirectResponse(f"{url}?status={status}&message={quote(message)}", status_code=303)
+def current_user(request: Request) -> dict[str, Any] | None:
+    user = request.session.get("user")
+    return user if isinstance(user, dict) else None
 
 
-def get_session_guilds(request: Request) -> list[dict]:
-    return request.session.get("guilds", [])
+def available_guilds(request: Request) -> list[dict[str, Any]]:
+    guilds = request.session.get("guilds", [])
+    return guilds if isinstance(guilds, list) else []
 
 
-def get_selected_guild(request: Request, guild_id: int) -> dict | None:
-    for guild in get_session_guilds(request):
-        if str(guild.get("id")) == str(guild_id):
-            return guild
+def require_login(request: Request):
+    if not current_user(request):
+        return RedirectResponse("/login-page", status_code=303)
     return None
 
 
-def get_youtube_rows(guild_id: int):
-    with db.connect() as conn:
-        return conn.execute("""
-            SELECT
-                s.guild_id,
-                s.youtube_channel_id,
-                s.discord_channel_id,
-                s.mention_role_id,
-                s.last_video_id,
-                s.enabled,
-                y.youtube_name,
-                y.youtube_url
-            FROM subscriptions s
-            JOIN youtube_channels y
-                ON y.youtube_channel_id = s.youtube_channel_id
-            WHERE s.guild_id = ?
-            ORDER BY y.youtube_name ASC
-        """, (guild_id,)).fetchall()
+def get_accessible_guild(request: Request, guild_id: str) -> dict[str, Any]:
+    for guild in available_guilds(request):
+        if str(guild.get("id")) == str(guild_id):
+            return guild
+    raise HTTPException(status_code=403, detail="K tomuto serveru nemáš přístup.")
 
 
-def get_welcome_settings(guild_id: int):
-    with db.connect() as conn:
-        return conn.execute("""
-            SELECT
-                w.guild_id,
-                w.channel_id,
-                w.role_id,
-                w.enabled,
-                w.message,
-                w.updated_at,
-                g.guild_name
-            FROM welcome_settings w
-            LEFT JOIN guilds g
-                ON g.guild_id = w.guild_id
-            WHERE w.guild_id = ?
-        """, (guild_id,)).fetchone()
+@app.on_event("startup")
+async def startup() -> None:
+    await storage.initialize()
 
 
-def get_guild_stats(guild_id: int):
-    with db.connect() as conn:
-        youtube_subscriptions = conn.execute("""
-            SELECT COUNT(*) AS c
-            FROM subscriptions
-            WHERE guild_id = ?
-        """, (guild_id,)).fetchone()["c"]
-
-        active_youtube_subscriptions = conn.execute("""
-            SELECT COUNT(*) AS c
-            FROM subscriptions
-            WHERE guild_id = ? AND enabled = 1
-        """, (guild_id,)).fetchone()["c"]
-
-        welcome = conn.execute("""
-            SELECT enabled
-            FROM welcome_settings
-            WHERE guild_id = ?
-        """, (guild_id,)).fetchone()
-
-        return {
-            "youtube_subscriptions": youtube_subscriptions,
-            "active_youtube_subscriptions": active_youtube_subscriptions,
-            "welcome_enabled": bool(welcome["enabled"]) if welcome else False,
-        }
-
-
-@app.get("/test")
-async def test():
-    return {"ok": True, "app": "dashboard.app", "version": VERSION}
+@app.get("/health")
+async def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "version": "3.0.0",
+        "uptime_seconds": int(time.time() - STARTED_AT),
+        "storage": storage.backend_name,
+    }
 
 
 @app.get("/login-page", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse(request, "login.html", {"version": VERSION})
+    if current_user(request):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"page_title": "Přihlášení"},
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    print("==== DASHBOARD SESSION DEBUG ====")
-    print("SESSION KEYS:", list(request.session.keys()))
-    print("HAS USER:", bool(request.session.get("user")))
-    print("GUILDS COUNT:", len(request.session.get("guilds", [])))
-    print("COOKIE NAMES:", list(request.cookies.keys()))
-    print("=================================")
-
-    redirect = require_user(request)
+async def dashboard_home(request: Request):
+    redirect = require_login(request)
     if redirect:
         return redirect
 
-    stats = db.stats()
+    guilds = available_guilds(request)
+    configured = await storage.count_configured_guilds(
+        [str(g.get("id")) for g in guilds]
+    )
+
     return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "version": VERSION,
-            "stats": stats,
-            "active": "dashboard",
-            "user": get_user(request),
-            "guilds": get_session_guilds(request),
-            "selected_guild": None,
+        request=request,
+        name="dashboard.html",
+        context={
+            "page_title": "Přehled",
+            "user": current_user(request),
+            "guilds": guilds,
+            "configured_count": configured,
+            "uptime_seconds": int(time.time() - STARTED_AT),
         },
     )
 
 
-@app.get("/youtube")
-async def old_youtube_redirect(request: Request):
-    redirect = require_user(request)
+@app.get("/server/{guild_id}", response_class=HTMLResponse)
+async def server_dashboard(request: Request, guild_id: str):
+    redirect = require_login(request)
     if redirect:
         return redirect
 
-    guilds = get_session_guilds(request)
-    if guilds:
-        return RedirectResponse(f"/guild/{guilds[0]['id']}/youtube", status_code=303)
-    return RedirectResponse("/", status_code=303)
+    guild = get_accessible_guild(request, guild_id)
+    settings = await storage.get_settings(guild_id)
 
-
-@app.get("/welcome")
-async def old_welcome_redirect(request: Request):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    guilds = get_session_guilds(request)
-    if guilds:
-        return RedirectResponse(f"/guild/{guilds[0]['id']}/welcome", status_code=303)
-    return RedirectResponse("/", status_code=303)
-
-
-@app.get("/guild/{guild_id}", response_class=HTMLResponse)
-async def guild_dashboard(request: Request, guild_id: int):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    selected_guild = get_selected_guild(request, guild_id)
-    if selected_guild is None:
-        return RedirectResponse("/", status_code=303)
-
-    stats = get_guild_stats(guild_id)
     return templates.TemplateResponse(
-        request,
-        "guild.html",
-        {
-            "version": VERSION,
-            "active": "guild",
-            "user": get_user(request),
-            "guilds": get_session_guilds(request),
-            "selected_guild": selected_guild,
-            "stats": stats,
-        },
-    )
-
-
-@app.get("/guild/{guild_id}/youtube", response_class=HTMLResponse)
-async def guild_youtube_page(
-    request: Request,
-    guild_id: int,
-    status: Optional[str] = None,
-    message: Optional[str] = None,
-):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    selected_guild = get_selected_guild(request, guild_id)
-    if selected_guild is None:
-        return RedirectResponse("/", status_code=303)
-
-    rows = get_youtube_rows(guild_id)
-    return templates.TemplateResponse(
-        request,
-        "guild_youtube.html",
-        {
-            "version": VERSION,
-            "rows": rows,
-            "active": "guild_youtube",
-            "status": status,
-            "message": message,
-            "user": get_user(request),
-            "guilds": get_session_guilds(request),
-            "selected_guild": selected_guild,
-        },
-    )
-
-
-@app.post("/guild/{guild_id}/youtube/add")
-async def guild_youtube_add(
-    request: Request,
-    guild_id: int,
-    youtube_url: str = Form(...),
-    discord_channel_id: int = Form(...),
-    mention_role_id: str = Form(""),
-):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    selected_guild = get_selected_guild(request, guild_id)
-    if selected_guild is None:
-        return RedirectResponse("/", status_code=303)
-
-    try:
-        clean_mention_role_id = int(mention_role_id) if mention_role_id.strip() else None
-    except ValueError:
-        return redirect_with_message(f"/guild/{guild_id}/youtube", "error", "Role ID musí být číslo nebo prázdné.")
-
-    try:
-        yt_channel = await youtube_api.resolve_channel(youtube_url)
-        db.add_guild(guild_id=guild_id, guild_name=selected_guild.get("name") or "Discord Server")
-        db.add_youtube_channel(channel_id=yt_channel.id, name=yt_channel.title, url=yt_channel.url)
-        db.add_subscription(
-            guild_id=guild_id,
-            youtube_channel_id=yt_channel.id,
-            discord_channel_id=discord_channel_id,
-            mention_role_id=clean_mention_role_id,
-        )
-        return redirect_with_message(f"/guild/{guild_id}/youtube", "success", f"Kanál {yt_channel.title} byl přidán.")
-    except YouTubeAPIError as e:
-        return redirect_with_message(f"/guild/{guild_id}/youtube", "error", f"YouTube chyba: {e}")
-    except Exception as e:
-        return redirect_with_message(f"/guild/{guild_id}/youtube", "error", f"Chyba: {e}")
-
-
-@app.post("/guild/{guild_id}/youtube/remove")
-async def guild_youtube_remove(request: Request, guild_id: int, youtube_channel_id: str = Form(...)):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    if get_selected_guild(request, guild_id) is None:
-        return RedirectResponse("/", status_code=303)
-
-    removed = db.remove_subscription(guild_id=guild_id, youtube_channel_id=youtube_channel_id)
-    if removed:
-        return redirect_with_message(f"/guild/{guild_id}/youtube", "success", "Odběr byl odebrán.")
-    return redirect_with_message(f"/guild/{guild_id}/youtube", "error", "Odběr nebyl nalezen.")
-
-
-@app.post("/guild/{guild_id}/youtube/pause")
-async def guild_youtube_pause(request: Request, guild_id: int, youtube_channel_id: str = Form(...)):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    if get_selected_guild(request, guild_id) is None:
-        return RedirectResponse("/", status_code=303)
-
-    db.pause_subscription(guild_id=guild_id, youtube_channel_id=youtube_channel_id)
-    return redirect_with_message(f"/guild/{guild_id}/youtube", "success", "Odběr byl pozastaven.")
-
-
-@app.post("/guild/{guild_id}/youtube/resume")
-async def guild_youtube_resume(request: Request, guild_id: int, youtube_channel_id: str = Form(...)):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    if get_selected_guild(request, guild_id) is None:
-        return RedirectResponse("/", status_code=303)
-
-    db.resume_subscription(guild_id=guild_id, youtube_channel_id=youtube_channel_id)
-    return redirect_with_message(f"/guild/{guild_id}/youtube", "success", "Odběr byl znovu zapnut.")
-
-
-@app.get("/guild/{guild_id}/welcome", response_class=HTMLResponse)
-async def guild_welcome_page(
-    request: Request,
-    guild_id: int,
-    status: Optional[str] = None,
-    message: Optional[str] = None,
-):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    selected_guild = get_selected_guild(request, guild_id)
-    if selected_guild is None:
-        return RedirectResponse("/", status_code=303)
-
-    settings = get_welcome_settings(guild_id)
-    return templates.TemplateResponse(
-        request,
-        "guild_welcome.html",
-        {
-            "version": VERSION,
+        request=request,
+        name="server.html",
+        context={
+            "page_title": guild.get("name", "Server"),
+            "user": current_user(request),
+            "guild": guild,
             "settings": settings,
-            "active": "guild_welcome",
-            "status": status,
-            "message": message,
-            "user": get_user(request),
-            "guilds": get_session_guilds(request),
-            "selected_guild": selected_guild,
         },
     )
 
 
-@app.post("/guild/{guild_id}/welcome/save")
-async def guild_welcome_save(
+@app.post("/server/{guild_id}/welcome")
+async def save_welcome(
     request: Request,
-    guild_id: int,
-    channel_id: int = Form(...),
-    role_id: str = Form(""),
-    welcome_message: str = Form(...),
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    channel_id: str = Form(default=""),
+    message: str = Form(default="Vítej {mention} na serveru {server}!"),
+    embed_title: str = Form(default="Vítej!"),
+    embed_color: str = Form(default="#5865F2"),
+    dm_enabled: str | None = Form(default=None),
 ):
-    redirect = require_user(request)
+    redirect = require_login(request)
     if redirect:
         return redirect
 
-    selected_guild = get_selected_guild(request, guild_id)
-    if selected_guild is None:
-        return RedirectResponse("/", status_code=303)
+    get_accessible_guild(request, guild_id)
 
-    try:
-        clean_role_id = int(role_id) if role_id.strip() else None
-    except ValueError:
-        return redirect_with_message(f"/guild/{guild_id}/welcome", "error", "Role ID musí být číslo nebo prázdné.")
-
-    db.add_guild(guild_id=guild_id, guild_name=selected_guild.get("name") or "Discord Server")
-    db.set_welcome_settings(
-        guild_id=guild_id,
-        channel_id=channel_id,
-        role_id=clean_role_id,
-        message=welcome_message,
-    )
-
-    with db.connect() as conn:
-        conn.execute("""
-            UPDATE welcome_settings
-            SET enabled = 1
-            WHERE guild_id = ?
-        """, (guild_id,))
-        conn.commit()
-
-    return redirect_with_message(f"/guild/{guild_id}/welcome", "success", "Welcome nastavení bylo uloženo a zapnuto.")
-
-
-@app.post("/guild/{guild_id}/welcome/disable")
-async def guild_welcome_disable(request: Request, guild_id: int):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    if get_selected_guild(request, guild_id) is None:
-        return RedirectResponse("/", status_code=303)
-
-    db.disable_welcome(guild_id)
-    return redirect_with_message(f"/guild/{guild_id}/welcome", "success", "Welcome systém byl vypnut.")
-
-
-@app.post("/guild/{guild_id}/welcome/enable")
-async def guild_welcome_enable(request: Request, guild_id: int):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    if get_selected_guild(request, guild_id) is None:
-        return RedirectResponse("/", status_code=303)
-
-    if hasattr(db, "enable_welcome"):
-        db.enable_welcome(guild_id)
-    else:
-        with db.connect() as conn:
-            conn.execute("""
-                UPDATE welcome_settings
-                SET enabled = 1
-                WHERE guild_id = ?
-            """, (guild_id,))
-            conn.commit()
-
-    return redirect_with_message(f"/guild/{guild_id}/welcome", "success", "Welcome systém byl zapnut.")
-
-
-@app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request):
-    redirect = require_user(request)
-    if redirect:
-        return redirect
-
-    settings = {
-        "version": VERSION,
-        "check_interval": CHECK_INTERVAL,
-        "database": str(DATABASE),
-        "database_exists": Path(DATABASE).exists(),
-        "log_file": str(LOG_FILE),
-        "log_file_exists": Path(LOG_FILE).exists(),
-        "youtube_api_key": bool(YOUTUBE_API_KEY),
-        "postgres_enabled": bool(os.getenv("DATABASE_URL")),
-    }
-
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
+    await storage.update_module(
+        guild_id,
+        "welcome",
         {
-            "version": VERSION,
-            "settings": settings,
-            "active": "settings",
-            "user": get_user(request),
-            "guilds": get_session_guilds(request),
-            "selected_guild": None,
+            "enabled": enabled == "on",
+            "channel_id": channel_id.strip(),
+            "message": message.strip(),
+            "embed_title": embed_title.strip(),
+            "embed_color": embed_color.strip(),
+            "dm_enabled": dm_enabled == "on",
         },
     )
+
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=welcome",
+        status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/youtube")
+async def save_youtube(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    channel_id: str = Form(default=""),
+    youtube_channel_id: str = Form(default=""),
+    custom_message: str = Form(default="📺 Nové video: {title}\\n{url}"),
+    mention_role_id: str = Form(default=""),
+    check_interval: int = Form(default=300),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+
+    check_interval = max(60, min(int(check_interval), 3600))
+
+    await storage.update_module(
+        guild_id,
+        "youtube",
+        {
+            "enabled": enabled == "on",
+            "channel_id": channel_id.strip(),
+            "youtube_channel_id": youtube_channel_id.strip(),
+            "custom_message": custom_message.strip(),
+            "mention_role_id": mention_role_id.strip(),
+            "check_interval": check_interval,
+        },
+    )
+
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=youtube",
+        status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/general")
+async def save_general(
+    request: Request,
+    guild_id: str,
+    language: str = Form(default="cs"),
+    timezone: str = Form(default="Europe/Prague"),
+    command_channel_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+
+    await storage.update_module(
+        guild_id,
+        "general",
+        {
+            "language": language,
+            "timezone": timezone.strip() or "Europe/Prague",
+            "command_channel_id": command_channel_id.strip(),
+        },
+    )
+
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=general",
+        status_code=303,
+    )
+
+
+@app.get("/api/server/{guild_id}/settings")
+async def api_get_settings(request: Request, guild_id: str):
+    redirect = require_login(request)
+    if redirect:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+
+    get_accessible_guild(request, guild_id)
+    return await storage.get_settings(guild_id)
+
+
+@app.get("/api/bot/config/{guild_id}")
+async def bot_config(guild_id: str, request: Request):
+    expected = os.getenv("DASHBOARD_BOT_API_KEY", "")
+    provided = request.headers.get("X-Piticko-Key", "")
+
+    if not expected or provided != expected:
+        raise HTTPException(status_code=401, detail="Neplatný API klíč.")
+
+    return await storage.get_settings(guild_id)

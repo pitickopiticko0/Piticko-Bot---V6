@@ -1,19 +1,10 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <title>Přihlášení • Piticko Bot</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body class="login-body">
-    <main class="login-card">
-        <div class="login-logo">🍺</div>
-        <p class="eyebrow">Piticko Bot</p>
-        <h1>Dashboard</h1>
-        <p class="muted">Přihlaš se přes Discord a spravuj své servery.</p>
-        <a class="btn primary wide" href="/login">Přihlásit přes Discord</a>
-        <small>v{{ version }}</small>
-    </main>
-</body>
-</html>
+{% extends "base.html" %}
+{% block content %}
+<section class="login-card">
+  <div class="login-logo">P</div>
+  <p class="eyebrow">PITICKO BOT</p>
+  <h1>Ovládej bota jednoduše.</h1>
+  <p class="muted">Přihlas se přes Discord, vyber server a nastav Welcome i YouTube modul z jednoho místa.</p>
+  <a class="button primary large" href="/login">Přihlásit přes Discord</a>
+  <p class="tiny">Dashboard zobrazí pouze servery, které můžeš spravovat.</p>
+</section>
