@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">OVLÁDACÍ CENTRUM</p>
+    <h1>Ahoj, {{ user.global_name or user.username }}.</h1>
+    <p class="muted">Vyber server a otevři jeho nastavení.</p>
+  </div>
+  <div class="status-pill"><span></span> Dashboard online</div>
+</section>
+
+<section class="stats">
+  <article class="stat-card"><span>Spravované servery</span><strong>{{ guilds|length }}</strong></article>
+  <article class="stat-card"><span>Nastavené servery</span><strong>{{ configured_count }}</strong></article>
+  <article class="stat-card"><span>Aktivní moduly</span><strong>Welcome + YouTube</strong></article>
+  <article class="stat-card"><span>Uptime dashboardu</span><strong data-uptime="{{ uptime_seconds }}">...</strong></article>
+</section>
+
+<section class="section-heading">
+  <div><p class="eyebrow">SERVERY</p><h2>Vyber server</h2></div>
+  <input class="search" id="guildSearch" placeholder="Hledat server...">
+</section>
+
+<div class="guild-grid" id="guildGrid">
+  {% for guild in guilds %}
+  <a class="guild-card" href="/server/{{ guild.id }}" data-guild="{{ guild.name|lower }}">
+    {% if guild.icon %}
+      <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=128" alt="">
+    {% else %}
+      <div class="guild-fallback">{{ guild.name[:1] }}</div>
+    {% endif %}
+    <div><strong>{{ guild.name }}</strong><small>ID: {{ guild.id }}</small></div>
+    <span class="arrow">→</span>
+  </a>
+  {% else %}
+  <div class="empty">Discord nevrátil žádný server, který můžeš spravovat.</div>
+  {% endfor %}
+</div>
+{% endblock %}

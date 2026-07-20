@@ -1,42 +1,44 @@
-(() => {
-  const root = document.documentElement;
-  const saved = localStorage.getItem("piticko-theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-  function setTheme(theme) {
-    root.dataset.theme = theme;
-    localStorage.setItem("piticko-theme", theme);
-    const icon = document.querySelector("[data-theme-icon]");
-    const label = document.querySelector("[data-theme-label]");
-    if (icon) icon.textContent = theme === "dark" ? "🌙" : "☀️";
-    if (label) label.textContent = theme === "dark" ? "Tmavý režim" : "Světlý režim";
+document.addEventListener("DOMContentLoaded", () => {
+  const search = document.getElementById("guildSearch");
+  if (search) {
+    search.addEventListener("input", () => {
+      const value = search.value.trim().toLowerCase();
+      document.querySelectorAll("[data-guild]").forEach(card => {
+        card.style.display = card.dataset.guild.includes(value) ? "" : "none";
+      });
+    });
   }
 
-  setTheme(saved || (prefersDark ? "dark" : "light"));
-
-  document.querySelector("[data-theme-toggle]")?.addEventListener("click", () => {
-    setTheme(root.dataset.theme === "dark" ? "light" : "dark");
-  });
-
-  document.querySelector("[data-sidebar-open]")?.addEventListener("click", () => document.body.classList.add("sidebar-open"));
-  document.querySelectorAll("[data-sidebar-close]").forEach(el => el.addEventListener("click", () => document.body.classList.remove("sidebar-open")));
-
-  const toast = document.querySelector("[data-toast]");
-  const hideToast = () => {
-    if (!toast) return;
-    toast.classList.add("hide");
-    setTimeout(() => toast.remove(), 250);
-  };
-  document.querySelector("[data-toast-close]")?.addEventListener("click", hideToast);
-  if (toast) setTimeout(hideToast, 5000);
-
-  document.querySelectorAll("form").forEach(form => {
-    form.addEventListener("submit", () => {
-      const button = form.querySelector('button[type="submit"]');
-      if (!button || button.disabled) return;
-      button.disabled = true;
-      button.dataset.oldText = button.textContent;
-      button.textContent = "⏳ Ukládám…";
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(item => item.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(item => item.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(tab.dataset.tab)?.classList.add("active");
+      history.replaceState(null, "", `#${tab.dataset.tab}`);
     });
   });
-})();
+
+  const initialTab = location.hash.replace("#", "");
+  if (initialTab) {
+    document.querySelector(`.tab[data-tab="${initialTab}"]`)?.click();
+  }
+
+  document.querySelectorAll("[data-uptime]").forEach(element => {
+    let seconds = Number(element.dataset.uptime || 0);
+    const render = () => {
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      element.textContent = `${days}d ${hours}h ${minutes}m`;
+      seconds += 1;
+    };
+    render();
+    setInterval(render, 1000);
+  });
+
+  const toast = document.querySelector(".toast");
+  if (toast) {
+    setTimeout(() => toast.remove(), 4200);
+  }
+});

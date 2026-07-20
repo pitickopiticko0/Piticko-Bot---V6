@@ -1,95 +1,37 @@
-<!DOCTYPE html>
-<html lang="cs" data-theme="dark">
+<!doctype html>
+<html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <title>{% block title %}Piticko Dashboard{% endblock %}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/dashboard.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ page_title }} · Piticko Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 </head>
 <body>
-<div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-head">
-            <a class="brand" href="/">
-                <span class="brand-logo">🍺</span>
-                <span><strong>Piticko Bot</strong><small>Control Center</small></span>
-            </a>
-            <button class="sidebar-close" data-sidebar-close>✕</button>
-        </div>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
 
-        {% if user %}
-        <div class="profile">
-            <span class="profile-avatar">{{ (user.global_name or user.username)[0] }}</span>
-            <span><strong>{{ user.global_name or user.username }}</strong><small>{{ user.id }}</small></span>
-        </div>
-        {% endif %}
+  {% if user %}
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark">P</span>
+      <span><strong>Piticko</strong><small>Dashboard V3</small></span>
+    </a>
+    <nav>
+      <a href="/">Přehled</a>
+      <a href="/health" target="_blank">Stav API</a>
+    </nav>
+    <div class="account">
+      <div class="avatar">{{ (user.global_name or user.username or 'P')[:1] }}</div>
+      <div><strong>{{ user.global_name or user.username }}</strong><small>Přihlášen</small></div>
+      <a class="button subtle" href="/logout">Odhlásit</a>
+    </div>
+  </header>
+  {% endif %}
 
-        <nav class="nav">
-            <p>Hlavní</p>
-            <a class="{% if active == 'dashboard' %}active{% endif %}" href="/">🏠 Dashboard</a>
+  <main class="{% if not user %}auth-main{% endif %}">
+    {% block content %}{% endblock %}
+  </main>
 
-            {% if selected_guild %}
-            <p>Server</p>
-            <a class="{% if active == 'guild' %}active{% endif %}" href="/guild/{{ selected_guild.id }}">📊 Přehled</a>
-            <a class="{% if active == 'guild_youtube' %}active{% endif %}" href="/guild/{{ selected_guild.id }}/youtube">📺 YouTube</a>
-            <a class="{% if active == 'guild_welcome' %}active{% endif %}" href="/guild/{{ selected_guild.id }}/welcome">👋 Welcome</a>
-            {% endif %}
-
-            <p>Systém</p>
-            <a class="{% if active == 'settings' %}active{% endif %}" href="/settings">⚙️ Nastavení</a>
-        </nav>
-
-        {% if guilds %}
-        <div class="guild-list">
-            <p>Tvoje servery</p>
-            {% for guild in guilds %}
-            <a class="{% if selected_guild and selected_guild.id == guild.id %}active{% endif %}" href="/guild/{{ guild.id }}">
-                <span class="guild-icon">{{ guild.name[0] }}</span>
-                <span>{{ guild.name }}</span>
-                <i></i>
-            </a>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <div class="sidebar-foot">
-            <button class="theme-toggle" data-theme-toggle><span data-theme-icon>🌙</span> <span data-theme-label>Tmavý režim</span></button>
-            {% if user %}<a href="/logout">🚪 Odhlásit se</a>{% endif %}
-            <small>v{{ version }}</small>
-        </div>
-    </aside>
-
-    <div class="backdrop" data-sidebar-close></div>
-
-    <main class="main">
-        <div class="mobile-topbar">
-            <button data-sidebar-open>☰</button>
-            <strong>Piticko Bot</strong>
-            <i></i>
-        </div>
-
-        <header class="page-header">
-            <div>
-                <p class="eyebrow">{% block eyebrow %}Piticko Bot{% endblock %}</p>
-                <h1>{% block heading %}Dashboard{% endblock %}</h1>
-            </div>
-            <div class="header-actions">
-                {% if selected_guild %}<a class="pill" href="/guild/{{ selected_guild.id }}">🟢 {{ selected_guild.name }}</a>{% endif %}
-                <span class="pill">● Bot online</span>
-            </div>
-        </header>
-
-        {% if message %}
-        <div class="toast {% if status == 'success' %}success{% else %}error{% endif %}" data-toast>
-            <span>{% if status == 'success' %}✅{% else %}⚠️{% endif %}</span>
-            <div><strong>{% if status == 'success' %}Hotovo{% else %}Chyba{% endif %}</strong><p>{{ message }}</p></div>
-            <button data-toast-close>✕</button>
-        </div>
-        {% endif %}
-
-        {% block content %}{% endblock %}
-    </main>
-</div>
+  <script src="{{ url_for('static', path='/dashboard.js') }}"></script>
 </body>
 </html>

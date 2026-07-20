@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="server-head">
+  <a class="back" href="/">← Zpět</a>
+  <div class="server-title">
+    {% if guild.icon %}
+      <img src="https://cdn.discordapp.com/icons/{{ guild.id }}/{{ guild.icon }}.png?size=128" alt="">
+    {% else %}
+      <div class="guild-fallback">{{ guild.name[:1] }}</div>
+    {% endif %}
+    <div><p class="eyebrow">NASTAVENÍ SERVERU</p><h1>{{ guild.name }}</h1><small>{{ guild.id }}</small></div>
+  </div>
+</section>
+
+{% if request.query_params.get('saved') %}
+<div class="toast">Nastavení modulu {{ request.query_params.get('saved') }} bylo uloženo.</div>
+{% endif %}
+
+<div class="module-layout">
+  <aside class="module-nav">
+    <button class="tab active" data-tab="overview">Přehled</button>
+    <button class="tab" data-tab="welcome">👋 Welcome</button>
+    <button class="tab" data-tab="youtube">📺 YouTube</button>
+    <button class="tab" data-tab="general">⚙️ Obecné</button>
+  </aside>
+
+  <section class="module-content">
+    <div class="tab-panel active" id="overview">
+      <p class="eyebrow">MODULY</p>
+      <h2>Přehled funkcí</h2>
+      <div class="module-grid">
+        <article class="module-card">
+          <div class="module-icon">👋</div>
+          <div><h3>Welcome</h3><p>Přivítání nových členů, embed zpráva a soukromá zpráva.</p></div>
+          <span class="badge {{ 'on' if settings.welcome.enabled else 'off' }}">{{ 'Zapnuto' if settings.welcome.enabled else 'Vypnuto' }}</span>
+        </article>
+        <article class="module-card">
+          <div class="module-icon">📺</div>
+          <div><h3>YouTube</h3><p>Automatické oznámení nového videa do vybraného kanálu.</p></div>
+          <span class="badge {{ 'on' if settings.youtube.enabled else 'off' }}">{{ 'Zapnuto' if settings.youtube.enabled else 'Vypnuto' }}</span>
+        </article>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="welcome">
+      <p class="eyebrow">WELCOME MODUL</p>
+      <h2>Přivítání členů</h2>
+      <form method="post" action="/server/{{ guild.id }}/welcome" class="settings-form">
+        <label class="toggle-row">
+          <span><strong>Zapnout Welcome</strong><small>Odeslat zprávu při příchodu člena.</small></span>
+          <input type="checkbox" name="enabled" {% if settings.welcome.enabled %}checked{% endif %}>
+        </label>
+        <label>Discord ID kanálu<input name="channel_id" value="{{ settings.welcome.channel_id }}" placeholder="123456789012345678"></label>
+        <label>Nadpis embedu<input name="embed_title" value="{{ settings.welcome.embed_title }}"></label>
+        <label>Uvítací zpráva<textarea name="message" rows="5">{{ settings.welcome.message }}</textarea><small>Proměnné: {mention}, {user}, {server}, {member_count}</small></label>
+        <label>Barva embedu<input type="color" name="embed_color" value="{{ settings.welcome.embed_color }}"></label>
+        <label class="toggle-row">
+          <span><strong>Soukromá zpráva</strong><small>Poslat členovi uvítání také do DM.</small></span>
+          <input type="checkbox" name="dm_enabled" {% if settings.welcome.dm_enabled %}checked{% endif %}>
+        </label>
+        <button class="button primary" type="submit">Uložit Welcome</button>
+      </form>
+    </div>
+
+    <div class="tab-panel" id="youtube">
+      <p class="eyebrow">YOUTUBE MODUL</p>
+      <h2>Oznámení nových videí</h2>
+      <form method="post" action="/server/{{ guild.id }}/youtube" class="settings-form">
+        <label class="toggle-row">
+          <span><strong>Zapnout YouTube</strong><small>Kontrolovat nový obsah automaticky.</small></span>
+          <input type="checkbox" name="enabled" {% if settings.youtube.enabled %}checked{% endif %}>
+        </label>
+        <label>Discord ID cílového kanálu<input name="channel_id" value="{{ settings.youtube.channel_id }}" placeholder="123456789012345678"></label>
+        <label>YouTube Channel ID<input name="youtube_channel_id" value="{{ settings.youtube.youtube_channel_id }}" placeholder="UC..."></label>
+        <label>ID role pro označení<input name="mention_role_id" value="{{ settings.youtube.mention_role_id }}" placeholder="Volitelné"></label>
+        <label>Text oznámení<textarea name="custom_message" rows="5">{{ settings.youtube.custom_message }}</textarea><small>Proměnné: {title}, {url}, {channel}</small></label>
+        <label>Interval kontroly v sekundách<input type="number" min="60" max="3600" name="check_interval" value="{{ settings.youtube.check_interval }}"></label>
+        <button class="button primary" type="submit">Uložit YouTube</button>
+      </form>
+    </div>
+
+    <div class="tab-panel" id="general">
+      <p class="eyebrow">OBECNÉ</p>
+      <h2>Základní nastavení</h2>
+      <form method="post" action="/server/{{ guild.id }}/general" class="settings-form">
+        <label>Jazyk
+          <select name="language">
+            <option value="cs" {% if settings.general.language == 'cs' %}selected{% endif %}>Čeština</option>
+            <option value="sk" {% if settings.general.language == 'sk' %}selected{% endif %}>Slovenština</option>
+            <option value="en" {% if settings.general.language == 'en' %}selected{% endif %}>English</option>
+          </select>
+        </label>
+        <label>Časová zóna<input name="timezone" value="{{ settings.general.timezone }}"></label>
+        <label>ID kanálu pro příkazy<input name="command_channel_id" value="{{ settings.general.command_channel_id }}" placeholder="Volitelné"></label>
+        <button class="button primary" type="submit">Uložit obecné nastavení</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}
