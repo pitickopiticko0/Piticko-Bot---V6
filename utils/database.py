@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -8,7 +7,6 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from config import DATABASE
-from utils.logger import logger
 
 
 load_dotenv()
@@ -22,54 +20,10 @@ except ImportError:
 
 
 class PostgresConnection:
-    """PostgreSQL adapter s automatickým opakováním připojení."""
-
-    RETRY_DELAYS = (2, 5, 10, 20, 30)
+    """Adapter, aby zbytek projektu mohl používat sqlite-style ? placeholdery."""
 
     def __init__(self, database_url: str):
-        self.database_url = database_url
-        self.conn = self._connect_with_retry()
-
-    def _connect_with_retry(self):
-        total_attempts = len(self.RETRY_DELAYS) + 1
-
-        for attempt in range(1, total_attempts + 1):
-            try:
-                connection = psycopg.connect(
-                    self.database_url,
-                    row_factory=dict_row,
-                    connect_timeout=8,
-                )
-
-                if attempt > 1:
-                    logger.info(
-                        "Připojení k PostgreSQL bylo obnoveno na pokus %s/%s.",
-                        attempt,
-                        total_attempts,
-                    )
-
-                return connection
-
-            except psycopg.OperationalError as error:
-                if attempt >= total_attempts:
-                    logger.error(
-                        "PostgreSQL není dostupné ani po %s pokusech.",
-                        total_attempts,
-                    )
-                    raise
-
-                delay = self.RETRY_DELAYS[attempt - 1]
-                logger.warning(
-                    "PostgreSQL připojení selhalo (pokus %s/%s): %s. "
-                    "Další pokus za %s sekund.",
-                    attempt,
-                    total_attempts,
-                    error,
-                    delay,
-                )
-                time.sleep(delay)
-
-        raise RuntimeError("Připojení k PostgreSQL selhalo.")
+        self.conn = psycopg.connect(database_url, row_factory=dict_row)
 
     def __enter__(self):
         self.conn.__enter__()
@@ -181,64 +135,6 @@ class Database:
                 )
             """)
 
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS guild_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    language TEXT NOT NULL DEFAULT 'cs',
-                    timezone TEXT NOT NULL DEFAULT 'Europe/Prague',
-                    command_channel_id BIGINT,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
-            # Bezpečné migrace pro existující PostgreSQL databázi.
-            conn.execute("ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS embed_title TEXT NOT NULL DEFAULT 'Vítej!'")
-            conn.execute("ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS embed_color TEXT NOT NULL DEFAULT '#5865F2'")
-            conn.execute("ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS dm_enabled INTEGER NOT NULL DEFAULT 0")
-            conn.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS custom_message TEXT NOT NULL DEFAULT '📺 Nové video: {title}\n{url}'")
-            conn.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS check_interval INTEGER NOT NULL DEFAULT 300")
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS guild_settings (
-                    guild_id INTEGER PRIMARY KEY,
-                    language TEXT NOT NULL DEFAULT 'cs',
-                    timezone TEXT NOT NULL DEFAULT 'Europe/Prague',
-                    command_channel_id INTEGER,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
-            # SQLite nepodporuje ADD COLUMN IF NOT EXISTS, proto nejdřív
-            # načteme existující sloupce a doplníme pouze chybějící.
-            welcome_columns = {row[1] for row in conn.execute("PRAGMA table_info(welcome_settings)").fetchall()}
-            if "embed_title" not in welcome_columns:
-                conn.execute("ALTER TABLE welcome_settings ADD COLUMN embed_title TEXT NOT NULL DEFAULT 'Vítej!'")
-            if "embed_color" not in welcome_columns:
-                conn.execute("ALTER TABLE welcome_settings ADD COLUMN embed_color TEXT NOT NULL DEFAULT '#5865F2'")
-            if "dm_enabled" not in welcome_columns:
-                conn.execute("ALTER TABLE welcome_settings ADD COLUMN dm_enabled INTEGER NOT NULL DEFAULT 0")
-
-            subscription_columns = {row[1] for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()}
-            if "custom_message" not in subscription_columns:
-                conn.execute("ALTER TABLE subscriptions ADD COLUMN custom_message TEXT NOT NULL DEFAULT '📺 Nové video: {title}\n{url}'")
-            if "check_interval" not in subscription_columns:
-                conn.execute("ALTER TABLE subscriptions ADD COLUMN check_interval INTEGER NOT NULL DEFAULT 300")
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS makejpc_products (
-                    product_code TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    price TEXT,
-                    availability TEXT,
-                    product_url TEXT NOT NULL,
-                    image_url TEXT,
-                    announced INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
             conn.commit()
 
     def _init_sqlite(self):
@@ -292,21 +188,6 @@ class Database:
                     role_id INTEGER,
                     enabled INTEGER NOT NULL DEFAULT 0,
                     message TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS makejpc_products (
-                    product_code TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    price TEXT,
-                    availability TEXT,
-                    product_url TEXT NOT NULL,
-                    image_url TEXT,
-                    announced INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
             """)
@@ -605,272 +486,6 @@ class Database:
                 WHERE guild_id = ?
             """, (self.now(), guild_id))
             conn.commit()
-
-
-    def update_welcome_settings(
-        self,
-        guild_id: int,
-        *,
-        enabled: bool,
-        channel_id: Optional[int],
-        message: str,
-        embed_title: str = "Vítej!",
-        embed_color: str = "#5865F2",
-        dm_enabled: bool = False,
-    ):
-        """Uloží kompletní Welcome konfiguraci z dashboardu i příkazů."""
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO welcome_settings (
-                        guild_id, channel_id, role_id, enabled, message,
-                        embed_title, embed_color, dm_enabled, updated_at
-                    )
-                    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (guild_id) DO UPDATE SET
-                        channel_id = EXCLUDED.channel_id,
-                        enabled = EXCLUDED.enabled,
-                        message = EXCLUDED.message,
-                        embed_title = EXCLUDED.embed_title,
-                        embed_color = EXCLUDED.embed_color,
-                        dm_enabled = EXCLUDED.dm_enabled,
-                        updated_at = EXCLUDED.updated_at
-                """, (guild_id, channel_id, int(enabled), message, embed_title, embed_color, int(dm_enabled), self.now()))
-            else:
-                conn.execute("""
-                    INSERT INTO welcome_settings (
-                        guild_id, channel_id, role_id, enabled, message,
-                        embed_title, embed_color, dm_enabled, updated_at
-                    )
-                    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(guild_id) DO UPDATE SET
-                        channel_id = excluded.channel_id,
-                        enabled = excluded.enabled,
-                        message = excluded.message,
-                        embed_title = excluded.embed_title,
-                        embed_color = excluded.embed_color,
-                        dm_enabled = excluded.dm_enabled,
-                        updated_at = excluded.updated_at
-                """, (guild_id, channel_id, int(enabled), message, embed_title, embed_color, int(dm_enabled), self.now()))
-            conn.commit()
-
-    def get_guild_settings(self, guild_id: int):
-        with self.connect() as conn:
-            return conn.execute("SELECT * FROM guild_settings WHERE guild_id = ?", (guild_id,)).fetchone()
-
-    def set_guild_settings(
-        self,
-        guild_id: int,
-        language: str = "cs",
-        timezone_name: str = "Europe/Prague",
-        command_channel_id: Optional[int] = None,
-    ):
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO guild_settings
-                        (guild_id, language, timezone, command_channel_id, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT (guild_id) DO UPDATE SET
-                        language = EXCLUDED.language,
-                        timezone = EXCLUDED.timezone,
-                        command_channel_id = EXCLUDED.command_channel_id,
-                        updated_at = EXCLUDED.updated_at
-                """, (guild_id, language, timezone_name, command_channel_id, self.now()))
-            else:
-                conn.execute("""
-                    INSERT INTO guild_settings
-                        (guild_id, language, timezone, command_channel_id, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(guild_id) DO UPDATE SET
-                        language = excluded.language,
-                        timezone = excluded.timezone,
-                        command_channel_id = excluded.command_channel_id,
-                        updated_at = excluded.updated_at
-                """, (guild_id, language, timezone_name, command_channel_id, self.now()))
-            conn.commit()
-
-    def update_subscription_settings(
-        self,
-        guild_id: int,
-        youtube_channel_id: str,
-        *,
-        discord_channel_id: int,
-        mention_role_id: Optional[int],
-        enabled: bool,
-        custom_message: str = "📺 Nové video: {title}\n{url}",
-        check_interval: int = 300,
-    ):
-        """Aktualizuje dashboardová pole existujícího YouTube odběru."""
-        check_interval = max(60, min(int(check_interval), 3600))
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE subscriptions
-                SET discord_channel_id = ?,
-                    mention_role_id = ?,
-                    enabled = ?,
-                    custom_message = ?,
-                    check_interval = ?
-                WHERE guild_id = ? AND youtube_channel_id = ?
-            """, (discord_channel_id, mention_role_id, int(enabled), custom_message, check_interval, guild_id, youtube_channel_id))
-            conn.commit()
-
-    def count_configured_guilds(self, guild_ids: list[int]) -> int:
-        """Počet serverů s Welcome, YouTube nebo obecným nastavením."""
-        if not guild_ids:
-            return 0
-        total = 0
-        for guild_id in guild_ids:
-            if self.get_welcome_settings(guild_id) is not None:
-                total += 1
-                continue
-            if self.get_guild_subscriptions(guild_id):
-                total += 1
-                continue
-            if self.get_guild_settings(guild_id) is not None:
-                total += 1
-        return total
-
-    def makejpc_product_exists(self, product_code: str) -> bool:
-        with self.connect() as conn:
-            row = conn.execute("""
-                SELECT product_code
-                FROM makejpc_products
-                WHERE product_code = ?
-            """, (product_code,)).fetchone()
-            return row is not None
-
-    def count_makejpc_products(self) -> int:
-        with self.connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS c FROM makejpc_products"
-            ).fetchone()
-            return int(row["c"])
-
-    def add_makejpc_product(
-        self,
-        product_code: str,
-        name: str,
-        price: str,
-        availability: str,
-        product_url: str,
-        image_url: Optional[str],
-        announced: bool = True,
-    ):
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO makejpc_products (
-                        product_code,
-                        name,
-                        price,
-                        availability,
-                        product_url,
-                        image_url,
-                        announced,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (product_code) DO UPDATE SET
-                        name = EXCLUDED.name,
-                        price = EXCLUDED.price,
-                        availability = EXCLUDED.availability,
-                        product_url = EXCLUDED.product_url,
-                        image_url = EXCLUDED.image_url,
-                        announced = CASE
-                            WHEN makejpc_products.announced = 1 THEN 1
-                            ELSE EXCLUDED.announced
-                        END,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    product_code,
-                    name,
-                    price,
-                    availability,
-                    product_url,
-                    image_url,
-                    int(announced),
-                    self.now(),
-                    self.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT INTO makejpc_products (
-                        product_code,
-                        name,
-                        price,
-                        availability,
-                        product_url,
-                        image_url,
-                        announced,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(product_code) DO UPDATE SET
-                        name = excluded.name,
-                        price = excluded.price,
-                        availability = excluded.availability,
-                        product_url = excluded.product_url,
-                        image_url = excluded.image_url,
-                        announced = CASE
-                            WHEN makejpc_products.announced = 1 THEN 1
-                            ELSE excluded.announced
-                        END,
-                        updated_at = excluded.updated_at
-                """, (
-                    product_code,
-                    name,
-                    price,
-                    availability,
-                    product_url,
-                    image_url,
-                    int(announced),
-                    self.now(),
-                    self.now(),
-                ))
-
-            conn.commit()
-
-    def update_makejpc_product(
-        self,
-        product_code: str,
-        name: str,
-        price: str,
-        availability: str,
-        product_url: str,
-        image_url: Optional[str],
-    ):
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE makejpc_products
-                SET name = ?,
-                    price = ?,
-                    availability = ?,
-                    product_url = ?,
-                    image_url = ?,
-                    updated_at = ?
-                WHERE product_code = ?
-            """, (
-                name,
-                price,
-                availability,
-                product_url,
-                image_url,
-                self.now(),
-                product_code,
-            ))
-            conn.commit()
-
-    def get_makejpc_products(self, limit: int = 100):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM makejpc_products
-                ORDER BY created_at DESC
-                LIMIT ?
-            """, (limit,)).fetchall()
 
     def stats(self):
         with self.connect() as conn:
