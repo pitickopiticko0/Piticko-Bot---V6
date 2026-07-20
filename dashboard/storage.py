@@ -1,10 +1,15 @@
+"""Dashboard adapter nad stejnou databází, kterou používá Discord bot.
+
+Welcome a YouTube nastavení se čtou a ukládají přes utils.database.db,
+takže změny ze slash příkazů i dashboardu používají stejné tabulky.
+"""
+
+from __future__ import annotations
+
 import asyncio
-import json
-import os
-import sqlite3
-from copy import deepcopy
-from pathlib import Path
 from typing import Any
+
+from utils.database import db
 
 
 DEFAULT_SETTINGS: dict[str, Any] = {
@@ -32,36 +37,72 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 }
 
 
+def _value(row: Any, key: str, default: Any = None) -> Any:
+    if row is None:
+        return default
+    try:
+        value = row[key]
+    except (KeyError, IndexError, TypeError):
+        value = getattr(row, key, default)
+    return default if value is None else value
+
+
 class DashboardStorage:
+    """Zachovává původní async rozhraní dashboardu, ale používá bot DB."""
+
     def __init__(self) -> None:
-        self.database_url = os.getenv("DATABASE_URL", "").strip()
-        self.sqlite_path = Path(
-            os.getenv(
-                "DASHBOARD_SQLITE_PATH",
-                Path(__file__).resolve().parent / "data" / "dashboard.sqlite3",
-            )
-        )
-        self.backend_name = "postgresql" if self.database_url else "sqlite"
+        self.backend_name = "postgresql" if db.using_postgres else "sqlite"
 
     async def initialize(self) -> None:
-        if self.database_url:
-            await asyncio.to_thread(self._pg_initialize)
-        else:
-            await asyncio.to_thread(self._sqlite_initialize)
+        # utils.database.db inicializuje tabulky už při importu.
+        return None
 
     async def get_settings(self, guild_id: str) -> dict[str, Any]:
-        if self.database_url:
-            raw = await asyncio.to_thread(self._pg_get, guild_id)
-        else:
-            raw = await asyncio.to_thread(self._sqlite_get, guild_id)
+        return await asyncio.to_thread(self._get_settings_sync, int(guild_id))
 
-        settings = deepcopy(DEFAULT_SETTINGS)
-        if isinstance(raw, dict):
-            for module, values in raw.items():
-                if module in settings and isinstance(values, dict):
-                    settings[module].update(values)
-                else:
-                    settings[module] = values
+    def _get_settings_sync(self, guild_id: int) -> dict[str, Any]:
+        settings = {
+            "general": dict(DEFAULT_SETTINGS["general"]),
+            "welcome": dict(DEFAULT_SETTINGS["welcome"]),
+            "youtube": dict(DEFAULT_SETTINGS["youtube"]),
+        }
+
+        welcome = db.get_welcome_settings(guild_id)
+        if welcome is not None:
+            settings["welcome"].update(
+                {
+                    "enabled": bool(_value(welcome, "enabled", 0)),
+                    "channel_id": str(_value(welcome, "channel_id", "")),
+                    "message": str(
+                        _value(
+                            welcome,
+                            "message",
+                            DEFAULT_SETTINGS["welcome"]["message"],
+                        )
+                    ),
+                }
+            )
+
+        subscriptions = list(db.get_guild_subscriptions(guild_id))
+        if subscriptions:
+            # Současný dashboardový formulář umí jeden YouTube kanál.
+            # Proto se zde zobrazuje první uložené předplatné.
+            subscription = subscriptions[0]
+            settings["youtube"].update(
+                {
+                    "enabled": bool(_value(subscription, "enabled", 0)),
+                    "channel_id": str(
+                        _value(subscription, "discord_channel_id", "")
+                    ),
+                    "youtube_channel_id": str(
+                        _value(subscription, "youtube_channel_id", "")
+                    ),
+                    "mention_role_id": str(
+                        _value(subscription, "mention_role_id", "")
+                    ),
+                }
+            )
+
         return settings
 
     async def update_module(
@@ -70,147 +111,102 @@ class DashboardStorage:
         module: str,
         values: dict[str, Any],
     ) -> None:
-        settings = await self.get_settings(guild_id)
-        settings[module] = values
+        guild_id_int = int(guild_id)
 
-        if self.database_url:
-            await asyncio.to_thread(self._pg_save, guild_id, settings)
-        else:
-            await asyncio.to_thread(self._sqlite_save, guild_id, settings)
+        if module == "welcome":
+            await asyncio.to_thread(
+                self._save_welcome_sync,
+                guild_id_int,
+                values,
+            )
+            return
+
+        if module == "youtube":
+            await asyncio.to_thread(
+                self._save_youtube_sync,
+                guild_id_int,
+                values,
+            )
+            return
+
+        # General nastavení zatím bot ve své DB nemá a slash příkazy je nepoužívají.
+        # Proto se zatím pouze přijme bez zápisu. Pro jeho synchronizaci je potřeba
+        # nejdřív přidat samostatnou tabulku a metody do utils/database.py.
+        if module == "general":
+            return
+
+        raise ValueError(f"Neznámý dashboard modul: {module}")
+
+    def _save_welcome_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        channel_raw = str(values.get("channel_id", "")).strip()
+        message = str(values.get("message", "")).strip()
+
+        existing = db.get_welcome_settings(guild_id)
+
+        if enabled:
+            if not channel_raw.isdigit():
+                raise ValueError("Welcome kanál musí obsahovat platné Discord ID.")
+
+            role_id = _value(existing, "role_id", None)
+            db.set_welcome_settings(
+                guild_id=guild_id,
+                channel_id=int(channel_raw),
+                role_id=int(role_id) if role_id else None,
+                message=message or DEFAULT_SETTINGS["welcome"]["message"],
+            )
+        elif existing is not None:
+            db.disable_welcome(guild_id)
+
+    def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        youtube_channel_id = str(values.get("youtube_channel_id", "")).strip()
+        discord_channel_raw = str(values.get("channel_id", "")).strip()
+        mention_role_raw = str(values.get("mention_role_id", "")).strip()
+
+        if enabled:
+            if not youtube_channel_id:
+                raise ValueError("Chybí YouTube Channel ID.")
+            if not discord_channel_raw.isdigit():
+                raise ValueError("Cílový Discord kanál musí obsahovat platné ID.")
+            if mention_role_raw and not mention_role_raw.isdigit():
+                raise ValueError("Role musí obsahovat platné Discord ID.")
+
+            # Formulář nyní neposílá název kanálu, proto se jako dočasný název
+            # použije Channel ID. URL je přesto platná a bot ji může sledovat.
+            db.add_youtube_channel(
+                channel_id=youtube_channel_id,
+                name=youtube_channel_id,
+                url=f"https://www.youtube.com/channel/{youtube_channel_id}",
+            )
+            db.add_subscription(
+                guild_id=guild_id,
+                youtube_channel_id=youtube_channel_id,
+                discord_channel_id=int(discord_channel_raw),
+                mention_role_id=(
+                    int(mention_role_raw) if mention_role_raw else None
+                ),
+            )
+            return
+
+        subscriptions = list(db.get_guild_subscriptions(guild_id))
+        for subscription in subscriptions:
+            current_channel_id = str(
+                _value(subscription, "youtube_channel_id", "")
+            )
+            if not youtube_channel_id or current_channel_id == youtube_channel_id:
+                db.pause_subscription(guild_id, current_channel_id)
 
     async def count_configured_guilds(self, guild_ids: list[str]) -> int:
-        if not guild_ids:
-            return 0
-        if self.database_url:
-            return await asyncio.to_thread(self._pg_count, guild_ids)
-        return await asyncio.to_thread(self._sqlite_count, guild_ids)
+        return await asyncio.to_thread(self._count_configured_sync, guild_ids)
 
-    def _sqlite_connect(self) -> sqlite3.Connection:
-        self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.sqlite_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _sqlite_initialize(self) -> None:
-        with self._sqlite_connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS dashboard_guild_settings (
-                    guild_id TEXT PRIMARY KEY,
-                    settings_json TEXT NOT NULL,
-                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-
-    def _sqlite_get(self, guild_id: str) -> dict[str, Any] | None:
-        with self._sqlite_connect() as conn:
-            row = conn.execute(
-                "SELECT settings_json FROM dashboard_guild_settings WHERE guild_id = ?",
-                (str(guild_id),),
-            ).fetchone()
-        if not row:
-            return None
-        return json.loads(row["settings_json"])
-
-    def _sqlite_save(self, guild_id: str, settings: dict[str, Any]) -> None:
-        payload = json.dumps(settings, ensure_ascii=False)
-        with self._sqlite_connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO dashboard_guild_settings
-                    (guild_id, settings_json, updated_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(guild_id) DO UPDATE SET
-                    settings_json = excluded.settings_json,
-                    updated_at = CURRENT_TIMESTAMP
-                """,
-                (str(guild_id), payload),
-            )
-
-    def _sqlite_count(self, guild_ids: list[str]) -> int:
-        placeholders = ",".join("?" for _ in guild_ids)
-        with self._sqlite_connect() as conn:
-            row = conn.execute(
-                f"""
-                SELECT COUNT(*) AS total
-                FROM dashboard_guild_settings
-                WHERE guild_id IN ({placeholders})
-                """,
-                guild_ids,
-            ).fetchone()
-        return int(row["total"])
-
-    def _pg_connect(self):
-        try:
-            import psycopg
-            return psycopg.connect(self.database_url)
-        except ImportError:
-            import psycopg2
-            return psycopg2.connect(self.database_url)
-
-    def _pg_initialize(self) -> None:
-        with self._pg_connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS dashboard_guild_settings (
-                        guild_id TEXT PRIMARY KEY,
-                        settings_json JSONB NOT NULL,
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    )
-                    """
-                )
-            conn.commit()
-
-    def _pg_get(self, guild_id: str) -> dict[str, Any] | None:
-        with self._pg_connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT settings_json
-                    FROM dashboard_guild_settings
-                    WHERE guild_id = %s
-                    """,
-                    (str(guild_id),),
-                )
-                row = cur.fetchone()
-
-        if not row:
-            return None
-
-        value = row[0]
-        if isinstance(value, str):
-            return json.loads(value)
-        return value
-
-    def _pg_save(self, guild_id: str, settings: dict[str, Any]) -> None:
-        payload = json.dumps(settings, ensure_ascii=False)
-        with self._pg_connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO dashboard_guild_settings
-                        (guild_id, settings_json, updated_at)
-                    VALUES (%s, %s::jsonb, NOW())
-                    ON CONFLICT(guild_id) DO UPDATE SET
-                        settings_json = EXCLUDED.settings_json,
-                        updated_at = NOW()
-                    """,
-                    (str(guild_id), payload),
-                )
-            conn.commit()
-
-    def _pg_count(self, guild_ids: list[str]) -> int:
-        with self._pg_connect() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT COUNT(*)
-                    FROM dashboard_guild_settings
-                    WHERE guild_id = ANY(%s)
-                    """,
-                    (guild_ids,),
-                )
-                row = cur.fetchone()
-        return int(row[0])
+    def _count_configured_sync(self, guild_ids: list[str]) -> int:
+        total = 0
+        for guild_id in guild_ids:
+            guild_id_int = int(guild_id)
+            if db.get_welcome_settings(guild_id_int) is not None:
+                total += 1
+                continue
+            if db.get_guild_subscriptions(guild_id_int):
+                total += 1
+        return total
