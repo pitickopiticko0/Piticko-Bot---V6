@@ -1,7 +1,7 @@
-"""Dashboard adapter nad stejnou databází, kterou používá Discord bot.
+"""Dashboard adapter používající stejnou databázi jako Discord bot.
 
-Welcome a YouTube nastavení se čtou a ukládají přes utils.database.db,
-takže změny ze slash příkazů i dashboardu používají stejné tabulky.
+Soubor zachovává původní async rozhraní dashboardu, takže dashboard/app.py
+není potřeba měnit. Všechna nastavení se ukládají přes utils.database.db.
 """
 
 from __future__ import annotations
@@ -47,14 +47,23 @@ def _value(row: Any, key: str, default: Any = None) -> Any:
     return default if value is None else value
 
 
-class DashboardStorage:
-    """Zachovává původní async rozhraní dashboardu, ale používá bot DB."""
+def _discord_id(value: Any, *, field: str, required: bool = False) -> int | None:
+    raw = str(value or "").strip()
+    if not raw:
+        if required:
+            raise ValueError(f"{field} je povinné.")
+        return None
+    if not raw.isdigit():
+        raise ValueError(f"{field} musí obsahovat platné Discord ID.")
+    return int(raw)
 
+
+class DashboardStorage:
     def __init__(self) -> None:
         self.backend_name = "postgresql" if db.using_postgres else "sqlite"
 
     async def initialize(self) -> None:
-        # utils.database.db inicializuje tabulky už při importu.
+        # utils.database.db vytvoří a migruje tabulky při importu.
         return None
 
     async def get_settings(self, guild_id: str) -> dict[str, Any]:
@@ -62,151 +71,151 @@ class DashboardStorage:
 
     def _get_settings_sync(self, guild_id: int) -> dict[str, Any]:
         settings = {
-            "general": dict(DEFAULT_SETTINGS["general"]),
-            "welcome": dict(DEFAULT_SETTINGS["welcome"]),
-            "youtube": dict(DEFAULT_SETTINGS["youtube"]),
+            module: dict(values)
+            for module, values in DEFAULT_SETTINGS.items()
         }
+
+        general = db.get_guild_settings(guild_id)
+        if general is not None:
+            settings["general"].update({
+                "language": str(_value(general, "language", "cs")),
+                "timezone": str(_value(general, "timezone", "Europe/Prague")),
+                "command_channel_id": str(_value(general, "command_channel_id", "")),
+            })
 
         welcome = db.get_welcome_settings(guild_id)
         if welcome is not None:
-            settings["welcome"].update(
-                {
-                    "enabled": bool(_value(welcome, "enabled", 0)),
-                    "channel_id": str(_value(welcome, "channel_id", "")),
-                    "message": str(
-                        _value(
-                            welcome,
-                            "message",
-                            DEFAULT_SETTINGS["welcome"]["message"],
-                        )
-                    ),
-                }
-            )
+            settings["welcome"].update({
+                "enabled": bool(_value(welcome, "enabled", 0)),
+                "channel_id": str(_value(welcome, "channel_id", "")),
+                "message": str(_value(welcome, "message", DEFAULT_SETTINGS["welcome"]["message"])),
+                "embed_title": str(_value(welcome, "embed_title", "Vítej!")),
+                "embed_color": str(_value(welcome, "embed_color", "#5865F2")),
+                "dm_enabled": bool(_value(welcome, "dm_enabled", 0)),
+            })
 
         subscriptions = list(db.get_guild_subscriptions(guild_id))
         if subscriptions:
-            # Současný dashboardový formulář umí jeden YouTube kanál.
-            # Proto se zde zobrazuje první uložené předplatné.
             subscription = subscriptions[0]
-            settings["youtube"].update(
-                {
-                    "enabled": bool(_value(subscription, "enabled", 0)),
-                    "channel_id": str(
-                        _value(subscription, "discord_channel_id", "")
-                    ),
-                    "youtube_channel_id": str(
-                        _value(subscription, "youtube_channel_id", "")
-                    ),
-                    "mention_role_id": str(
-                        _value(subscription, "mention_role_id", "")
-                    ),
-                }
-            )
+            settings["youtube"].update({
+                "enabled": bool(_value(subscription, "enabled", 0)),
+                "channel_id": str(_value(subscription, "discord_channel_id", "")),
+                "youtube_channel_id": str(_value(subscription, "youtube_channel_id", "")),
+                "custom_message": str(_value(subscription, "custom_message", DEFAULT_SETTINGS["youtube"]["custom_message"])),
+                "mention_role_id": str(_value(subscription, "mention_role_id", "")),
+                "check_interval": int(_value(subscription, "check_interval", 300)),
+            })
 
         return settings
 
-    async def update_module(
-        self,
-        guild_id: str,
-        module: str,
-        values: dict[str, Any],
-    ) -> None:
-        guild_id_int = int(guild_id)
+    async def update_module(self, guild_id: str, module: str, values: dict[str, Any]) -> None:
+        handlers = {
+            "general": self._save_general_sync,
+            "welcome": self._save_welcome_sync,
+            "youtube": self._save_youtube_sync,
+        }
+        handler = handlers.get(module)
+        if handler is None:
+            raise ValueError(f"Neznámý dashboard modul: {module}")
+        await asyncio.to_thread(handler, int(guild_id), values)
 
-        if module == "welcome":
-            await asyncio.to_thread(
-                self._save_welcome_sync,
-                guild_id_int,
-                values,
-            )
-            return
-
-        if module == "youtube":
-            await asyncio.to_thread(
-                self._save_youtube_sync,
-                guild_id_int,
-                values,
-            )
-            return
-
-        # General nastavení zatím bot ve své DB nemá a slash příkazy je nepoužívají.
-        # Proto se zatím pouze přijme bez zápisu. Pro jeho synchronizaci je potřeba
-        # nejdřív přidat samostatnou tabulku a metody do utils/database.py.
-        if module == "general":
-            return
-
-        raise ValueError(f"Neznámý dashboard modul: {module}")
+    def _save_general_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        command_channel_id = _discord_id(
+            values.get("command_channel_id"),
+            field="ID kanálu pro příkazy",
+        )
+        db.set_guild_settings(
+            guild_id=guild_id,
+            language=str(values.get("language") or "cs"),
+            timezone_name=str(values.get("timezone") or "Europe/Prague"),
+            command_channel_id=command_channel_id,
+        )
 
     def _save_welcome_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
-        channel_raw = str(values.get("channel_id", "")).strip()
-        message = str(values.get("message", "")).strip()
-
-        existing = db.get_welcome_settings(guild_id)
-
-        if enabled:
-            if not channel_raw.isdigit():
-                raise ValueError("Welcome kanál musí obsahovat platné Discord ID.")
-
-            role_id = _value(existing, "role_id", None)
-            db.set_welcome_settings(
-                guild_id=guild_id,
-                channel_id=int(channel_raw),
-                role_id=int(role_id) if role_id else None,
-                message=message or DEFAULT_SETTINGS["welcome"]["message"],
-            )
-        elif existing is not None:
-            db.disable_welcome(guild_id)
+        channel_id = _discord_id(
+            values.get("channel_id"),
+            field="Welcome kanál",
+            required=enabled,
+        )
+        db.update_welcome_settings(
+            guild_id=guild_id,
+            enabled=enabled,
+            channel_id=channel_id,
+            message=str(values.get("message") or DEFAULT_SETTINGS["welcome"]["message"]).strip(),
+            embed_title=str(values.get("embed_title") or "Vítej!").strip(),
+            embed_color=str(values.get("embed_color") or "#5865F2").strip(),
+            dm_enabled=bool(values.get("dm_enabled")),
+        )
 
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
-        youtube_channel_id = str(values.get("youtube_channel_id", "")).strip()
-        discord_channel_raw = str(values.get("channel_id", "")).strip()
-        mention_role_raw = str(values.get("mention_role_id", "")).strip()
+        youtube_channel_id = str(values.get("youtube_channel_id") or "").strip()
 
-        if enabled:
-            if not youtube_channel_id:
-                raise ValueError("Chybí YouTube Channel ID.")
-            if not discord_channel_raw.isdigit():
-                raise ValueError("Cílový Discord kanál musí obsahovat platné ID.")
-            if mention_role_raw and not mention_role_raw.isdigit():
-                raise ValueError("Role musí obsahovat platné Discord ID.")
+        if enabled and not youtube_channel_id:
+            raise ValueError("YouTube Channel ID je povinné.")
 
-            # Formulář nyní neposílá název kanálu, proto se jako dočasný název
-            # použije Channel ID. URL je přesto platná a bot ji může sledovat.
-            db.add_youtube_channel(
-                channel_id=youtube_channel_id,
-                name=youtube_channel_id,
-                url=f"https://www.youtube.com/channel/{youtube_channel_id}",
-            )
-            db.add_subscription(
-                guild_id=guild_id,
-                youtube_channel_id=youtube_channel_id,
-                discord_channel_id=int(discord_channel_raw),
-                mention_role_id=(
-                    int(mention_role_raw) if mention_role_raw else None
-                ),
-            )
+        if not youtube_channel_id:
+            # Když není vybraný konkrétní kanál, pozastav všechny odběry serveru.
+            for subscription in db.get_guild_subscriptions(guild_id):
+                db.pause_subscription(guild_id, str(_value(subscription, "youtube_channel_id", "")))
             return
 
-        subscriptions = list(db.get_guild_subscriptions(guild_id))
-        for subscription in subscriptions:
-            current_channel_id = str(
-                _value(subscription, "youtube_channel_id", "")
+        discord_channel_id = _discord_id(
+            values.get("channel_id"),
+            field="Cílový Discord kanál",
+            required=enabled,
+        )
+        mention_role_id = _discord_id(
+            values.get("mention_role_id"),
+            field="Role pro označení",
+        )
+        check_interval = max(60, min(int(values.get("check_interval") or 300), 3600))
+        custom_message = str(values.get("custom_message") or DEFAULT_SETTINGS["youtube"]["custom_message"]).strip()
+
+        existing_ids = {
+            str(_value(row, "youtube_channel_id", ""))
+            for row in db.get_guild_subscriptions(guild_id)
+        }
+
+        if youtube_channel_id not in existing_ids:
+            db.add_youtube_channel(
+                youtube_channel_id,
+                youtube_channel_id,
+                f"https://www.youtube.com/channel/{youtube_channel_id}",
             )
-            if not youtube_channel_id or current_channel_id == youtube_channel_id:
-                db.pause_subscription(guild_id, current_channel_id)
+            if discord_channel_id is None:
+                raise ValueError("Cílový Discord kanál je povinný pro nový odběr.")
+            db.add_subscription(
+                guild_id,
+                youtube_channel_id,
+                discord_channel_id,
+                mention_role_id,
+            )
+
+        # Při vypnutí ponechá data, pouze odběr pozastaví.
+        if discord_channel_id is None:
+            rows = list(db.get_guild_subscriptions(guild_id))
+            current = next(
+                (row for row in rows if str(_value(row, "youtube_channel_id", "")) == youtube_channel_id),
+                None,
+            )
+            if current is None:
+                return
+            discord_channel_id = int(_value(current, "discord_channel_id", 0))
+
+        db.update_subscription_settings(
+            guild_id,
+            youtube_channel_id,
+            discord_channel_id=discord_channel_id,
+            mention_role_id=mention_role_id,
+            enabled=enabled,
+            custom_message=custom_message,
+            check_interval=check_interval,
+        )
 
     async def count_configured_guilds(self, guild_ids: list[str]) -> int:
-        return await asyncio.to_thread(self._count_configured_sync, guild_ids)
-
-    def _count_configured_sync(self, guild_ids: list[str]) -> int:
-        total = 0
-        for guild_id in guild_ids:
-            guild_id_int = int(guild_id)
-            if db.get_welcome_settings(guild_id_int) is not None:
-                total += 1
-                continue
-            if db.get_guild_subscriptions(guild_id_int):
-                total += 1
-        return total
+        return await asyncio.to_thread(
+            db.count_configured_guilds,
+            [int(guild_id) for guild_id in guild_ids],
+        )

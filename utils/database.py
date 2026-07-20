@@ -183,6 +183,49 @@ class Database:
 
 
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS guild_settings (
+                    guild_id BIGINT PRIMARY KEY,
+                    language TEXT NOT NULL DEFAULT 'cs',
+                    timezone TEXT NOT NULL DEFAULT 'Europe/Prague',
+                    command_channel_id BIGINT,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            # Bezpečné migrace pro existující PostgreSQL databázi.
+            conn.execute("ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS embed_title TEXT NOT NULL DEFAULT 'Vítej!'")
+            conn.execute("ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS embed_color TEXT NOT NULL DEFAULT '#5865F2'")
+            conn.execute("ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS dm_enabled INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS custom_message TEXT NOT NULL DEFAULT '📺 Nové video: {title}\n{url}'")
+            conn.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS check_interval INTEGER NOT NULL DEFAULT 300")
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS guild_settings (
+                    guild_id INTEGER PRIMARY KEY,
+                    language TEXT NOT NULL DEFAULT 'cs',
+                    timezone TEXT NOT NULL DEFAULT 'Europe/Prague',
+                    command_channel_id INTEGER,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            # SQLite nepodporuje ADD COLUMN IF NOT EXISTS, proto nejdřív
+            # načteme existující sloupce a doplníme pouze chybějící.
+            welcome_columns = {row[1] for row in conn.execute("PRAGMA table_info(welcome_settings)").fetchall()}
+            if "embed_title" not in welcome_columns:
+                conn.execute("ALTER TABLE welcome_settings ADD COLUMN embed_title TEXT NOT NULL DEFAULT 'Vítej!'")
+            if "embed_color" not in welcome_columns:
+                conn.execute("ALTER TABLE welcome_settings ADD COLUMN embed_color TEXT NOT NULL DEFAULT '#5865F2'")
+            if "dm_enabled" not in welcome_columns:
+                conn.execute("ALTER TABLE welcome_settings ADD COLUMN dm_enabled INTEGER NOT NULL DEFAULT 0")
+
+            subscription_columns = {row[1] for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()}
+            if "custom_message" not in subscription_columns:
+                conn.execute("ALTER TABLE subscriptions ADD COLUMN custom_message TEXT NOT NULL DEFAULT '📺 Nové video: {title}\n{url}'")
+            if "check_interval" not in subscription_columns:
+                conn.execute("ALTER TABLE subscriptions ADD COLUMN check_interval INTEGER NOT NULL DEFAULT 300")
+
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS makejpc_products (
                     product_code TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -563,6 +606,130 @@ class Database:
             """, (self.now(), guild_id))
             conn.commit()
 
+
+    def update_welcome_settings(
+        self,
+        guild_id: int,
+        *,
+        enabled: bool,
+        channel_id: Optional[int],
+        message: str,
+        embed_title: str = "Vítej!",
+        embed_color: str = "#5865F2",
+        dm_enabled: bool = False,
+    ):
+        """Uloží kompletní Welcome konfiguraci z dashboardu i příkazů."""
+        with self.connect() as conn:
+            if self.using_postgres:
+                conn.execute("""
+                    INSERT INTO welcome_settings (
+                        guild_id, channel_id, role_id, enabled, message,
+                        embed_title, embed_color, dm_enabled, updated_at
+                    )
+                    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                        channel_id = EXCLUDED.channel_id,
+                        enabled = EXCLUDED.enabled,
+                        message = EXCLUDED.message,
+                        embed_title = EXCLUDED.embed_title,
+                        embed_color = EXCLUDED.embed_color,
+                        dm_enabled = EXCLUDED.dm_enabled,
+                        updated_at = EXCLUDED.updated_at
+                """, (guild_id, channel_id, int(enabled), message, embed_title, embed_color, int(dm_enabled), self.now()))
+            else:
+                conn.execute("""
+                    INSERT INTO welcome_settings (
+                        guild_id, channel_id, role_id, enabled, message,
+                        embed_title, embed_color, dm_enabled, updated_at
+                    )
+                    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id) DO UPDATE SET
+                        channel_id = excluded.channel_id,
+                        enabled = excluded.enabled,
+                        message = excluded.message,
+                        embed_title = excluded.embed_title,
+                        embed_color = excluded.embed_color,
+                        dm_enabled = excluded.dm_enabled,
+                        updated_at = excluded.updated_at
+                """, (guild_id, channel_id, int(enabled), message, embed_title, embed_color, int(dm_enabled), self.now()))
+            conn.commit()
+
+    def get_guild_settings(self, guild_id: int):
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM guild_settings WHERE guild_id = ?", (guild_id,)).fetchone()
+
+    def set_guild_settings(
+        self,
+        guild_id: int,
+        language: str = "cs",
+        timezone_name: str = "Europe/Prague",
+        command_channel_id: Optional[int] = None,
+    ):
+        with self.connect() as conn:
+            if self.using_postgres:
+                conn.execute("""
+                    INSERT INTO guild_settings
+                        (guild_id, language, timezone, command_channel_id, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT (guild_id) DO UPDATE SET
+                        language = EXCLUDED.language,
+                        timezone = EXCLUDED.timezone,
+                        command_channel_id = EXCLUDED.command_channel_id,
+                        updated_at = EXCLUDED.updated_at
+                """, (guild_id, language, timezone_name, command_channel_id, self.now()))
+            else:
+                conn.execute("""
+                    INSERT INTO guild_settings
+                        (guild_id, language, timezone, command_channel_id, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(guild_id) DO UPDATE SET
+                        language = excluded.language,
+                        timezone = excluded.timezone,
+                        command_channel_id = excluded.command_channel_id,
+                        updated_at = excluded.updated_at
+                """, (guild_id, language, timezone_name, command_channel_id, self.now()))
+            conn.commit()
+
+    def update_subscription_settings(
+        self,
+        guild_id: int,
+        youtube_channel_id: str,
+        *,
+        discord_channel_id: int,
+        mention_role_id: Optional[int],
+        enabled: bool,
+        custom_message: str = "📺 Nové video: {title}\n{url}",
+        check_interval: int = 300,
+    ):
+        """Aktualizuje dashboardová pole existujícího YouTube odběru."""
+        check_interval = max(60, min(int(check_interval), 3600))
+        with self.connect() as conn:
+            conn.execute("""
+                UPDATE subscriptions
+                SET discord_channel_id = ?,
+                    mention_role_id = ?,
+                    enabled = ?,
+                    custom_message = ?,
+                    check_interval = ?
+                WHERE guild_id = ? AND youtube_channel_id = ?
+            """, (discord_channel_id, mention_role_id, int(enabled), custom_message, check_interval, guild_id, youtube_channel_id))
+            conn.commit()
+
+    def count_configured_guilds(self, guild_ids: list[int]) -> int:
+        """Počet serverů s Welcome, YouTube nebo obecným nastavením."""
+        if not guild_ids:
+            return 0
+        total = 0
+        for guild_id in guild_ids:
+            if self.get_welcome_settings(guild_id) is not None:
+                total += 1
+                continue
+            if self.get_guild_subscriptions(guild_id):
+                total += 1
+                continue
+            if self.get_guild_settings(guild_id) is not None:
+                total += 1
+        return total
 
     def makejpc_product_exists(self, product_code: str) -> bool:
         with self.connect() as conn:
