@@ -38,6 +38,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "enabled": False,
         "role_id": "",
     },
+    "modlogs": {
+        "enabled": False,
+        "channel_id": "",
+        "log_members": True,
+        "log_messages": True,
+        "log_voice": True,
+        "log_channels": True,
+        "log_bans": True,
+    },
 }
 
 
@@ -117,6 +126,18 @@ class DashboardStorage:
                 "role_id": str(_value(autorole, "role_id", "")),
             })
 
+        modlogs = db.get_modlog_settings(guild_id)
+        if modlogs is not None:
+            settings["modlogs"].update({
+                "enabled": bool(_value(modlogs, "enabled", 0)),
+                "channel_id": str(_value(modlogs, "channel_id", "")),
+                "log_members": bool(_value(modlogs, "log_members", 1)),
+                "log_messages": bool(_value(modlogs, "log_messages", 1)),
+                "log_voice": bool(_value(modlogs, "log_voice", 1)),
+                "log_channels": bool(_value(modlogs, "log_channels", 1)),
+                "log_bans": bool(_value(modlogs, "log_bans", 1)),
+            })
+
         return settings
 
     async def update_module(self, guild_id: str, module: str, values: dict[str, Any]) -> None:
@@ -125,6 +146,7 @@ class DashboardStorage:
             "welcome": self._save_welcome_sync,
             "youtube": self._save_youtube_sync,
             "autorole": self._save_autorole_sync,
+            "modlogs": self._save_modlogs_sync,
         }
         handler = handlers.get(module)
         if handler is None:
@@ -171,6 +193,27 @@ class DashboardStorage:
             db.set_autorole_settings(guild_id, role_id, enabled=enabled)
         else:
             db.set_autorole_enabled(guild_id, False)
+
+    def _save_modlogs_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        channel_id = _discord_id(
+            values.get("channel_id"),
+            field="ModLog kanál",
+            required=enabled,
+        )
+        if channel_id is not None:
+            db.set_modlog_settings(
+                guild_id,
+                channel_id,
+                enabled=enabled,
+                log_members=bool(values.get("log_members")),
+                log_messages=bool(values.get("log_messages")),
+                log_voice=bool(values.get("log_voice")),
+                log_channels=bool(values.get("log_channels")),
+                log_bans=bool(values.get("log_bans")),
+            )
+        else:
+            db.set_modlog_enabled(guild_id, False)
 
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))

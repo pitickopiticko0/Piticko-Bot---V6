@@ -44,6 +44,16 @@ POSTGRES_TABLES = (
         guild_id BIGINT PRIMARY KEY, role_id BIGINT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS modlog_settings (
+        guild_id BIGINT PRIMARY KEY, channel_id BIGINT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        log_members INTEGER NOT NULL DEFAULT 1,
+        log_messages INTEGER NOT NULL DEFAULT 1,
+        log_voice INTEGER NOT NULL DEFAULT 1,
+        log_channels INTEGER NOT NULL DEFAULT 1,
+        log_bans INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
 )
 
 
@@ -87,6 +97,16 @@ SQLITE_TABLES = (
     """CREATE TABLE IF NOT EXISTS autorole_settings (
         guild_id INTEGER PRIMARY KEY, role_id INTEGER NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS modlog_settings (
+        guild_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        log_members INTEGER NOT NULL DEFAULT 1,
+        log_messages INTEGER NOT NULL DEFAULT 1,
+        log_voice INTEGER NOT NULL DEFAULT 1,
+        log_channels INTEGER NOT NULL DEFAULT 1,
+        log_bans INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
     )""",
 )
 

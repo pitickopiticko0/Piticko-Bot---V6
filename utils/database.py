@@ -11,6 +11,7 @@ from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
+from utils.db import modlogs as modlogs_db
 from utils.db import welcome as welcome_db
 from utils.db import youtube as youtube_db
 
@@ -93,6 +94,15 @@ class Database:
 
     def set_autorole_enabled(self, guild_id: int, enabled: bool) -> None:
         autorole_db.set_enabled(self, guild_id, enabled)
+
+    def get_modlog_settings(self, guild_id: int):
+        return modlogs_db.get_settings(self, guild_id)
+
+    def set_modlog_settings(self, guild_id: int, channel_id: int, **values) -> None:
+        modlogs_db.save_settings(self, guild_id, channel_id, **values)
+
+    def set_modlog_enabled(self, guild_id: int, enabled: bool) -> None:
+        modlogs_db.set_enabled(self, guild_id, enabled)
 
     def _init_db(self):
         database_migrations.initialize(self)
