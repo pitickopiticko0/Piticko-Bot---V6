@@ -513,12 +513,95 @@ class Database:
             """, (self.now(), guild_id))
             conn.commit()
 
-    def makejpc_product_exists(self, product_code:str)->bool:
+    def makejpc_product_exists(self, product_code: str) -> bool:
         with self.connect() as conn:
-            return conn.execute("SELECT product_code FROM makejpc_products WHERE product_code=?", (product_code,)).fetchone() is not None
-    def count_makejpc_products(self)->int:
+            return conn.execute(
+                "SELECT product_code FROM makejpc_products WHERE product_code = ?",
+                (product_code,),
+            ).fetchone() is not None
+
+    def count_makejpc_products(self) -> int:
         with self.connect() as conn:
-            return int(conn.execute("SELECT COUNT(*) AS c FROM makejpc_products").fetchone()["c"])
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM makejpc_products"
+            ).fetchone()
+            return int(row["c"])
+
+    def add_makejpc_product(
+        self,
+        product_code: str,
+        name: str,
+        price: Optional[str],
+        availability: Optional[str],
+        product_url: str,
+        image_url: Optional[str],
+        announced: bool = False,
+    ) -> None:
+        now = self.now()
+        with self.connect() as conn:
+            conn.execute("""
+                INSERT INTO makejpc_products (
+                    product_code,
+                    name,
+                    price,
+                    availability,
+                    product_url,
+                    image_url,
+                    announced,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                product_code,
+                name,
+                price,
+                availability,
+                product_url,
+                image_url,
+                int(announced),
+                now,
+                now,
+            ))
+            conn.commit()
+
+    def update_makejpc_product(
+        self,
+        product_code: str,
+        name: str,
+        price: Optional[str],
+        availability: Optional[str],
+        product_url: str,
+        image_url: Optional[str],
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute("""
+                UPDATE makejpc_products
+                SET name = ?,
+                    price = ?,
+                    availability = ?,
+                    product_url = ?,
+                    image_url = ?,
+                    updated_at = ?
+                WHERE product_code = ?
+            """, (
+                name,
+                price,
+                availability,
+                product_url,
+                image_url,
+                self.now(),
+                product_code,
+            ))
+            conn.commit()
+
+    def get_makejpc_products(self):
+        with self.connect() as conn:
+            return conn.execute("""
+                SELECT *
+                FROM makejpc_products
+                ORDER BY created_at DESC
+            """).fetchall()
 
     def stats(self):
         with self.connect() as conn:
