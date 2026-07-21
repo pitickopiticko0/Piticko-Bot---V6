@@ -57,6 +57,7 @@ ALLOWED_AVATAR_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 VIEW_CHANNEL = 1 << 10
 SEND_MESSAGES = 1 << 11
 ADMINISTRATOR = 1 << 3
+MANAGE_ROLES = 1 << 28
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
@@ -217,6 +218,31 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
         member = member_response.json()
         raw_channels = channels_response.json()
         raw_roles = roles_response.json()
+        member_role_ids = {
+            str(role_id) for role_id in member.get("roles", [])
+        }
+        base_permissions = next(
+            (
+                int(role.get("permissions", 0))
+                for role in raw_roles
+                if str(role.get("id")) == str(guild_id)
+            ),
+            0,
+        )
+        for role in raw_roles:
+            if str(role.get("id")) in member_role_ids:
+                base_permissions |= int(role.get("permissions", 0))
+        can_manage_roles = bool(
+            base_permissions & (ADMINISTRATOR | MANAGE_ROLES)
+        )
+        top_role_position = max(
+            (
+                int(role.get("position", 0))
+                for role in raw_roles
+                if str(role.get("id")) in member_role_ids
+            ),
+            default=0,
+        )
         channels = [
             {
                 "id": str(channel["id"]),
@@ -230,12 +256,20 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
         ]
         channels.sort(key=lambda item: item["name"].casefold())
         roles = [
-            {"id": str(role["id"]), "name": role.get("name") or "Role"}
+            {
+                "id": str(role["id"]),
+                "name": role.get("name") or "Role",
+                "position": int(role.get("position", 0)),
+                "assignable": (
+                    can_manage_roles
+                    and int(role.get("position", 0)) < top_role_position
+                ),
+            }
             for role in raw_roles
             if str(role.get("id")) != str(guild_id)
             and not role.get("managed", False)
         ]
-        roles.sort(key=lambda item: item["name"].casefold())
+        roles.sort(key=lambda item: item["position"], reverse=True)
 
         return {
             "profile": {
@@ -479,6 +513,29 @@ async def save_youtube(
 
     return RedirectResponse(
         f"/server/{guild_id}?saved=youtube",
+        status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/autorole")
+async def save_autorole(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    role_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+    await storage.update_module(
+        guild_id,
+        "autorole",
+        {"enabled": enabled == "on", "role_id": role_id.strip()},
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=autorole#autorole",
         status_code=303,
     )
 

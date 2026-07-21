@@ -12,59 +12,15 @@ class AutoRole(commands.GroupCog, name="autorole"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self._init_table()
-
-    def _init_table(self) -> None:
-        with db.connect() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS autorole_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    role_id BIGINT NOT NULL,
-                    enabled INTEGER NOT NULL DEFAULT 1,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-            conn.commit()
 
     def get_settings(self, guild_id: int):
-        with db.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM autorole_settings
-                WHERE guild_id = ?
-            """, (guild_id,)).fetchone()
+        return db.get_autorole_settings(guild_id)
 
     def save_settings(self, guild_id: int, role_id: int) -> None:
-        with db.connect() as conn:
-            if db.using_postgres:
-                conn.execute("""
-                    INSERT INTO autorole_settings
-                    (guild_id, role_id, enabled, updated_at)
-                    VALUES (?, ?, 1, ?)
-                    ON CONFLICT (guild_id)
-                    DO UPDATE SET
-                        role_id = EXCLUDED.role_id,
-                        enabled = 1,
-                        updated_at = EXCLUDED.updated_at
-                """, (guild_id, role_id, db.now()))
-            else:
-                conn.execute("""
-                    INSERT OR REPLACE INTO autorole_settings
-                    (guild_id, role_id, enabled, updated_at)
-                    VALUES (?, ?, 1, ?)
-                """, (guild_id, role_id, db.now()))
-
-            conn.commit()
+        db.set_autorole_settings(guild_id, role_id, enabled=True)
 
     def disable_settings(self, guild_id: int) -> None:
-        with db.connect() as conn:
-            conn.execute("""
-                UPDATE autorole_settings
-                SET enabled = 0,
-                    updated_at = ?
-                WHERE guild_id = ?
-            """, (db.now(), guild_id))
-            conn.commit()
+        db.set_autorole_enabled(guild_id, False)
 
     async def safe_defer(self, interaction: discord.Interaction) -> bool:
         """

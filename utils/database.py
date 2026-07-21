@@ -7,6 +7,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from config import DATABASE
+from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
@@ -78,6 +79,20 @@ class Database:
 
     def now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def get_autorole_settings(self, guild_id: int):
+        return autorole_db.get_settings(self, guild_id)
+
+    def set_autorole_settings(
+        self,
+        guild_id: int,
+        role_id: int,
+        enabled: bool = True,
+    ) -> None:
+        autorole_db.save_settings(self, guild_id, role_id, enabled)
+
+    def set_autorole_enabled(self, guild_id: int, enabled: bool) -> None:
+        autorole_db.set_enabled(self, guild_id, enabled)
 
     def _init_db(self):
         database_migrations.initialize(self)
