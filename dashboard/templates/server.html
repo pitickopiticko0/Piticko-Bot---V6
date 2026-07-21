@@ -148,7 +148,19 @@
         <form method="post" action="/server/{{ guild.id }}/welcome" class="settings-form">
           <label class="toggle-row"><span><strong>Zapnout Welcome</strong><small>Odeslat uvítací zprávu při příchodu člena.</small></span><input type="checkbox" name="enabled" {% if settings.welcome.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           <div class="form-grid">
-            <label><span>Discord ID kanálu</span><input name="channel_id" value="{{ settings.welcome.channel_id }}" inputmode="numeric" placeholder="123456789012345678"><small>Kanál, do kterého bot odešle uvítání.</small></label>
+            <label><span>Kanál pro uvítání</span>
+              {% if discord_resources_available %}
+                <select name="channel_id">
+                  <option value="">Vyber kanál</option>
+                  {% for channel in discord_channels %}
+                    <option value="{{ channel.id }}" {% if channel.id == settings.welcome.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.welcome.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <input name="channel_id" value="{{ settings.welcome.channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">
+              {% endif %}
+              <small>Textové kanály, které bot vidí; nedostupné kanály nelze vybrat.</small>
+            </label>
             <label><span>Nadpis embedu</span><input name="embed_title" value="{{ settings.welcome.embed_title }}" placeholder="Vítej!"></label>
           </div>
           <label><span>Uvítací zpráva</span><textarea name="message" rows="6" placeholder="Vítej {mention} na serveru {server}!">{{ settings.welcome.message }}</textarea><small>Proměnné: {mention}, {user}, {server}, {member_count}</small></label>
@@ -165,9 +177,31 @@
         <form method="post" action="/server/{{ guild.id }}/youtube" class="settings-form">
           <label class="toggle-row"><span><strong>Zapnout YouTube</strong><small>Pravidelně kontrolovat nový obsah.</small></span><input type="checkbox" name="enabled" {% if settings.youtube.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           <div class="form-grid">
-            <label><span>Discord ID cílového kanálu</span><input name="channel_id" value="{{ settings.youtube.channel_id }}" inputmode="numeric" placeholder="123456789012345678"></label>
+            <label><span>Cílový Discord kanál</span>
+              {% if discord_resources_available %}
+                <select name="channel_id">
+                  <option value="">Vyber kanál</option>
+                  {% for channel in discord_channels %}
+                    <option value="{{ channel.id }}" {% if channel.id == settings.youtube.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.youtube.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <input name="channel_id" value="{{ settings.youtube.channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">
+              {% endif %}
+            </label>
             <label><span>YouTube Channel ID</span><input name="youtube_channel_id" value="{{ settings.youtube.youtube_channel_id }}" placeholder="UC..."></label>
-            <label><span>ID role pro označení</span><input name="mention_role_id" value="{{ settings.youtube.mention_role_id }}" inputmode="numeric" placeholder="Volitelné"></label>
+            <label><span>Role pro označení</span>
+              {% if discord_resources_available %}
+                <select name="mention_role_id">
+                  <option value="">Bez označení role</option>
+                  {% for role in discord_roles %}
+                    <option value="{{ role.id }}" {% if role.id == settings.youtube.mention_role_id %}selected{% endif %}>@{{ role.name }}</option>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <input name="mention_role_id" value="{{ settings.youtube.mention_role_id }}" inputmode="numeric" placeholder="Discord ID role — volitelné">
+              {% endif %}
+            </label>
             <label><span>Interval kontroly</span><div class="input-suffix"><input type="number" min="60" max="3600" name="check_interval" value="{{ settings.youtube.check_interval }}"><span>sekund</span></div></label>
           </div>
           <label><span>Text oznámení</span><textarea name="custom_message" rows="6" placeholder="📺 Nové video: {title}\n{url}">{{ settings.youtube.custom_message }}</textarea><small>Proměnné: {title}, {url}, {channel}, {channel_url}, {thumbnail}, {published}, {role}</small></label>
