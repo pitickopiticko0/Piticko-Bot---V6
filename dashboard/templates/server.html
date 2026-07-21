@@ -79,6 +79,7 @@
       <button class="tab" type="button" data-tab="appearance"><span>🖼️</span>Profil bota</button>
       <div class="module-nav-label">Moduly</div>
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
+      <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <div class="module-nav-label">Konfigurace</div>
       <button class="tab" type="button" data-tab="general"><span>⚙️</span>Obecné</button>
@@ -94,6 +95,12 @@
             <div class="module-card-top"><div class="module-icon">👋</div><span class="badge {{ 'on' if settings.welcome.enabled else 'off' }}">{{ 'Zapnuto' if settings.welcome.enabled else 'Vypnuto' }}</span></div>
             <h3>Welcome</h3>
             <p>Přivítání nových členů, vlastní zpráva, embed a soukromé zprávy.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="autorole" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🎭</div><span class="badge {{ 'on' if settings.autorole.enabled else 'off' }}">{{ 'Zapnuto' if settings.autorole.enabled else 'Vypnuto' }}</span></div>
+            <h3>AutoRole</h3>
+            <p>Automatické přidání vybrané role každému novému členovi serveru.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="youtube" tabindex="0" role="button">
@@ -169,6 +176,27 @@
             <label class="toggle-row mini"><span><strong>Soukromá zpráva</strong><small>Poslat uvítání také do DM.</small></span><input type="checkbox" name="dm_enabled" {% if settings.welcome.dm_enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit Welcome</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+      </div>
+
+      <div class="tab-panel" id="autorole">
+        <div class="section-heading"><div><p class="eyebrow">AUTOROLE MODUL</p><h2>Role pro nové členy</h2><p>Bot automaticky přidá vybranou roli každému novému členovi serveru.</p></div><span class="badge {{ 'on' if settings.autorole.enabled else 'off' }}">{{ 'Aktivní' if settings.autorole.enabled else 'Neaktivní' }}</span></div>
+        <form method="post" action="/server/{{ guild.id }}/autorole" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout AutoRole</strong><small>Přidat roli po příchodu nového člena.</small></span><input type="checkbox" name="enabled" {% if settings.autorole.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <label><span>Automaticky přidávaná role</span>
+            {% if discord_resources_available %}
+              <select name="role_id">
+                <option value="">Vyber roli</option>
+                {% for role in discord_roles %}
+                  <option value="{{ role.id }}" {% if role.id == settings.autorole.role_id %}selected{% endif %} {% if not role.assignable and role.id != settings.autorole.role_id %}disabled{% endif %}>@{{ role.name }}{% if not role.assignable %} — bot ji nemůže přidat{% endif %}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input name="role_id" value="{{ settings.autorole.role_id }}" inputmode="numeric" placeholder="Discord ID role">
+            {% endif %}
+            <small>Role bota musí být v seznamu rolí výše než vybraná AutoRole.</small>
+          </label>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit AutoRole</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
       </div>
 

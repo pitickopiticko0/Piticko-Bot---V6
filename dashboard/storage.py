@@ -34,6 +34,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "mention_role_id": "",
         "check_interval": 300,
     },
+    "autorole": {
+        "enabled": False,
+        "role_id": "",
+    },
 }
 
 
@@ -106,6 +110,13 @@ class DashboardStorage:
                 "check_interval": int(_value(subscription, "check_interval", 300)),
             })
 
+        autorole = db.get_autorole_settings(guild_id)
+        if autorole is not None:
+            settings["autorole"].update({
+                "enabled": bool(_value(autorole, "enabled", 0)),
+                "role_id": str(_value(autorole, "role_id", "")),
+            })
+
         return settings
 
     async def update_module(self, guild_id: str, module: str, values: dict[str, Any]) -> None:
@@ -113,6 +124,7 @@ class DashboardStorage:
             "general": self._save_general_sync,
             "welcome": self._save_welcome_sync,
             "youtube": self._save_youtube_sync,
+            "autorole": self._save_autorole_sync,
         }
         handler = handlers.get(module)
         if handler is None:
@@ -147,6 +159,18 @@ class DashboardStorage:
             embed_color=str(values.get("embed_color") or "#5865F2").strip(),
             dm_enabled=bool(values.get("dm_enabled")),
         )
+
+    def _save_autorole_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        role_id = _discord_id(
+            values.get("role_id"),
+            field="AutoRole",
+            required=enabled,
+        )
+        if role_id is not None:
+            db.set_autorole_settings(guild_id, role_id, enabled=enabled)
+        else:
+            db.set_autorole_enabled(guild_id, False)
 
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
