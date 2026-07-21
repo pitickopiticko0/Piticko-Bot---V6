@@ -10,7 +10,7 @@ from utils.logger import logger
 from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import youtube_api
-from utils.youtube_message import render_youtube_message
+from utils.youtube_message import has_custom_template, render_youtube_message
 
 
 class YouTubeWatcher:
@@ -133,6 +133,11 @@ class YouTubeWatcher:
             thumbnail=latest.thumbnail,
             published_at=latest.published_at,
         )
+        if has_custom_template(sub["custom_message"]):
+            embed = self._build_video_media_embed(
+                latest.url,
+                latest.thumbnail,
+            )
 
         await discord_channel.send(
             content=content,
@@ -193,5 +198,16 @@ class YouTubeWatcher:
         if thumbnail:
             embed.set_image(url=thumbnail)
 
+        embed.set_footer(text=EMBED_FOOTER)
+        return embed
+
+    def _build_video_media_embed(
+        self,
+        url: str,
+        thumbnail: str | None,
+    ) -> discord.Embed:
+        embed = discord.Embed(url=url, color=EMBED_COLOR)
+        if thumbnail:
+            embed.set_image(url=thumbnail)
         embed.set_footer(text=EMBED_FOOTER)
         return embed
