@@ -12,6 +12,11 @@ def _escape_mentions(value: str) -> str:
     return value.replace("@", "@\u200b")
 
 
+def has_custom_template(template: Optional[str]) -> bool:
+    """Rozliší vlastní text od původní výchozí šablony."""
+    return bool(template and template.strip() != DEFAULT_TEMPLATE)
+
+
 def render_youtube_message(
     template: Optional[str],
     *,

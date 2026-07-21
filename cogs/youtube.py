@@ -7,7 +7,7 @@ from utils.database import db
 from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import YouTubeAPIError, youtube_api
-from utils.youtube_message import render_youtube_message
+from utils.youtube_message import has_custom_template, render_youtube_message
 
 
 def build_video_embed(
@@ -54,6 +54,18 @@ def build_video_embed(
     if thumbnail:
         embed.set_image(url=thumbnail)
 
+    embed.set_footer(text=EMBED_FOOTER)
+    return embed
+
+
+def build_video_media_embed(
+    url: str,
+    thumbnail: str | None,
+) -> discord.Embed:
+    """Kompaktní obrázkový embed k vlastní textové šabloně."""
+    embed = discord.Embed(url=url, color=EMBED_COLOR)
+    if thumbnail:
+        embed.set_image(url=thumbnail)
     embed.set_footer(text=EMBED_FOOTER)
     return embed
 
@@ -658,6 +670,8 @@ class YouTube(commands.GroupCog, name="youtube"):
             published_at=latest.published_at,
             live=latest.live,
         )
+        if has_custom_template(sub["custom_message"]):
+            embed = build_video_media_embed(latest.url, latest.thumbnail)
 
         await discord_channel.send(
             content=content,
@@ -739,6 +753,11 @@ class YouTube(commands.GroupCog, name="youtube"):
                     thumbnail=latest.thumbnail,
                     published_at=latest.published_at,
                 )
+                if has_custom_template(sub["custom_message"]):
+                    embed = build_video_media_embed(
+                        latest.url,
+                        latest.thumbnail,
+                    )
 
                 await discord_channel.send(
                     content=content,
