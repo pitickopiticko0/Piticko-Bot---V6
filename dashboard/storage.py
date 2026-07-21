@@ -47,6 +47,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "log_channels": True,
         "log_bans": True,
     },
+    "antispam": {
+        "enabled": False,
+        "max_messages": 6,
+        "interval_seconds": 8,
+        "duplicate_limit": 3,
+        "mention_limit": 5,
+        "timeout_minutes": 10,
+        "delete_messages": True,
+    },
 }
 
 
@@ -138,6 +147,18 @@ class DashboardStorage:
                 "log_bans": bool(_value(modlogs, "log_bans", 1)),
             })
 
+        antispam = db.get_antispam_settings(guild_id)
+        if antispam is not None:
+            settings["antispam"].update({
+                "enabled": bool(_value(antispam, "enabled", 0)),
+                "max_messages": int(_value(antispam, "max_messages", 6)),
+                "interval_seconds": int(_value(antispam, "interval_seconds", 8)),
+                "duplicate_limit": int(_value(antispam, "duplicate_limit", 3)),
+                "mention_limit": int(_value(antispam, "mention_limit", 5)),
+                "timeout_minutes": int(_value(antispam, "timeout_minutes", 10)),
+                "delete_messages": bool(_value(antispam, "delete_messages", 1)),
+            })
+
         return settings
 
     async def update_module(self, guild_id: str, module: str, values: dict[str, Any]) -> None:
@@ -147,6 +168,7 @@ class DashboardStorage:
             "youtube": self._save_youtube_sync,
             "autorole": self._save_autorole_sync,
             "modlogs": self._save_modlogs_sync,
+            "antispam": self._save_antispam_sync,
         }
         handler = handlers.get(module)
         if handler is None:
@@ -214,6 +236,18 @@ class DashboardStorage:
             )
         else:
             db.set_modlog_enabled(guild_id, False)
+
+    def _save_antispam_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        db.set_antispam_settings(
+            guild_id,
+            enabled=bool(values.get("enabled")),
+            max_messages=int(values.get("max_messages") or 6),
+            interval_seconds=int(values.get("interval_seconds") or 8),
+            duplicate_limit=int(values.get("duplicate_limit") or 3),
+            mention_limit=int(values.get("mention_limit") or 5),
+            timeout_minutes=int(values.get("timeout_minutes") or 10),
+            delete_messages=bool(values.get("delete_messages")),
+        )
 
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))

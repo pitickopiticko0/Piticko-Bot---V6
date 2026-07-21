@@ -576,6 +576,42 @@ async def save_modlogs(
     )
 
 
+@app.post("/server/{guild_id}/antispam")
+async def save_antispam(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    max_messages: int = Form(default=6),
+    interval_seconds: int = Form(default=8),
+    duplicate_limit: int = Form(default=3),
+    mention_limit: int = Form(default=5),
+    timeout_minutes: int = Form(default=10),
+    delete_messages: str | None = Form(default=None),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+    await storage.update_module(
+        guild_id,
+        "antispam",
+        {
+            "enabled": enabled == "on",
+            "max_messages": max_messages,
+            "interval_seconds": interval_seconds,
+            "duplicate_limit": duplicate_limit,
+            "mention_limit": mention_limit,
+            "timeout_minutes": timeout_minutes,
+            "delete_messages": delete_messages == "on",
+        },
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=antispam#antispam",
+        status_code=303,
+    )
+
+
 @app.post("/server/{guild_id}/general")
 async def save_general(
     request: Request,

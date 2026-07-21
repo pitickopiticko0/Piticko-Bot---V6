@@ -37,24 +37,6 @@ class AntiSpam(commands.GroupCog, name="antispam"):
         self.processing_users: set[tuple[int, int]] = set()
         self.cooldowns: dict[tuple[int, int], float] = {}
 
-        self._init_table()
-
-    def _init_table(self) -> None:
-        with db.connect() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS antispam_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    enabled INTEGER NOT NULL DEFAULT 1,
-                    max_messages INTEGER NOT NULL DEFAULT 6,
-                    interval_seconds INTEGER NOT NULL DEFAULT 8,
-                    duplicate_limit INTEGER NOT NULL DEFAULT 3,
-                    mention_limit INTEGER NOT NULL DEFAULT 5,
-                    timeout_minutes INTEGER NOT NULL DEFAULT 10,
-                    delete_messages INTEGER NOT NULL DEFAULT 1,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-            conn.commit()
 
     async def safe_defer(
         self,
@@ -78,12 +60,7 @@ class AntiSpam(commands.GroupCog, name="antispam"):
             return False
 
     def get_settings(self, guild_id: int):
-        with db.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM antispam_settings
-                WHERE guild_id = ?
-            """, (guild_id,)).fetchone()
+        return db.get_antispam_settings(guild_id)
 
     def save_settings(
         self,
@@ -95,80 +72,19 @@ class AntiSpam(commands.GroupCog, name="antispam"):
         timeout_minutes: int,
         delete_messages: bool,
     ) -> None:
-        with db.connect() as conn:
-            if db.using_postgres:
-                conn.execute("""
-                    INSERT INTO antispam_settings (
-                        guild_id,
-                        enabled,
-                        max_messages,
-                        interval_seconds,
-                        duplicate_limit,
-                        mention_limit,
-                        timeout_minutes,
-                        delete_messages,
-                        updated_at
-                    )
-                    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (guild_id)
-                    DO UPDATE SET
-                        enabled = 1,
-                        max_messages = EXCLUDED.max_messages,
-                        interval_seconds = EXCLUDED.interval_seconds,
-                        duplicate_limit = EXCLUDED.duplicate_limit,
-                        mention_limit = EXCLUDED.mention_limit,
-                        timeout_minutes = EXCLUDED.timeout_minutes,
-                        delete_messages = EXCLUDED.delete_messages,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    guild_id,
-                    max_messages,
-                    interval_seconds,
-                    duplicate_limit,
-                    mention_limit,
-                    timeout_minutes,
-                    1 if delete_messages else 0,
-                    db.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT OR REPLACE INTO antispam_settings (
-                        guild_id,
-                        enabled,
-                        max_messages,
-                        interval_seconds,
-                        duplicate_limit,
-                        mention_limit,
-                        timeout_minutes,
-                        delete_messages,
-                        updated_at
-                    )
-                    VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    guild_id,
-                    max_messages,
-                    interval_seconds,
-                    duplicate_limit,
-                    mention_limit,
-                    timeout_minutes,
-                    1 if delete_messages else 0,
-                    db.now(),
-                ))
-
-            conn.commit()
+        db.set_antispam_settings(
+            guild_id,
+            enabled=True,
+            max_messages=max_messages,
+            interval_seconds=interval_seconds,
+            duplicate_limit=duplicate_limit,
+            mention_limit=mention_limit,
+            timeout_minutes=timeout_minutes,
+            delete_messages=delete_messages,
+        )
 
     def disable_settings(self, guild_id: int) -> None:
-        with db.connect() as conn:
-            conn.execute("""
-                UPDATE antispam_settings
-                SET enabled = 0,
-                    updated_at = ?
-                WHERE guild_id = ?
-            """, (
-                db.now(),
-                guild_id,
-            ))
-            conn.commit()
+        db.set_antispam_enabled(guild_id, False)
 
     async def get_modlog_channel(
         self,

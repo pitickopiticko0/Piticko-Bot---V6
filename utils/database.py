@@ -7,6 +7,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from config import DATABASE
+from utils.db import antispam as antispam_db
 from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
@@ -80,6 +81,15 @@ class Database:
 
     def now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def get_antispam_settings(self, guild_id: int):
+        return antispam_db.get_settings(self, guild_id)
+
+    def set_antispam_settings(self, guild_id: int, **values) -> None:
+        antispam_db.save_settings(self, guild_id, **values)
+
+    def set_antispam_enabled(self, guild_id: int, enabled: bool) -> None:
+        antispam_db.set_enabled(self, guild_id, enabled)
 
     def get_autorole_settings(self, guild_id: int):
         return autorole_db.get_settings(self, guild_id)
