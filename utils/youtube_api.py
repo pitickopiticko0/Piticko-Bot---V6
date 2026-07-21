@@ -1,3 +1,4 @@
+import asyncio
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -32,6 +33,8 @@ class YouTubeVideo:
 
 class YouTubeAPI:
     BASE_URL = "https://www.googleapis.com/youtube/v3"
+    MAX_ATTEMPTS = 3
+    RETRY_DELAYS = (1, 2)
 
     def __init__(self, api_key: Optional[str] = YOUTUBE_API_KEY):
         if not api_key:
@@ -39,17 +42,43 @@ class YouTubeAPI:
         self.api_key = api_key
 
     async def _get(self, endpoint: str, params: dict) -> dict:
-        params["key"] = self.api_key
+        request_params = {**params, "key": self.api_key}
+        timeout = aiohttp.ClientTimeout(total=20)
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.BASE_URL}/{endpoint}", params=params) as response:
-                data = await response.json()
+        for attempt in range(self.MAX_ATTEMPTS):
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(
+                        f"{self.BASE_URL}/{endpoint}",
+                        params=request_params,
+                    ) as response:
+                        data = await response.json(content_type=None)
 
-                if response.status != 200:
-                    message = data.get("error", {}).get("message", "Neznámá chyba YouTube API")
-                    raise YouTubeAPIError(message)
+                        if response.status == 200:
+                            return data
 
-                return data
+                        message = data.get("error", {}).get(
+                            "message",
+                            "Neznámá chyba YouTube API",
+                        )
+
+                        # Rate limit a chyby serveru mohou být jen dočasné.
+                        if response.status != 429 and response.status < 500:
+                            raise YouTubeAPIError(message)
+
+                        if attempt == self.MAX_ATTEMPTS - 1:
+                            raise YouTubeAPIError(message)
+
+            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                if attempt == self.MAX_ATTEMPTS - 1:
+                    raise YouTubeAPIError(
+                        "YouTube API je dočasně nedostupné kvůli "
+                        f"síťové chybě: {exc}"
+                    ) from exc
+
+            await asyncio.sleep(self.RETRY_DELAYS[attempt])
+
+        raise YouTubeAPIError("YouTube API je dočasně nedostupné.")
 
     def _extract_handle(self, url: str) -> Optional[str]:
         match = re.search(r"youtube\.com/@([^/?]+)", url)

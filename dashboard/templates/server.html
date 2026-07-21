@@ -26,7 +26,27 @@
   {% if request.query_params.get('saved') %}
     <div class="toast toast-success" role="status" aria-live="polite">
       <strong>Uloženo</strong>
-      <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
+      {% if request.query_params.get('saved') == 'avatar' %}
+        <span>Profilová fotka bota pro tento server byla změněna.</span>
+      {% elif request.query_params.get('saved') == 'avatar-reset' %}
+        <span>Bot na tomto serveru znovu používá globální profilovou fotku.</span>
+      {% else %}
+        <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('avatar_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Profilovou fotku se nepodařilo změnit</strong>
+      {% if request.query_params.get('avatar_error') == 'type' %}
+        <span>Použij obrázek PNG, JPG, WebP nebo GIF.</span>
+      {% elif request.query_params.get('avatar_error') == 'size' %}
+        <span>Obrázek musí mít nejvýše 8 MB a nesmí být prázdný.</span>
+      {% else %}
+        <span>Discord změnu odmítl nebo je dočasně nedostupný. Zkus to znovu.</span>
+      {% endif %}
       <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
     </div>
   {% endif %}
@@ -56,6 +76,7 @@
     <aside class="module-nav" aria-label="Nastavení serveru">
       <div class="module-nav-label">Server</div>
       <button class="tab active" type="button" data-tab="overview"><span>🏠</span>Přehled</button>
+      <button class="tab" type="button" data-tab="appearance"><span>🖼️</span>Profil bota</button>
       <div class="module-nav-label">Moduly</div>
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
@@ -87,6 +108,38 @@
             <p>Jazyk, časová zóna a další základní nastavení serveru.</p>
             <span class="module-link">Otevřít nastavení →</span>
           </article>
+          <article class="module-card" data-open-tab="appearance" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🖼️</div><span class="badge neutral">Vzhled</span></div>
+            <h3>Profil bota</h3>
+            <p>Vlastní profilová fotka bota, která se zobrazí pouze na tomto serveru.</p>
+            <span class="module-link">Změnit profil →</span>
+          </article>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="appearance">
+        <div class="section-heading">
+          <div><p class="eyebrow">PROFIL BOTA</p><h2>Profilová fotka na serveru</h2><p>Nastav obrázek, který bude bot používat pouze na serveru {{ guild.name }}.</p></div>
+          {% if bot_profile and bot_profile.has_custom_avatar %}<span class="badge on">Vlastní</span>{% else %}<span class="badge neutral">Globální</span>{% endif %}
+        </div>
+        <div class="avatar-settings">
+          <div class="bot-avatar-preview">
+            {% if bot_profile %}
+              <img id="botAvatarPreview" src="{{ bot_profile.avatar_url }}" alt="Aktuální profilová fotka bota">
+            {% else %}
+              <div class="bot-avatar-fallback" id="botAvatarFallback" aria-hidden="true">PB</div>
+            {% endif %}
+            <div><strong>Aktuální profilová fotka</strong><small>{% if bot_profile and bot_profile.has_custom_avatar %}Vlastní pro tento server{% elif bot_profile %}Globální profil bota{% else %}Náhled se nepodařilo načíst{% endif %}</small></div>
+          </div>
+          <form method="post" action="/server/{{ guild.id }}/avatar" enctype="multipart/form-data" class="settings-form">
+            <label><span>Nový obrázek</span><input id="botAvatarInput" type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif" required><small>PNG, JPG, WebP nebo GIF, maximálně 8 MB. Doporučený je čtvercový obrázek.</small></label>
+            <div class="form-actions"><button class="button primary" type="submit">Nahrát profilovou fotku</button></div>
+          </form>
+          {% if bot_profile and bot_profile.has_custom_avatar %}
+            <form method="post" action="/server/{{ guild.id }}/avatar/reset" class="avatar-reset-form">
+              <button class="button subtle" type="submit">Použít globální profilovou fotku</button>
+            </form>
+          {% endif %}
         </div>
       </div>
 

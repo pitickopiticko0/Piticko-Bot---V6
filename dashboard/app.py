@@ -1,10 +1,12 @@
+import base64
 import os
 import time
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, HTTPException, Request
+import httpx
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -47,6 +49,10 @@ app.mount(
 app.include_router(auth_router)
 
 STARTED_AT = time.time()
+DISCORD_API = "https://discord.com/api/v10"
+DISCORD_CDN = "https://cdn.discordapp.com"
+MAX_AVATAR_SIZE = 8 * 1024 * 1024
+ALLOWED_AVATAR_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
@@ -70,6 +76,80 @@ def get_accessible_guild(request: Request, guild_id: str) -> dict[str, Any]:
         if str(guild.get("id")) == str(guild_id):
             return guild
     raise HTTPException(status_code=403, detail="K tomuto serveru nemáš přístup.")
+
+
+def bot_authorization() -> dict[str, str]:
+    token = os.getenv("TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("Chybí proměnná TOKEN pro komunikaci s Discord API.")
+    return {"Authorization": f"Bot {token}"}
+
+
+def valid_avatar_image(content_type: str, content: bytes) -> bool:
+    signatures = {
+        "image/png": content.startswith(b"\x89PNG\r\n\x1a\n"),
+        "image/jpeg": content.startswith(b"\xff\xd8\xff"),
+        "image/webp": (
+            len(content) >= 12
+            and content.startswith(b"RIFF")
+            and content[8:12] == b"WEBP"
+        ),
+        "image/gif": content.startswith((b"GIF87a", b"GIF89a")),
+    }
+    return signatures.get(content_type, False)
+
+
+def avatar_url(guild_id: str, member: dict[str, Any]) -> str:
+    user = member.get("user") or {}
+    user_id = str(user.get("id") or "0")
+    guild_avatar = member.get("avatar")
+
+    if guild_avatar:
+        extension = "gif" if str(guild_avatar).startswith("a_") else "webp"
+        return (
+            f"{DISCORD_CDN}/guilds/{guild_id}/users/{user_id}/avatars/"
+            f"{guild_avatar}.{extension}?size=256"
+        )
+
+    global_avatar = user.get("avatar")
+    if global_avatar:
+        extension = "gif" if str(global_avatar).startswith("a_") else "webp"
+        return f"{DISCORD_CDN}/avatars/{user_id}/{global_avatar}.{extension}?size=256"
+
+    default_index = (int(user_id) >> 22) % 6 if user_id.isdigit() else 0
+    return f"{DISCORD_CDN}/embed/avatars/{default_index}.png"
+
+
+async def get_bot_guild_profile(guild_id: str) -> dict[str, Any] | None:
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                f"{DISCORD_API}/guilds/{guild_id}/members/@me",
+                headers=bot_authorization(),
+            )
+        if response.status_code != 200:
+            return None
+        member = response.json()
+        return {
+            "avatar_url": avatar_url(guild_id, member),
+            "has_custom_avatar": bool(member.get("avatar")),
+        }
+    except (httpx.HTTPError, RuntimeError, ValueError):
+        return None
+
+
+async def set_bot_guild_avatar(guild_id: str, image: str | None) -> None:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.patch(
+            f"{DISCORD_API}/guilds/{guild_id}/members/@me",
+            headers=bot_authorization(),
+            json={"avatar": image},
+        )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Discord odmítl změnu avataru (HTTP {response.status_code})."
+        )
 
 
 @app.on_event("startup")
@@ -130,6 +210,7 @@ async def server_dashboard(request: Request, guild_id: str):
 
     guild = get_accessible_guild(request, guild_id)
     settings = await storage.get_settings(guild_id)
+    bot_profile = await get_bot_guild_profile(guild_id)
 
     return templates.TemplateResponse(
         request=request,
@@ -139,7 +220,77 @@ async def server_dashboard(request: Request, guild_id: str):
             "user": current_user(request),
             "guild": guild,
             "settings": settings,
+            "bot_profile": bot_profile,
         },
+    )
+
+
+@app.post("/server/{guild_id}/avatar")
+async def save_bot_avatar(
+    request: Request,
+    guild_id: str,
+    avatar: UploadFile = File(...),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+    content_type = (avatar.content_type or "").lower()
+    if content_type not in ALLOWED_AVATAR_TYPES:
+        return RedirectResponse(
+            f"/server/{guild_id}?avatar_error=type#appearance",
+            status_code=303,
+        )
+
+    content = await avatar.read(MAX_AVATAR_SIZE + 1)
+    await avatar.close()
+    if not content or len(content) > MAX_AVATAR_SIZE:
+        return RedirectResponse(
+            f"/server/{guild_id}?avatar_error=size#appearance",
+            status_code=303,
+        )
+    if not valid_avatar_image(content_type, content):
+        return RedirectResponse(
+            f"/server/{guild_id}?avatar_error=type#appearance",
+            status_code=303,
+        )
+
+    encoded = base64.b64encode(content).decode("ascii")
+    data_uri = f"data:{content_type};base64,{encoded}"
+
+    try:
+        await set_bot_guild_avatar(guild_id, data_uri)
+    except (httpx.HTTPError, RuntimeError):
+        return RedirectResponse(
+            f"/server/{guild_id}?avatar_error=discord#appearance",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=avatar#appearance",
+        status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/avatar/reset")
+async def reset_bot_avatar(request: Request, guild_id: str):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+    try:
+        await set_bot_guild_avatar(guild_id, None)
+    except (httpx.HTTPError, RuntimeError):
+        return RedirectResponse(
+            f"/server/{guild_id}?avatar_error=discord#appearance",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=avatar-reset#appearance",
+        status_code=303,
     )
 
 
