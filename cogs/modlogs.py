@@ -16,24 +16,6 @@ class ModLogs(commands.GroupCog, name="modlogs"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self._init_table()
-
-    def _init_table(self) -> None:
-        with db.connect() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS modlog_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    channel_id BIGINT NOT NULL,
-                    enabled INTEGER NOT NULL DEFAULT 1,
-                    log_members INTEGER NOT NULL DEFAULT 1,
-                    log_messages INTEGER NOT NULL DEFAULT 1,
-                    log_voice INTEGER NOT NULL DEFAULT 1,
-                    log_channels INTEGER NOT NULL DEFAULT 1,
-                    log_bans INTEGER NOT NULL DEFAULT 1,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-            conn.commit()
 
     async def safe_defer(
         self,
@@ -59,73 +41,31 @@ class ModLogs(commands.GroupCog, name="modlogs"):
             return False
 
     def get_settings(self, guild_id: int):
-        with db.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM modlog_settings
-                WHERE guild_id = ?
-            """, (guild_id,)).fetchone()
+        return db.get_modlog_settings(guild_id)
 
     def save_settings(self, guild_id: int, channel_id: int) -> None:
-        with db.connect() as conn:
-            if db.using_postgres:
-                conn.execute("""
-                    INSERT INTO modlog_settings (
-                        guild_id,
-                        channel_id,
-                        enabled,
-                        log_members,
-                        log_messages,
-                        log_voice,
-                        log_channels,
-                        log_bans,
-                        updated_at
-                    )
-                    VALUES (?, ?, 1, 1, 1, 1, 1, 1, ?)
-                    ON CONFLICT (guild_id)
-                    DO UPDATE SET
-                        channel_id = EXCLUDED.channel_id,
-                        enabled = 1,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    guild_id,
-                    channel_id,
-                    db.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT OR REPLACE INTO modlog_settings (
-                        guild_id,
-                        channel_id,
-                        enabled,
-                        log_members,
-                        log_messages,
-                        log_voice,
-                        log_channels,
-                        log_bans,
-                        updated_at
-                    )
-                    VALUES (?, ?, 1, 1, 1, 1, 1, 1, ?)
-                """, (
-                    guild_id,
-                    channel_id,
-                    db.now(),
-                ))
-
-            conn.commit()
+        current = db.get_modlog_settings(guild_id)
+        values = {}
+        if current is not None:
+            values = {
+                name: bool(current[name])
+                for name in (
+                    "log_members",
+                    "log_messages",
+                    "log_voice",
+                    "log_channels",
+                    "log_bans",
+                )
+            }
+        db.set_modlog_settings(
+            guild_id,
+            channel_id,
+            enabled=True,
+            **values,
+        )
 
     def disable_settings(self, guild_id: int) -> None:
-        with db.connect() as conn:
-            conn.execute("""
-                UPDATE modlog_settings
-                SET enabled = 0,
-                    updated_at = ?
-                WHERE guild_id = ?
-            """, (
-                db.now(),
-                guild_id,
-            ))
-            conn.commit()
+        db.set_modlog_enabled(guild_id, False)
 
     async def get_log_channel(
         self,

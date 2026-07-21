@@ -540,6 +540,42 @@ async def save_autorole(
     )
 
 
+@app.post("/server/{guild_id}/modlogs")
+async def save_modlogs(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    channel_id: str = Form(default=""),
+    log_members: str | None = Form(default=None),
+    log_messages: str | None = Form(default=None),
+    log_voice: str | None = Form(default=None),
+    log_channels: str | None = Form(default=None),
+    log_bans: str | None = Form(default=None),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+    await storage.update_module(
+        guild_id,
+        "modlogs",
+        {
+            "enabled": enabled == "on",
+            "channel_id": channel_id.strip(),
+            "log_members": log_members == "on",
+            "log_messages": log_messages == "on",
+            "log_voice": log_voice == "on",
+            "log_channels": log_channels == "on",
+            "log_bans": log_bans == "on",
+        },
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=modlogs#modlogs",
+        status_code=303,
+    )
+
+
 @app.post("/server/{guild_id}/general")
 async def save_general(
     request: Request,
