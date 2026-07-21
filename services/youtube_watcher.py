@@ -10,6 +10,7 @@ from utils.logger import logger
 from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import youtube_api
+from utils.youtube_message import render_youtube_message
 
 
 class YouTubeWatcher:
@@ -114,6 +115,17 @@ class YouTubeWatcher:
         if sub["mention_role_id"]:
             mention = f"<@&{sub['mention_role_id']}>"
 
+        content = render_youtube_message(
+            sub["custom_message"],
+            title=latest.title,
+            url=latest.url,
+            channel=sub["youtube_name"],
+            channel_url=sub["youtube_url"],
+            thumbnail=latest.thumbnail,
+            published=format_discord_time(latest.published_at),
+            role=mention,
+        )
+
         embed = self._build_video_embed(
             title=latest.title,
             url=latest.url,
@@ -123,7 +135,7 @@ class YouTubeWatcher:
         )
 
         await discord_channel.send(
-            content=mention,
+            content=content,
             embed=embed,
             view=youtube_video_view(latest.url),
         )
