@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import os
 import time
@@ -53,6 +54,9 @@ DISCORD_API = "https://discord.com/api/v10"
 DISCORD_CDN = "https://cdn.discordapp.com"
 MAX_AVATAR_SIZE = 8 * 1024 * 1024
 ALLOWED_AVATAR_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+VIEW_CHANNEL = 1 << 10
+SEND_MESSAGES = 1 << 11
+ADMINISTRATOR = 1 << 3
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
@@ -120,22 +124,130 @@ def avatar_url(guild_id: str, member: dict[str, Any]) -> str:
     return f"{DISCORD_CDN}/embed/avatars/{default_index}.png"
 
 
-async def get_bot_guild_profile(guild_id: str) -> dict[str, Any] | None:
+def bot_can_send_to_channel(
+    guild_id: str,
+    member: dict[str, Any],
+    roles: list[dict[str, Any]],
+    channel: dict[str, Any],
+) -> bool:
+    role_permissions = {
+        str(role.get("id")): int(role.get("permissions", 0))
+        for role in roles
+    }
+    member_role_ids = {str(role_id) for role_id in member.get("roles", [])}
+    permissions = role_permissions.get(str(guild_id), 0)
+    for role_id in member_role_ids:
+        permissions |= role_permissions.get(role_id, 0)
+
+    if permissions & ADMINISTRATOR:
+        return True
+
+    overwrites = channel.get("permission_overwrites") or []
+
+    def apply_overwrite(overwrite: dict[str, Any]) -> None:
+        nonlocal permissions
+        permissions &= ~int(overwrite.get("deny", 0))
+        permissions |= int(overwrite.get("allow", 0))
+
+    everyone = next(
+        (item for item in overwrites if str(item.get("id")) == str(guild_id)),
+        None,
+    )
+    if everyone:
+        apply_overwrite(everyone)
+
+    role_denies = 0
+    role_allows = 0
+    for overwrite in overwrites:
+        if (
+            int(overwrite.get("type", 0)) == 0
+            and str(overwrite.get("id")) in member_role_ids
+        ):
+            role_denies |= int(overwrite.get("deny", 0))
+            role_allows |= int(overwrite.get("allow", 0))
+    permissions &= ~role_denies
+    permissions |= role_allows
+
+    user_id = str((member.get("user") or {}).get("id", ""))
+    member_overwrite = next(
+        (
+            item for item in overwrites
+            if int(item.get("type", 0)) == 1
+            and str(item.get("id")) == user_id
+        ),
+        None,
+    )
+    if member_overwrite:
+        apply_overwrite(member_overwrite)
+
+    required = VIEW_CHANNEL | SEND_MESSAGES
+    return permissions & required == required
+
+
+async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
+    empty = {
+        "profile": None,
+        "channels": [],
+        "roles": [],
+        "available": False,
+    }
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(
-                f"{DISCORD_API}/guilds/{guild_id}/members/@me",
-                headers=bot_authorization(),
+            headers = bot_authorization()
+            member_response, channels_response, roles_response = await asyncio.gather(
+                client.get(
+                    f"{DISCORD_API}/guilds/{guild_id}/members/@me",
+                    headers=headers,
+                ),
+                client.get(
+                    f"{DISCORD_API}/guilds/{guild_id}/channels",
+                    headers=headers,
+                ),
+                client.get(
+                    f"{DISCORD_API}/guilds/{guild_id}/roles",
+                    headers=headers,
+                ),
             )
-        if response.status_code != 200:
-            return None
-        member = response.json()
+        if any(
+            response.status_code != 200
+            for response in (member_response, channels_response, roles_response)
+        ):
+            return empty
+
+        member = member_response.json()
+        raw_channels = channels_response.json()
+        raw_roles = roles_response.json()
+        channels = [
+            {
+                "id": str(channel["id"]),
+                "name": channel.get("name") or "bez-názvu",
+                "can_send": bot_can_send_to_channel(
+                    guild_id, member, raw_roles, channel
+                ),
+            }
+            for channel in raw_channels
+            if int(channel.get("type", -1)) in (0, 5)
+        ]
+        channels.sort(key=lambda item: item["name"].casefold())
+        roles = [
+            {"id": str(role["id"]), "name": role.get("name") or "Role"}
+            for role in raw_roles
+            if str(role.get("id")) != str(guild_id)
+            and not role.get("managed", False)
+        ]
+        roles.sort(key=lambda item: item["name"].casefold())
+
         return {
-            "avatar_url": avatar_url(guild_id, member),
-            "has_custom_avatar": bool(member.get("avatar")),
+            "profile": {
+                "avatar_url": avatar_url(guild_id, member),
+                "has_custom_avatar": bool(member.get("avatar")),
+            },
+            "channels": channels,
+            "roles": roles,
+            "available": True,
         }
-    except (httpx.HTTPError, RuntimeError, ValueError):
-        return None
+    except (httpx.HTTPError, RuntimeError, TypeError, ValueError):
+        return empty
 
 
 async def set_bot_guild_avatar(guild_id: str, image: str | None) -> None:
@@ -210,7 +322,7 @@ async def server_dashboard(request: Request, guild_id: str):
 
     guild = get_accessible_guild(request, guild_id)
     settings = await storage.get_settings(guild_id)
-    bot_profile = await get_bot_guild_profile(guild_id)
+    discord_resources = await get_bot_guild_resources(guild_id)
 
     return templates.TemplateResponse(
         request=request,
@@ -220,7 +332,10 @@ async def server_dashboard(request: Request, guild_id: str):
             "user": current_user(request),
             "guild": guild,
             "settings": settings,
-            "bot_profile": bot_profile,
+            "bot_profile": discord_resources["profile"],
+            "discord_channels": discord_resources["channels"],
+            "discord_roles": discord_resources["roles"],
+            "discord_resources_available": discord_resources["available"],
         },
     )
 
