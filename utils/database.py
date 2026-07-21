@@ -7,6 +7,8 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from config import DATABASE
+from utils.db import dashboard as dashboard_db
+from utils.db import makejpc as makejpc_db
 
 
 load_dotenv()
@@ -379,19 +381,19 @@ class Database:
                 ))
             else:
                 conn.execute("""
-                    INSERT OR REPLACE INTO subscriptions
+                    INSERT INTO subscriptions
                     (guild_id, youtube_channel_id, discord_channel_id, mention_role_id, enabled, created_at)
-                    VALUES (?, ?, ?, ?, 1, COALESCE(
-                        (SELECT created_at FROM subscriptions WHERE guild_id = ? AND youtube_channel_id = ?),
-                        ?
-                    ))
+                    VALUES (?, ?, ?, ?, 1, ?)
+                    ON CONFLICT(guild_id, youtube_channel_id)
+                    DO UPDATE SET
+                        discord_channel_id = excluded.discord_channel_id,
+                        mention_role_id = excluded.mention_role_id,
+                        enabled = 1
                 """, (
                     guild_id,
                     youtube_channel_id,
                     discord_channel_id,
                     mention_role_id,
-                    guild_id,
-                    youtube_channel_id,
                     self.now(),
                 ))
 
@@ -550,9 +552,16 @@ class Database:
                 ))
             else:
                 conn.execute("""
-                    INSERT OR REPLACE INTO welcome_settings
+                    INSERT INTO welcome_settings
                     (guild_id, channel_id, role_id, enabled, message, updated_at)
                     VALUES (?, ?, ?, 1, ?, ?)
+                    ON CONFLICT(guild_id)
+                    DO UPDATE SET
+                        channel_id = excluded.channel_id,
+                        role_id = excluded.role_id,
+                        enabled = 1,
+                        message = excluded.message,
+                        updated_at = excluded.updated_at
                 """, (
                     guild_id,
                     channel_id,
@@ -609,66 +618,19 @@ class Database:
         embed_color: str = "#5865F2",
         dm_enabled: bool = False,
     ) -> None:
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO welcome_settings (
-                        guild_id, channel_id, role_id, enabled, message,
-                        embed_title, embed_color, dm_enabled, updated_at
-                    )
-                    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (guild_id) DO UPDATE SET
-                        channel_id = EXCLUDED.channel_id,
-                        enabled = EXCLUDED.enabled,
-                        message = EXCLUDED.message,
-                        embed_title = EXCLUDED.embed_title,
-                        embed_color = EXCLUDED.embed_color,
-                        dm_enabled = EXCLUDED.dm_enabled,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    guild_id,
-                    channel_id,
-                    int(enabled),
-                    message,
-                    embed_title,
-                    embed_color,
-                    int(dm_enabled),
-                    self.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT INTO welcome_settings (
-                        guild_id, channel_id, role_id, enabled, message,
-                        embed_title, embed_color, dm_enabled, updated_at
-                    )
-                    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(guild_id) DO UPDATE SET
-                        channel_id = excluded.channel_id,
-                        enabled = excluded.enabled,
-                        message = excluded.message,
-                        embed_title = excluded.embed_title,
-                        embed_color = excluded.embed_color,
-                        dm_enabled = excluded.dm_enabled,
-                        updated_at = excluded.updated_at
-                """, (
-                    guild_id,
-                    channel_id,
-                    int(enabled),
-                    message,
-                    embed_title,
-                    embed_color,
-                    int(dm_enabled),
-                    self.now(),
-                ))
-            conn.commit()
+        dashboard_db.update_welcome_settings(
+            self,
+            guild_id,
+            enabled=enabled,
+            channel_id=channel_id,
+            message=message,
+            embed_title=embed_title,
+            embed_color=embed_color,
+            dm_enabled=dm_enabled,
+        )
 
     def get_guild_settings(self, guild_id: int):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM guild_settings
-                WHERE guild_id = ?
-            """, (guild_id,)).fetchone()
+        return dashboard_db.get_guild_settings(self, guild_id)
 
     def set_guild_settings(
         self,
@@ -677,46 +639,13 @@ class Database:
         timezone_name: str = "Europe/Prague",
         command_channel_id: Optional[int] = None,
     ) -> None:
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO guild_settings (
-                        guild_id, language, timezone,
-                        command_channel_id, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT (guild_id) DO UPDATE SET
-                        language = EXCLUDED.language,
-                        timezone = EXCLUDED.timezone,
-                        command_channel_id = EXCLUDED.command_channel_id,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    guild_id,
-                    language,
-                    timezone_name,
-                    command_channel_id,
-                    self.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT INTO guild_settings (
-                        guild_id, language, timezone,
-                        command_channel_id, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(guild_id) DO UPDATE SET
-                        language = excluded.language,
-                        timezone = excluded.timezone,
-                        command_channel_id = excluded.command_channel_id,
-                        updated_at = excluded.updated_at
-                """, (
-                    guild_id,
-                    language,
-                    timezone_name,
-                    command_channel_id,
-                    self.now(),
-                ))
-            conn.commit()
+        dashboard_db.set_guild_settings(
+            self,
+            guild_id,
+            language,
+            timezone_name,
+            command_channel_id,
+        )
 
     def update_subscription_settings(
         self,
@@ -729,56 +658,25 @@ class Database:
         custom_message: str = "📺 Nové video: {title}\n{url}",
         check_interval: int = 300,
     ) -> None:
-        check_interval = max(60, min(int(check_interval), 3600))
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE subscriptions
-                SET discord_channel_id = ?,
-                    mention_role_id = ?,
-                    enabled = ?,
-                    custom_message = ?,
-                    check_interval = ?
-                WHERE guild_id = ? AND youtube_channel_id = ?
-            """, (
-                discord_channel_id,
-                mention_role_id,
-                int(enabled),
-                custom_message,
-                check_interval,
-                guild_id,
-                youtube_channel_id,
-            ))
-            conn.commit()
+        dashboard_db.update_subscription_settings(
+            self,
+            guild_id,
+            youtube_channel_id,
+            discord_channel_id=discord_channel_id,
+            mention_role_id=mention_role_id,
+            enabled=enabled,
+            custom_message=custom_message,
+            check_interval=check_interval,
+        )
 
     def count_configured_guilds(self, guild_ids: list[int]) -> int:
-        if not guild_ids:
-            return 0
-
-        total = 0
-        for guild_id in guild_ids:
-            if self.get_welcome_settings(guild_id) is not None:
-                total += 1
-                continue
-            if self.get_guild_subscriptions(guild_id):
-                total += 1
-                continue
-            if self.get_guild_settings(guild_id) is not None:
-                total += 1
-        return total
+        return dashboard_db.count_configured_guilds(self, guild_ids)
 
     def makejpc_product_exists(self, product_code: str) -> bool:
-        with self.connect() as conn:
-            return conn.execute(
-                "SELECT product_code FROM makejpc_products WHERE product_code = ?",
-                (product_code,),
-            ).fetchone() is not None
+        return makejpc_db.product_exists(self, product_code)
 
     def count_makejpc_products(self) -> int:
-        with self.connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS c FROM makejpc_products"
-            ).fetchone()
-            return int(row["c"])
+        return makejpc_db.count_products(self)
 
     def add_makejpc_product(
         self,
@@ -790,33 +688,16 @@ class Database:
         image_url: Optional[str],
         announced: bool = False,
     ) -> None:
-        now = self.now()
-        with self.connect() as conn:
-            conn.execute("""
-                INSERT INTO makejpc_products (
-                    product_code,
-                    name,
-                    price,
-                    availability,
-                    product_url,
-                    image_url,
-                    announced,
-                    created_at,
-                    updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                product_code,
-                name,
-                price,
-                availability,
-                product_url,
-                image_url,
-                int(announced),
-                now,
-                now,
-            ))
-            conn.commit()
+        makejpc_db.add_product(
+            self,
+            product_code,
+            name,
+            price,
+            availability,
+            product_url,
+            image_url,
+            announced,
+        )
 
     def update_makejpc_product(
         self,
@@ -827,34 +708,18 @@ class Database:
         product_url: str,
         image_url: Optional[str],
     ) -> None:
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE makejpc_products
-                SET name = ?,
-                    price = ?,
-                    availability = ?,
-                    product_url = ?,
-                    image_url = ?,
-                    updated_at = ?
-                WHERE product_code = ?
-            """, (
-                name,
-                price,
-                availability,
-                product_url,
-                image_url,
-                self.now(),
-                product_code,
-            ))
-            conn.commit()
+        makejpc_db.update_product(
+            self,
+            product_code,
+            name,
+            price,
+            availability,
+            product_url,
+            image_url,
+        )
 
     def get_makejpc_products(self):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM makejpc_products
-                ORDER BY created_at DESC
-            """).fetchall()
+        return makejpc_db.get_products(self)
 
     def stats(self):
         with self.connect() as conn:
