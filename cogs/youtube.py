@@ -7,6 +7,7 @@ from utils.database import db
 from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import YouTubeAPIError, youtube_api
+from utils.youtube_message import render_youtube_message
 
 
 def build_video_embed(
@@ -638,6 +639,17 @@ class YouTube(commands.GroupCog, name="youtube"):
         if ping_role and sub["mention_role_id"]:
             mention = f"<@&{sub['mention_role_id']}>"
 
+        content = render_youtube_message(
+            sub["custom_message"],
+            title=latest.title,
+            url=latest.url,
+            channel=sub["youtube_name"],
+            channel_url=sub["youtube_url"],
+            thumbnail=latest.thumbnail,
+            published=format_discord_time(latest.published_at),
+            role=mention,
+        )
+
         embed = build_video_embed(
             title=latest.title,
             url=latest.url,
@@ -648,7 +660,7 @@ class YouTube(commands.GroupCog, name="youtube"):
         )
 
         await discord_channel.send(
-            content=mention,
+            content=content,
             embed=embed,
             view=youtube_video_view(latest.url),
         )
@@ -710,6 +722,16 @@ class YouTube(commands.GroupCog, name="youtube"):
 
             if discord_channel:
                 mention = f"<@&{sub['mention_role_id']}>" if sub["mention_role_id"] else None
+                content = render_youtube_message(
+                    sub["custom_message"],
+                    title=latest.title,
+                    url=latest.url,
+                    channel=sub["youtube_name"],
+                    channel_url=sub["youtube_url"],
+                    thumbnail=latest.thumbnail,
+                    published=format_discord_time(latest.published_at),
+                    role=mention,
+                )
                 embed = build_video_embed(
                     title=latest.title,
                     url=latest.url,
@@ -719,7 +741,7 @@ class YouTube(commands.GroupCog, name="youtube"):
                 )
 
                 await discord_channel.send(
-                    content=mention,
+                    content=content,
                     embed=embed,
                     view=youtube_video_view(latest.url),
                 )
