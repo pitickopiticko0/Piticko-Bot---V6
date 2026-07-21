@@ -74,4 +74,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (code) code.textContent = input.value.toUpperCase();
     });
   });
+
+  const avatarInput = document.getElementById("botAvatarInput");
+  const avatarPreview = document.getElementById("botAvatarPreview");
+  if (avatarInput && avatarPreview) {
+    let previewUrl = null;
+    avatarInput.addEventListener("change", () => {
+      const file = avatarInput.files?.[0];
+      if (!file) return;
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(file);
+      avatarPreview.src = previewUrl;
+    });
+    window.addEventListener("pagehide", () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    });
+  }
 });
