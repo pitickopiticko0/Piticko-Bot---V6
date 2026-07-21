@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from config import DATABASE
 from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
+from utils.db import welcome as welcome_db
+from utils.db import youtube as youtube_db
 
 
 load_dotenv()
@@ -331,28 +333,7 @@ class Database:
             conn.commit()
 
     def add_youtube_channel(self, channel_id: str, name: str, url: str):
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO youtube_channels
-                    (youtube_channel_id, youtube_name, youtube_url, created_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT (youtube_channel_id)
-                    DO UPDATE SET
-                        youtube_name = EXCLUDED.youtube_name,
-                        youtube_url = EXCLUDED.youtube_url
-                """, (channel_id, name, url, self.now()))
-            else:
-                conn.execute("""
-                    INSERT OR REPLACE INTO youtube_channels
-                    (youtube_channel_id, youtube_name, youtube_url, created_at)
-                    VALUES (?, ?, ?, COALESCE(
-                        (SELECT created_at FROM youtube_channels WHERE youtube_channel_id = ?),
-                        ?
-                    ))
-                """, (channel_id, name, url, channel_id, self.now()))
-
-            conn.commit()
+        youtube_db.add_channel(self, channel_id, name, url)
 
     def add_subscription(
         self,
@@ -361,110 +342,35 @@ class Database:
         discord_channel_id: int,
         mention_role_id: Optional[int] = None,
     ):
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO subscriptions
-                    (guild_id, youtube_channel_id, discord_channel_id, mention_role_id, enabled, created_at)
-                    VALUES (?, ?, ?, ?, 1, ?)
-                    ON CONFLICT (guild_id, youtube_channel_id)
-                    DO UPDATE SET
-                        discord_channel_id = EXCLUDED.discord_channel_id,
-                        mention_role_id = EXCLUDED.mention_role_id,
-                        enabled = 1
-                """, (
-                    guild_id,
-                    youtube_channel_id,
-                    discord_channel_id,
-                    mention_role_id,
-                    self.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT INTO subscriptions
-                    (guild_id, youtube_channel_id, discord_channel_id, mention_role_id, enabled, created_at)
-                    VALUES (?, ?, ?, ?, 1, ?)
-                    ON CONFLICT(guild_id, youtube_channel_id)
-                    DO UPDATE SET
-                        discord_channel_id = excluded.discord_channel_id,
-                        mention_role_id = excluded.mention_role_id,
-                        enabled = 1
-                """, (
-                    guild_id,
-                    youtube_channel_id,
-                    discord_channel_id,
-                    mention_role_id,
-                    self.now(),
-                ))
-
-            conn.commit()
+        youtube_db.add_subscription(
+            self,
+            guild_id,
+            youtube_channel_id,
+            discord_channel_id,
+            mention_role_id,
+        )
 
     def remove_subscription(self, guild_id: int, youtube_channel_id: str) -> bool:
-        with self.connect() as conn:
-            cur = conn.execute("""
-                DELETE FROM subscriptions
-                WHERE guild_id = ? AND youtube_channel_id = ?
-            """, (guild_id, youtube_channel_id))
-            conn.commit()
-            return cur.rowcount > 0
+        return youtube_db.remove_subscription(
+            self, guild_id, youtube_channel_id
+        )
 
     def get_guild_subscriptions(self, guild_id: int):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT
-                    s.*,
-                    y.youtube_name,
-                    y.youtube_url
-                FROM subscriptions s
-                JOIN youtube_channels y
-                    ON y.youtube_channel_id = s.youtube_channel_id
-                WHERE s.guild_id = ?
-                ORDER BY y.youtube_name ASC
-            """, (guild_id,)).fetchall()
+        return youtube_db.get_guild_subscriptions(self, guild_id)
 
     def get_enabled_subscriptions(self):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT
-                    s.*,
-                    y.youtube_name,
-                    y.youtube_url
-                FROM subscriptions s
-                JOIN youtube_channels y
-                    ON y.youtube_channel_id = s.youtube_channel_id
-                WHERE s.enabled = 1
-            """).fetchall()
+        return youtube_db.get_enabled_subscriptions(self)
 
     def get_unique_youtube_channels(self):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT DISTINCT
-                    y.youtube_channel_id,
-                    y.youtube_name,
-                    y.youtube_url
-                FROM youtube_channels y
-                JOIN subscriptions s
-                    ON s.youtube_channel_id = y.youtube_channel_id
-                WHERE s.enabled = 1
-            """).fetchall()
+        return youtube_db.get_unique_channels(self)
 
     def set_last_video(self, guild_id: int, youtube_channel_id: str, video_id: str):
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE subscriptions
-                SET last_video_id = ?
-                WHERE guild_id = ? AND youtube_channel_id = ?
-            """, (video_id, guild_id, youtube_channel_id))
-            conn.commit()
+        youtube_db.set_last_video(
+            self, guild_id, youtube_channel_id, video_id
+        )
 
     def video_exists(self, video_id: str) -> bool:
-        with self.connect() as conn:
-            row = conn.execute("""
-                SELECT video_id
-                FROM videos
-                WHERE video_id = ?
-            """, (video_id,)).fetchone()
-            return row is not None
+        return youtube_db.video_exists(self, video_id)
 
     def add_video(
         self,
@@ -474,54 +380,24 @@ class Database:
         url: str,
         published_at: Optional[str] = None,
     ):
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO videos
-                    (video_id, youtube_channel_id, title, url, published_at, announced_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (video_id) DO NOTHING
-                """, (
-                    video_id,
-                    youtube_channel_id,
-                    title,
-                    url,
-                    published_at,
-                    self.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT OR IGNORE INTO videos
-                    (video_id, youtube_channel_id, title, url, published_at, announced_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    video_id,
-                    youtube_channel_id,
-                    title,
-                    url,
-                    published_at,
-                    self.now(),
-                ))
-
-            conn.commit()
+        youtube_db.add_video(
+            self,
+            video_id,
+            youtube_channel_id,
+            title,
+            url,
+            published_at,
+        )
 
     def pause_subscription(self, guild_id: int, youtube_channel_id: str):
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE subscriptions
-                SET enabled = 0
-                WHERE guild_id = ? AND youtube_channel_id = ?
-            """, (guild_id, youtube_channel_id))
-            conn.commit()
+        youtube_db.set_subscription_enabled(
+            self, guild_id, youtube_channel_id, False
+        )
 
     def resume_subscription(self, guild_id: int, youtube_channel_id: str):
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE subscriptions
-                SET enabled = 1
-                WHERE guild_id = ? AND youtube_channel_id = ?
-            """, (guild_id, youtube_channel_id))
-            conn.commit()
+        youtube_db.set_subscription_enabled(
+            self, guild_id, youtube_channel_id, True
+        )
 
     def set_welcome_settings(
         self,
@@ -530,82 +406,16 @@ class Database:
         role_id: Optional[int],
         message: str,
     ):
-        with self.connect() as conn:
-            if self.using_postgres:
-                conn.execute("""
-                    INSERT INTO welcome_settings
-                    (guild_id, channel_id, role_id, enabled, message, updated_at)
-                    VALUES (?, ?, ?, 1, ?, ?)
-                    ON CONFLICT (guild_id)
-                    DO UPDATE SET
-                        channel_id = EXCLUDED.channel_id,
-                        role_id = EXCLUDED.role_id,
-                        enabled = 1,
-                        message = EXCLUDED.message,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    guild_id,
-                    channel_id,
-                    role_id,
-                    message,
-                    self.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT INTO welcome_settings
-                    (guild_id, channel_id, role_id, enabled, message, updated_at)
-                    VALUES (?, ?, ?, 1, ?, ?)
-                    ON CONFLICT(guild_id)
-                    DO UPDATE SET
-                        channel_id = excluded.channel_id,
-                        role_id = excluded.role_id,
-                        enabled = 1,
-                        message = excluded.message,
-                        updated_at = excluded.updated_at
-                """, (
-                    guild_id,
-                    channel_id,
-                    role_id,
-                    message,
-                    self.now(),
-                ))
-
-            conn.execute("""
-                UPDATE welcome_settings
-                SET enabled = 1,
-                    updated_at = ?
-                WHERE guild_id = ?
-            """, (self.now(), guild_id))
-
-            conn.commit()
+        welcome_db.set_settings(self, guild_id, channel_id, role_id, message)
 
     def enable_welcome(self, guild_id: int):
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE welcome_settings
-                SET enabled = 1,
-                    updated_at = ?
-                WHERE guild_id = ?
-            """, (self.now(), guild_id))
-            conn.commit()
+        welcome_db.set_enabled(self, guild_id, True)
 
     def get_welcome_settings(self, guild_id: int):
-        with self.connect() as conn:
-            return conn.execute("""
-                SELECT *
-                FROM welcome_settings
-                WHERE guild_id = ?
-            """, (guild_id,)).fetchone()
+        return welcome_db.get_settings(self, guild_id)
 
     def disable_welcome(self, guild_id: int):
-        with self.connect() as conn:
-            conn.execute("""
-                UPDATE welcome_settings
-                SET enabled = 0,
-                    updated_at = ?
-                WHERE guild_id = ?
-            """, (self.now(), guild_id))
-            conn.commit()
+        welcome_db.set_enabled(self, guild_id, False)
 
     def update_welcome_settings(
         self,
