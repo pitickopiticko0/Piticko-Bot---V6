@@ -54,6 +54,16 @@ POSTGRES_TABLES = (
         log_bans INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS antispam_settings (
+        guild_id BIGINT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1,
+        max_messages INTEGER NOT NULL DEFAULT 6,
+        interval_seconds INTEGER NOT NULL DEFAULT 8,
+        duplicate_limit INTEGER NOT NULL DEFAULT 3,
+        mention_limit INTEGER NOT NULL DEFAULT 5,
+        timeout_minutes INTEGER NOT NULL DEFAULT 10,
+        delete_messages INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
 )
 
 
@@ -106,6 +116,16 @@ SQLITE_TABLES = (
         log_voice INTEGER NOT NULL DEFAULT 1,
         log_channels INTEGER NOT NULL DEFAULT 1,
         log_bans INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS antispam_settings (
+        guild_id INTEGER PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1,
+        max_messages INTEGER NOT NULL DEFAULT 6,
+        interval_seconds INTEGER NOT NULL DEFAULT 8,
+        duplicate_limit INTEGER NOT NULL DEFAULT 3,
+        mention_limit INTEGER NOT NULL DEFAULT 5,
+        timeout_minutes INTEGER NOT NULL DEFAULT 10,
+        delete_messages INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
     )""",
 )
