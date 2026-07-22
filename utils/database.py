@@ -13,6 +13,7 @@ from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
+from utils.db import tickets as tickets_db
 from utils.db import welcome as welcome_db
 from utils.db import youtube as youtube_db
 
@@ -113,6 +114,39 @@ class Database:
 
     def set_modlog_enabled(self, guild_id: int, enabled: bool) -> None:
         modlogs_db.set_enabled(self, guild_id, enabled)
+
+    def get_ticket_settings(self, guild_id: int):
+        return tickets_db.get_settings(self, guild_id)
+
+    def set_ticket_settings(self, guild_id: int, panel_channel_id: int,
+                            category_id: int, support_role_id: int,
+                            log_channel_id: Optional[int], **values) -> None:
+        tickets_db.save_settings(
+            self, guild_id, panel_channel_id, category_id,
+            support_role_id, log_channel_id, **values,
+        )
+
+    def set_ticket_enabled(self, guild_id: int, enabled: bool) -> None:
+        tickets_db.set_enabled(self, guild_id, enabled)
+
+    def get_open_ticket(self, guild_id: int, user_id: int):
+        return tickets_db.get_open_ticket(self, guild_id, user_id)
+
+    def get_ticket_by_channel(self, channel_id: int):
+        return tickets_db.get_ticket_by_channel(self, channel_id)
+
+    def create_ticket_record(self, guild_id: int, channel_id: int,
+                             user_id: int, subject: str,
+                             description: str) -> None:
+        tickets_db.create_ticket(
+            self, guild_id, channel_id, user_id, subject, description,
+        )
+
+    def claim_ticket_record(self, channel_id: int, user_id: int) -> None:
+        tickets_db.claim_ticket(self, channel_id, user_id)
+
+    def close_ticket_record(self, channel_id: int) -> None:
+        tickets_db.close_ticket(self, channel_id)
 
     def _init_db(self):
         database_migrations.initialize(self)

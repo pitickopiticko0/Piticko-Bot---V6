@@ -56,6 +56,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "timeout_minutes": 10,
         "delete_messages": True,
     },
+    "tickets": {
+        "enabled": False,
+        "panel_channel_id": "",
+        "category_id": "",
+        "support_role_id": "",
+        "log_channel_id": "",
+    },
 }
 
 
@@ -159,6 +166,16 @@ class DashboardStorage:
                 "delete_messages": bool(_value(antispam, "delete_messages", 1)),
             })
 
+        tickets = db.get_ticket_settings(guild_id)
+        if tickets is not None:
+            settings["tickets"].update({
+                "enabled": bool(_value(tickets, "enabled", 0)),
+                "panel_channel_id": str(_value(tickets, "panel_channel_id", "")),
+                "category_id": str(_value(tickets, "category_id", "")),
+                "support_role_id": str(_value(tickets, "support_role_id", "")),
+                "log_channel_id": str(_value(tickets, "log_channel_id", "")),
+            })
+
         return settings
 
     async def update_module(self, guild_id: str, module: str, values: dict[str, Any]) -> None:
@@ -169,6 +186,7 @@ class DashboardStorage:
             "autorole": self._save_autorole_sync,
             "modlogs": self._save_modlogs_sync,
             "antispam": self._save_antispam_sync,
+            "tickets": self._save_tickets_sync,
         }
         handler = handlers.get(module)
         if handler is None:
@@ -248,6 +266,35 @@ class DashboardStorage:
             timeout_minutes=int(values.get("timeout_minutes") or 10),
             delete_messages=bool(values.get("delete_messages")),
         )
+
+    def _save_tickets_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        panel_channel_id = _discord_id(
+            values.get("panel_channel_id"), field="Kanál ticket panelu",
+            required=enabled,
+        )
+        category_id = _discord_id(
+            values.get("category_id"), field="Kategorie ticketů",
+            required=enabled,
+        )
+        support_role_id = _discord_id(
+            values.get("support_role_id"), field="Role podpory",
+            required=enabled,
+        )
+        log_channel_id = _discord_id(
+            values.get("log_channel_id"), field="Ticket log kanál",
+        )
+        if panel_channel_id and category_id and support_role_id:
+            db.set_ticket_settings(
+                guild_id,
+                panel_channel_id,
+                category_id,
+                support_role_id,
+                log_channel_id,
+                enabled=enabled,
+            )
+        else:
+            db.set_ticket_enabled(guild_id, False)
 
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))

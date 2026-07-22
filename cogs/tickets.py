@@ -179,65 +179,19 @@ class TicketControls(discord.ui.View):
 class Tickets(commands.GroupCog, name="ticket"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.init_tables()
 
     async def cog_load(self):
         self.bot.add_view(CreateTicketView(self))
         self.bot.add_view(TicketControls(self))
 
-    def init_tables(self):
-        with db.connect() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ticket_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    panel_channel_id BIGINT NOT NULL,
-                    category_id BIGINT NOT NULL,
-                    support_role_id BIGINT NOT NULL,
-                    log_channel_id BIGINT,
-                    enabled INTEGER NOT NULL DEFAULT 1,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
-            ticket_id = "BIGSERIAL PRIMARY KEY" if db.using_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
-
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS tickets (
-                    id {ticket_id},
-                    guild_id BIGINT NOT NULL,
-                    channel_id BIGINT UNIQUE NOT NULL,
-                    user_id BIGINT NOT NULL,
-                    subject TEXT NOT NULL,
-                    description TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'open',
-                    claimed_by BIGINT,
-                    created_at TEXT NOT NULL,
-                    closed_at TEXT
-                )
-            """)
-            conn.commit()
-
     def get_settings(self, guild_id: int):
-        with db.connect() as conn:
-            return conn.execute(
-                "SELECT * FROM ticket_settings WHERE guild_id = ?",
-                (guild_id,),
-            ).fetchone()
+        return db.get_ticket_settings(guild_id)
 
     def get_open_ticket(self, guild_id: int, user_id: int):
-        with db.connect() as conn:
-            return conn.execute("""
-                SELECT * FROM tickets
-                WHERE guild_id = ? AND user_id = ? AND status = 'open'
-                ORDER BY id DESC LIMIT 1
-            """, (guild_id, user_id)).fetchone()
+        return db.get_open_ticket(guild_id, user_id)
 
     def get_ticket_by_channel(self, channel_id: int):
-        with db.connect() as conn:
-            return conn.execute("""
-                SELECT * FROM tickets
-                WHERE channel_id = ? AND status = 'open'
-            """, (channel_id,)).fetchone()
+        return db.get_ticket_by_channel(channel_id)
 
     def save_settings(
         self,
@@ -247,41 +201,14 @@ class Tickets(commands.GroupCog, name="ticket"):
         support_role_id: int,
         log_channel_id: Optional[int],
     ):
-        with db.connect() as conn:
-            if db.using_postgres:
-                conn.execute("""
-                    INSERT INTO ticket_settings
-                    (guild_id, panel_channel_id, category_id, support_role_id, log_channel_id, enabled, updated_at)
-                    VALUES (?, ?, ?, ?, ?, 1, ?)
-                    ON CONFLICT (guild_id) DO UPDATE SET
-                        panel_channel_id = EXCLUDED.panel_channel_id,
-                        category_id = EXCLUDED.category_id,
-                        support_role_id = EXCLUDED.support_role_id,
-                        log_channel_id = EXCLUDED.log_channel_id,
-                        enabled = 1,
-                        updated_at = EXCLUDED.updated_at
-                """, (
-                    guild_id,
-                    panel_channel_id,
-                    category_id,
-                    support_role_id,
-                    log_channel_id,
-                    db.now(),
-                ))
-            else:
-                conn.execute("""
-                    INSERT OR REPLACE INTO ticket_settings
-                    (guild_id, panel_channel_id, category_id, support_role_id, log_channel_id, enabled, updated_at)
-                    VALUES (?, ?, ?, ?, ?, 1, ?)
-                """, (
-                    guild_id,
-                    panel_channel_id,
-                    category_id,
-                    support_role_id,
-                    log_channel_id,
-                    db.now(),
-                ))
-            conn.commit()
+        db.set_ticket_settings(
+            guild_id,
+            panel_channel_id,
+            category_id,
+            support_role_id,
+            log_channel_id,
+            enabled=True,
+        )
 
     def is_support(self, member: discord.Member, settings) -> bool:
         return (
@@ -350,20 +277,13 @@ class Tickets(commands.GroupCog, name="ticket"):
             )
             return
 
-        with db.connect() as conn:
-            conn.execute("""
-                INSERT INTO tickets
-                (guild_id, channel_id, user_id, subject, description, status, created_at)
-                VALUES (?, ?, ?, ?, ?, 'open', ?)
-            """, (
-                guild.id,
-                channel.id,
-                interaction.user.id,
-                subject,
-                description,
-                db.now(),
-            ))
-            conn.commit()
+        db.create_ticket_record(
+            guild.id,
+            channel.id,
+            interaction.user.id,
+            subject,
+            description,
+        )
 
         embed = discord.Embed(
             title=f"🎫 {subject}",
@@ -400,12 +320,7 @@ class Tickets(commands.GroupCog, name="ticket"):
             await interaction.response.send_message("❌ Ticket může převzít pouze support.", ephemeral=True)
             return
 
-        with db.connect() as conn:
-            conn.execute(
-                "UPDATE tickets SET claimed_by = ? WHERE channel_id = ?",
-                (interaction.user.id, interaction.channel.id),
-            )
-            conn.commit()
+        db.claim_ticket_record(interaction.channel.id, interaction.user.id)
 
         await interaction.response.send_message(
             f"🙋 Ticket převzal {interaction.user.mention}.",
@@ -428,13 +343,7 @@ class Tickets(commands.GroupCog, name="ticket"):
 
         await interaction.response.send_message("🔒 Ticket se za 5 sekund zavře.")
 
-        with db.connect() as conn:
-            conn.execute("""
-                UPDATE tickets
-                SET status = 'closed', closed_at = ?
-                WHERE channel_id = ?
-            """, (db.now(), interaction.channel.id))
-            conn.commit()
+        db.close_ticket_record(interaction.channel.id)
 
         await asyncio.sleep(5)
         await interaction.channel.delete(reason=f"Ticket zavřel {interaction.user}")
