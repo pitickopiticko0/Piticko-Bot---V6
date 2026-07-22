@@ -19,49 +19,6 @@ class GiveawayService:
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.tasks: dict[int, asyncio.Task] = {}
-        self._init_tables()
-
-    def _init_tables(self) -> None:
-        with db.connect() as conn:
-            giveaway_id = (
-                "BIGSERIAL PRIMARY KEY"
-                if db.using_postgres
-                else "INTEGER PRIMARY KEY AUTOINCREMENT"
-            )
-            entry_id = (
-                "BIGSERIAL PRIMARY KEY"
-                if db.using_postgres
-                else "INTEGER PRIMARY KEY AUTOINCREMENT"
-            )
-
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS giveaways (
-                    id {giveaway_id},
-                    guild_id BIGINT NOT NULL,
-                    channel_id BIGINT NOT NULL,
-                    message_id BIGINT,
-                    host_id BIGINT NOT NULL,
-                    prize TEXT NOT NULL,
-                    description TEXT NOT NULL,
-                    winner_count INTEGER NOT NULL DEFAULT 1,
-                    end_at TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'active',
-                    created_at TEXT NOT NULL,
-                    ended_at TEXT,
-                    winners_text TEXT
-                )
-            """)
-
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS giveaway_entries (
-                    id {entry_id},
-                    giveaway_id BIGINT NOT NULL,
-                    user_id BIGINT NOT NULL,
-                    joined_at TEXT NOT NULL,
-                    UNIQUE(giveaway_id, user_id)
-                )
-            """)
-            conn.commit()
 
     @staticmethod
     def now() -> datetime:

@@ -54,60 +54,6 @@ class Moderation(commands.GroupCog, name="moderation"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self._init_tables()
-
-    def _init_tables(self) -> None:
-        with db.connect() as conn:
-            row_id = (
-                "BIGSERIAL PRIMARY KEY"
-                if db.using_postgres
-                else "INTEGER PRIMARY KEY AUTOINCREMENT"
-            )
-
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS moderation_warnings (
-                    id {row_id},
-                    guild_id BIGINT NOT NULL,
-                    user_id BIGINT NOT NULL,
-                    moderator_id BIGINT NOT NULL,
-                    reason TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-            """)
-
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS moderation_actions (
-                    id {row_id},
-                    guild_id BIGINT NOT NULL,
-                    user_id BIGINT NOT NULL,
-                    moderator_id BIGINT NOT NULL,
-                    action TEXT NOT NULL,
-                    reason TEXT NOT NULL,
-                    duration_minutes INTEGER,
-                    created_at TEXT NOT NULL
-                )
-            """)
-
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS moderation_notes (
-                    id {row_id},
-                    guild_id BIGINT NOT NULL,
-                    user_id BIGINT NOT NULL,
-                    moderator_id BIGINT NOT NULL,
-                    note TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS moderation_settings (
-                    guild_id BIGINT PRIMARY KEY,
-                    auto_punishments INTEGER NOT NULL DEFAULT 0,
-                    updated_at TEXT NOT NULL
-                )
-            """)
-
-            conn.commit()
 
     async def safe_defer(
         self,
