@@ -100,6 +100,7 @@
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
       <button class="tab" type="button" data-tab="giveaways"><span>🎁</span>Giveaway</button>
+      <button class="tab" type="button" data-tab="makejpc"><span>🖥️</span>MakejPC</button>
       <div class="module-nav-label">Konfigurace</div>
       <button class="tab" type="button" data-tab="general"><span>⚙️</span>Obecné</button>
     </aside>
@@ -382,6 +383,23 @@
           <div class="empty-state"><h3>Zatím žádná giveaway</h3><p>Vytvoř ji na Discordu příkazem <code>/giveaway create</code>.</p></div>
         {% endif %}
         <small>Vytváření a ukončování zatím zůstává v Discordu, protože tyto akce musí provést běžící bot.</small>
+      </div>
+
+      <div class="tab-panel" id="makejpc">
+        <div class="section-heading"><div><p class="eyebrow">MAKEJPC MONITOR</p><h2>Sledované počítačové sestavy</h2><p>Globální přehled produktů nalezených automatickým watcherem.</p></div><span class="badge {{ 'on' if makejpc_products else 'off' }}">{{ makejpc_products|length }} produktů</span></div>
+        {% if makejpc_products %}
+          <div class="settings-form">
+            {% for product in makejpc_products %}
+              <div class="toggle-row">
+                <span><strong>{{ product.name }}</strong><small>Kód: {{ product.product_code }} · {{ product.price or 'Cena neuvedena' }} · {{ product.availability or 'Dostupnost neuvedena' }}<br>Aktualizováno: {{ product.updated_at }}</small></span>
+                <a class="button subtle" href="{{ product.product_url }}" target="_blank" rel="noopener noreferrer">Otevřít</a>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state"><h3>Žádné uložené sestavy</h3><p>Spusť na Discordu příkaz <code>/makejpc-kontrola</code>.</p></div>
+        {% endif %}
+        <small>Jde o globální data bota; nejsou oddělená podle Discord serveru.</small>
       </div>
 
       <div class="tab-panel" id="general">

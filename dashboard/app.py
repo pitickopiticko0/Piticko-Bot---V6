@@ -375,6 +375,7 @@ async def server_dashboard(request: Request, guild_id: str):
         twitch_store.get_guild_subscriptions, int(guild_id)
     )
     giveaways = await storage.get_giveaways(guild_id)
+    makejpc_products = await storage.get_makejpc_products()
 
     return templates.TemplateResponse(
         request=request,
@@ -391,6 +392,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_resources_available": discord_resources["available"],
             "twitch_subscriptions": twitch_subscriptions,
             "giveaways": giveaways,
+            "makejpc_products": makejpc_products,
         },
     )
 

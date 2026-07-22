@@ -384,3 +384,10 @@ class DashboardStorage:
                 LIMIT 25
             """, (guild_id,)).fetchall()
         return [{key: row[key] for key in row.keys()} for row in rows]
+
+    async def get_makejpc_products(self) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._get_makejpc_products_sync)
+
+    def _get_makejpc_products_sync(self) -> list[dict[str, Any]]:
+        rows = list(db.get_makejpc_products())[:50]
+        return [{key: row[key] for key in row.keys()} for row in rows]
