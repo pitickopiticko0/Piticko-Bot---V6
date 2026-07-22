@@ -189,6 +189,7 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
     empty = {
         "profile": None,
         "channels": [],
+        "categories": [],
         "roles": [],
         "available": False,
     }
@@ -255,6 +256,15 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
             if int(channel.get("type", -1)) in (0, 5)
         ]
         channels.sort(key=lambda item: item["name"].casefold())
+        categories = [
+            {
+                "id": str(channel["id"]),
+                "name": channel.get("name") or "Kategorie",
+            }
+            for channel in raw_channels
+            if int(channel.get("type", -1)) == 4
+        ]
+        categories.sort(key=lambda item: item["name"].casefold())
         roles = [
             {
                 "id": str(role["id"]),
@@ -277,6 +287,7 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
                 "has_custom_avatar": bool(member.get("avatar")),
             },
             "channels": channels,
+            "categories": categories,
             "roles": roles,
             "available": True,
         }
@@ -368,6 +379,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "settings": settings,
             "bot_profile": discord_resources["profile"],
             "discord_channels": discord_resources["channels"],
+            "discord_categories": discord_resources["categories"],
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
         },
@@ -608,6 +620,38 @@ async def save_antispam(
     )
     return RedirectResponse(
         f"/server/{guild_id}?saved=antispam#antispam",
+        status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/tickets")
+async def save_tickets(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    panel_channel_id: str = Form(default=""),
+    category_id: str = Form(default=""),
+    support_role_id: str = Form(default=""),
+    log_channel_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    get_accessible_guild(request, guild_id)
+    await storage.update_module(
+        guild_id,
+        "tickets",
+        {
+            "enabled": enabled == "on",
+            "panel_channel_id": panel_channel_id.strip(),
+            "category_id": category_id.strip(),
+            "support_role_id": support_role_id.strip(),
+            "log_channel_id": log_channel_id.strip(),
+        },
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=tickets#tickets",
         status_code=303,
     )
 

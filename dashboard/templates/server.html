@@ -82,6 +82,7 @@
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
       <button class="tab" type="button" data-tab="modlogs"><span>📋</span>ModLogy</button>
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
+      <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <div class="module-nav-label">Konfigurace</div>
       <button class="tab" type="button" data-tab="general"><span>⚙️</span>Obecné</button>
@@ -115,6 +116,12 @@
             <div class="module-card-top"><div class="module-icon">🛡️</div><span class="badge {{ 'on' if settings.antispam.enabled else 'off' }}">{{ 'Zapnuto' if settings.antispam.enabled else 'Vypnuto' }}</span></div>
             <h3>AntiSpam</h3>
             <p>Automatická ochrana proti rychlému spamu, duplicitám a hromadným zmínkám.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="tickets" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🎫</div><span class="badge {{ 'on' if settings.tickets.enabled else 'off' }}">{{ 'Zapnuto' if settings.tickets.enabled else 'Vypnuto' }}</span></div>
+            <h3>Tickety</h3>
+            <p>Soukromé kanály pro komunikaci členů se support týmem.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="youtube" tabindex="0" role="button">
@@ -254,6 +261,29 @@
             <label class="toggle-row mini"><span><strong>Mazat spam</strong><small>Při zásahu odstranit poslední spam zprávy.</small></span><input type="checkbox" name="delete_messages" {% if settings.antispam.delete_messages %}checked{% endif %}><i aria-hidden="true"></i></label>
           </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit AntiSpam</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+      </div>
+
+      <div class="tab-panel" id="tickets">
+        <div class="section-heading"><div><p class="eyebrow">TICKET MODUL</p><h2>Podpora členů</h2><p>Nastav panel, kategorii soukromých ticketů a support tým.</p></div><span class="badge {{ 'on' if settings.tickets.enabled else 'off' }}">{{ 'Aktivní' if settings.tickets.enabled else 'Neaktivní' }}</span></div>
+        <form method="post" action="/server/{{ guild.id }}/tickets" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout Tickety</strong><small>Umožnit členům vytvářet soukromé kanály podpory.</small></span><input type="checkbox" name="enabled" {% if settings.tickets.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <div class="form-grid">
+            <label><span>Kanál ticket panelu</span>
+              {% if discord_resources_available %}<select name="panel_channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.tickets.panel_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.tickets.panel_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="panel_channel_id" value="{{ settings.tickets.panel_channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}
+            </label>
+            <label><span>Kategorie pro tickety</span>
+              {% if discord_resources_available %}<select name="category_id"><option value="">Vyber kategorii</option>{% for category in discord_categories %}<option value="{{ category.id }}" {% if category.id == settings.tickets.category_id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>{% else %}<input name="category_id" value="{{ settings.tickets.category_id }}" inputmode="numeric" placeholder="Discord ID kategorie">{% endif %}
+            </label>
+            <label><span>Role podpory</span>
+              {% if discord_resources_available %}<select name="support_role_id"><option value="">Vyber roli</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.tickets.support_role_id %}selected{% endif %} {% if not role.assignable and role.id != settings.tickets.support_role_id %}disabled{% endif %}>@{{ role.name }}{% if not role.assignable %} — mimo dosah bota{% endif %}</option>{% endfor %}</select>{% else %}<input name="support_role_id" value="{{ settings.tickets.support_role_id }}" inputmode="numeric" placeholder="Discord ID role">{% endif %}
+            </label>
+            <label><span>Kanál pro záznamy</span>
+              {% if discord_resources_available %}<select name="log_channel_id"><option value="">Bez samostatného logu</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.tickets.log_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.tickets.log_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="log_channel_id" value="{{ settings.tickets.log_channel_id }}" inputmode="numeric" placeholder="Volitelné ID kanálu">{% endif %}
+            </label>
+          </div>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit Tickety</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+          <small>Po uložení použij na Discordu příkaz <code>/ticket panel</code>, který odešle ovládací panel do vybraného kanálu.</small>
         </form>
       </div>
 

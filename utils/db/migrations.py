@@ -64,6 +64,19 @@ POSTGRES_TABLES = (
         delete_messages INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS ticket_settings (
+        guild_id BIGINT PRIMARY KEY, panel_channel_id BIGINT NOT NULL,
+        category_id BIGINT NOT NULL, support_role_id BIGINT NOT NULL,
+        log_channel_id BIGINT, enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS tickets (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
+        channel_id BIGINT UNIQUE NOT NULL, user_id BIGINT NOT NULL,
+        subject TEXT NOT NULL, description TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open', claimed_by BIGINT,
+        created_at TEXT NOT NULL, closed_at TEXT
+    )""",
 )
 
 
@@ -127,6 +140,19 @@ SQLITE_TABLES = (
         timeout_minutes INTEGER NOT NULL DEFAULT 10,
         delete_messages INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS ticket_settings (
+        guild_id INTEGER PRIMARY KEY, panel_channel_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL, support_role_id INTEGER NOT NULL,
+        log_channel_id INTEGER, enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS tickets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        channel_id INTEGER UNIQUE NOT NULL, user_id INTEGER NOT NULL,
+        subject TEXT NOT NULL, description TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open', claimed_by INTEGER,
+        created_at TEXT NOT NULL, closed_at TEXT
     )""",
 )
 
