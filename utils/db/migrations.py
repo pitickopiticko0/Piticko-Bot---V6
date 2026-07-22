@@ -24,6 +24,11 @@ POSTGRES_TABLES = (
         title TEXT NOT NULL, url TEXT NOT NULL, published_at TEXT,
         announced_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS youtube_announcements (
+        guild_id BIGINT NOT NULL, youtube_channel_id TEXT NOT NULL,
+        video_id TEXT NOT NULL, announced_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, youtube_channel_id, video_id)
+    )""",
     """CREATE TABLE IF NOT EXISTS welcome_settings (
         guild_id BIGINT PRIMARY KEY, channel_id BIGINT, role_id BIGINT,
         enabled INTEGER NOT NULL DEFAULT 0, message TEXT NOT NULL,
@@ -117,6 +122,11 @@ SQLITE_TABLES = (
         video_id TEXT PRIMARY KEY, youtube_channel_id TEXT NOT NULL,
         title TEXT NOT NULL, url TEXT NOT NULL, published_at TEXT,
         announced_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS youtube_announcements (
+        guild_id INTEGER NOT NULL, youtube_channel_id TEXT NOT NULL,
+        video_id TEXT NOT NULL, announced_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, youtube_channel_id, video_id)
     )""",
     """CREATE TABLE IF NOT EXISTS welcome_settings (
         guild_id INTEGER PRIMARY KEY, channel_id INTEGER, role_id INTEGER,

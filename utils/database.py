@@ -211,6 +211,20 @@ class Database:
             self, guild_id, youtube_channel_id, video_id
         )
 
+    def youtube_announcement_exists(
+        self, guild_id: int, youtube_channel_id: str, video_id: str
+    ) -> bool:
+        return youtube_db.announcement_exists(
+            self, guild_id, youtube_channel_id, video_id
+        )
+
+    def mark_youtube_announced(
+        self, guild_id: int, youtube_channel_id: str, video_id: str
+    ) -> None:
+        youtube_db.mark_announced(
+            self, guild_id, youtube_channel_id, video_id
+        )
+
     def video_exists(self, video_id: str) -> bool:
         return youtube_db.video_exists(self, video_id)
 
