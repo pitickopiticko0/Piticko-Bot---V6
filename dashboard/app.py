@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+import aiohttp
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -15,6 +16,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from dashboard.auth import router as auth_router
 from dashboard.storage import DashboardStorage
+from utils.twitch_api import TwitchAPIError, twitch_api
+from utils.twitch_store import twitch_store
 
 
 load_dotenv()
@@ -368,6 +371,9 @@ async def server_dashboard(request: Request, guild_id: str):
     guild = get_accessible_guild(request, guild_id)
     settings = await storage.get_settings(guild_id)
     discord_resources = await get_bot_guild_resources(guild_id)
+    twitch_subscriptions = await asyncio.to_thread(
+        twitch_store.get_guild_subscriptions, int(guild_id)
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -382,8 +388,71 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_categories": discord_resources["categories"],
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
+            "twitch_subscriptions": twitch_subscriptions,
         },
     )
+
+
+@app.post("/server/{guild_id}/twitch/add")
+async def add_twitch_subscription(
+    request: Request,
+    guild_id: str,
+    streamer: str = Form(default=""),
+    channel_id: str = Form(default=""),
+    mention_role_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+
+    streamer = streamer.strip()
+    if not streamer or not channel_id.isdigit() or (mention_role_id and not mention_role_id.isdigit()):
+        return RedirectResponse(f"/server/{guild_id}?twitch_error=invalid#twitch", status_code=303)
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"]:
+        allowed_channels = {
+            str(channel["id"])
+            for channel in resources["channels"]
+            if channel.get("can_send")
+        }
+        allowed_roles = {str(role["id"]) for role in resources["roles"]}
+        if channel_id not in allowed_channels or (
+            mention_role_id and mention_role_id not in allowed_roles
+        ):
+            return RedirectResponse(
+                f"/server/{guild_id}?twitch_error=invalid#twitch", status_code=303
+            )
+    try:
+        user = await twitch_api.get_user(streamer)
+    except (TwitchAPIError, aiohttp.ClientError, asyncio.TimeoutError, OSError):
+        return RedirectResponse(f"/server/{guild_id}?twitch_error=api#twitch", status_code=303)
+    if user is None:
+        return RedirectResponse(f"/server/{guild_id}?twitch_error=not-found#twitch", status_code=303)
+
+    await asyncio.to_thread(
+        twitch_store.add_subscription,
+        int(guild_id), user.id, user.login, user.display_name,
+        int(channel_id), int(mention_role_id) if mention_role_id else None,
+        user.profile_image_url,
+    )
+    return RedirectResponse(f"/server/{guild_id}?saved=twitch#twitch", status_code=303)
+
+
+@app.post("/server/{guild_id}/twitch/remove")
+async def remove_twitch_subscription(
+    request: Request,
+    guild_id: str,
+    streamer_login: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    await asyncio.to_thread(
+        twitch_store.remove_subscription, int(guild_id), streamer_login.strip()
+    )
+    return RedirectResponse(f"/server/{guild_id}?saved=twitch-remove#twitch", status_code=303)
 
 
 @app.post("/server/{guild_id}/avatar")

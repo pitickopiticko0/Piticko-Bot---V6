@@ -51,6 +51,20 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('twitch_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Twitch odběr se nepodařilo uložit</strong>
+      {% if request.query_params.get('twitch_error') == 'not-found' %}
+        <span>Streamer nebyl na Twitchi nalezen.</span>
+      {% elif request.query_params.get('twitch_error') == 'api' %}
+        <span>Twitch API je nedostupné nebo nejsou nastavené přístupové údaje.</span>
+      {% else %}
+        <span>Vyplň streamera a platný cílový kanál.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   <section class="stats-grid" aria-label="Stav modulů">
     <article class="stat-card">
       <span class="stat-icon">👋</span>
@@ -84,6 +98,7 @@
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
+      <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
       <div class="module-nav-label">Konfigurace</div>
       <button class="tab" type="button" data-tab="general"><span>⚙️</span>Obecné</button>
     </aside>
@@ -322,6 +337,34 @@
           <label><span>Text oznámení</span><textarea name="custom_message" rows="6" placeholder="📺 Nové video: {title}\n{url}">{{ settings.youtube.custom_message }}</textarea><small>Proměnné: {title}, {url}, {channel}, {channel_url}, {thumbnail}, {published}, {role}</small></label>
           <div class="form-actions"><button class="button primary" type="submit">Uložit YouTube</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
+      </div>
+
+      <div class="tab-panel" id="twitch">
+        <div class="section-heading"><div><p class="eyebrow">TWITCH MODUL</p><h2>Oznámení živých streamů</h2><p>Přidej streamera a bot oznámí každý nový živý stream.</p></div><span class="badge {{ 'on' if twitch_subscriptions else 'off' }}">{{ 'Aktivní' if twitch_subscriptions else 'Neaktivní' }}</span></div>
+        <form method="post" action="/server/{{ guild.id }}/twitch/add" class="settings-form">
+          <div class="form-grid">
+            <label><span>Twitch streamer</span><input name="streamer" required placeholder="login nebo twitch.tv/streamer"><small>Lze zadat login nebo celý odkaz na profil.</small></label>
+            <label><span>Cílový Discord kanál</span>
+              {% if discord_resources_available %}<select name="channel_id" required><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if not channel.can_send %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="channel_id" required inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}
+            </label>
+            <label><span>Role pro označení</span>
+              {% if discord_resources_available %}<select name="mention_role_id"><option value="">Bez označení role</option>{% for role in discord_roles %}<option value="{{ role.id }}">@{{ role.name }}</option>{% endfor %}</select>{% else %}<input name="mention_role_id" inputmode="numeric" placeholder="Volitelné ID role">{% endif %}
+            </label>
+          </div>
+          <div class="form-actions"><button class="button primary" type="submit">Přidat Twitch odběr</button></div>
+        </form>
+        {% if twitch_subscriptions %}
+          <div class="settings-form">
+            <h3>Sledovaní streameři</h3>
+            {% for subscription in twitch_subscriptions %}
+              <form method="post" action="/server/{{ guild.id }}/twitch/remove" class="toggle-row">
+                <span><strong>{{ subscription.streamer_name }}</strong><small>@{{ subscription.streamer_login }} · kanál &lt;#{{ subscription.discord_channel_id }}&gt;</small></span>
+                <input type="hidden" name="streamer_login" value="{{ subscription.streamer_login }}">
+                <button class="button subtle" type="submit">Odebrat</button>
+              </form>
+            {% endfor %}
+          </div>
+        {% endif %}
       </div>
 
       <div class="tab-panel" id="general">
