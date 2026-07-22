@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from utils.logger import logger
 from utils.twitch_api import TwitchAPIError, TwitchStream, twitch_api
 from utils.twitch_store import twitch_store
+from utils.service_health import mark_error, mark_success
 
 
 def build_twitch_embed(stream: TwitchStream, profile_image_url: Optional[str] = None) -> discord.Embed:
@@ -58,6 +59,7 @@ class TwitchWatcher:
 
     @loop.error
     async def loop_error(self, error: Exception) -> None:
+        mark_error("twitch", error)
         logger.exception("Twitch watcher selhal: %s", error)
 
     async def check_all(self) -> tuple[int, int]:
@@ -66,11 +68,13 @@ class TwitchWatcher:
         async with self._lock:
             rows = await asyncio.to_thread(twitch_store.get_enabled_subscriptions)
             if not rows:
+                mark_success("twitch", "Žádné aktivní odběry.")
                 return 0, 0
             logins = sorted({str(row["streamer_login"]).lower() for row in rows})
             try:
                 streams = await twitch_api.get_streams(logins)
-            except TwitchAPIError:
+            except TwitchAPIError as error:
+                mark_error("twitch", error)
                 logger.exception("Nepodařilo se načíst Twitch streamy.")
                 return 0, 0
 
@@ -103,6 +107,7 @@ class TwitchWatcher:
                     await asyncio.to_thread(
                         twitch_store.set_stream_state, guild_id, user_id, stream.id, True
                     )
+            mark_success("twitch", f"Nalezeno: {found}, odesláno: {sent}")
             return found, sent
 
     async def _send_announcement(self, row, stream: TwitchStream) -> bool:

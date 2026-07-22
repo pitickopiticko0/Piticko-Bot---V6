@@ -42,6 +42,7 @@
       <a href="/server/{{ guild.id }}#general">Nastavení</a>
       {% endif %}
 
+      <a href="/diagnostics" {% if request.url.path == '/diagnostics' %}class="active" aria-current="page"{% endif %}>Diagnostika</a>
       <a href="/health" target="_blank" rel="noopener noreferrer">Stav API</a>
     </nav>
 

@@ -13,6 +13,7 @@ from services.products.base import Product
 from services.products.makejpc import MakeJPCProvider
 from utils.database import db
 from utils.makejpc_forum_store import makejpc_forum_store
+from utils.service_health import mark_error, mark_success
 
 
 log = logging.getLogger(__name__)
@@ -467,7 +468,9 @@ class Products(commands.Cog):
                 found,
                 sent,
             )
-        except Exception:
+            mark_success("makejpc", f"Nalezeno: {found}, odesláno: {sent}")
+        except Exception as error:
+            mark_error("makejpc", error)
             log.exception("MakejPC kontrola selhala.")
 
     @check_makejpc.before_loop

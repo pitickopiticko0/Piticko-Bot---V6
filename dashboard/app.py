@@ -18,6 +18,7 @@ from dashboard.auth import router as auth_router
 from dashboard.storage import DashboardStorage
 from utils.twitch_api import TwitchAPIError, twitch_api
 from utils.twitch_store import twitch_store
+from utils.service_health import get_all as get_service_health
 
 
 load_dotenv()
@@ -325,6 +326,42 @@ async def health() -> dict[str, Any]:
         "uptime_seconds": int(time.time() - STARTED_AT),
         "storage": storage.backend_name,
     }
+
+
+@app.get("/diagnostics", response_class=HTMLResponse)
+async def diagnostics(request: Request):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    database_ok = True
+    database_error = ""
+    rows = []
+    try:
+        rows = await asyncio.to_thread(get_service_health)
+    except Exception as error:
+        database_ok = False
+        database_error = str(error)[:500]
+
+    services = [{key: row[key] for key in row.keys()} for row in rows]
+    api_configuration = {
+        "Discord bot": bool(os.getenv("TOKEN")),
+        "YouTube API": bool(os.getenv("YOUTUBE_API_KEY")),
+        "Twitch API": bool(os.getenv("TWITCH_CLIENT_ID") and os.getenv("TWITCH_CLIENT_SECRET")),
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="diagnostics.html",
+        context={
+            "page_title": "Diagnostika",
+            "user": current_user(request),
+            "database_ok": database_ok,
+            "database_error": database_error,
+            "services": services,
+            "api_configuration": api_configuration,
+            "uptime_seconds": int(time.time() - STARTED_AT),
+        },
+    )
 
 
 @app.get("/login-page", response_class=HTMLResponse)
