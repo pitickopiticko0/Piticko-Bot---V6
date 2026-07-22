@@ -33,6 +33,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "custom_message": "📺 Nové video: {title}\n{url}",
         "mention_role_id": "",
         "check_interval": 300,
+        "live_enabled": False,
+        "live_notify_upcoming": False,
+        "live_custom_message": "🔴 {channel} právě vysílá: {title}\n{url}",
     },
     "autorole": {
         "enabled": False,
@@ -134,6 +137,9 @@ class DashboardStorage:
                 "custom_message": str(_value(subscription, "custom_message", DEFAULT_SETTINGS["youtube"]["custom_message"])),
                 "mention_role_id": str(_value(subscription, "mention_role_id", "")),
                 "check_interval": int(_value(subscription, "check_interval", 300)),
+                "live_enabled": bool(_value(subscription, "live_enabled", 0)),
+                "live_notify_upcoming": bool(_value(subscription, "live_notify_upcoming", 0)),
+                "live_custom_message": str(_value(subscription, "live_custom_message", DEFAULT_SETTINGS["youtube"]["live_custom_message"])),
             })
 
         autorole = db.get_autorole_settings(guild_id)
@@ -345,6 +351,7 @@ class DashboardStorage:
         )
         check_interval = max(60, min(int(values.get("check_interval") or 300), 3600))
         custom_message = str(values.get("custom_message") or DEFAULT_SETTINGS["youtube"]["custom_message"]).strip()
+        live_custom_message = str(values.get("live_custom_message") or DEFAULT_SETTINGS["youtube"]["live_custom_message"]).strip()
 
         existing_ids = {
             str(_value(row, "youtube_channel_id", ""))
@@ -385,6 +392,9 @@ class DashboardStorage:
             enabled=enabled,
             custom_message=custom_message,
             check_interval=check_interval,
+            live_enabled=bool(values.get("live_enabled")),
+            live_notify_upcoming=bool(values.get("live_notify_upcoming")),
+            live_custom_message=live_custom_message,
         )
 
     async def count_configured_guilds(self, guild_ids: list[str]) -> int:

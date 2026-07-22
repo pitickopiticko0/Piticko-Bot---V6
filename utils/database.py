@@ -323,6 +323,9 @@ class Database:
         enabled: bool,
         custom_message: str = "📺 Nové video: {title}\n{url}",
         check_interval: int = 300,
+        live_enabled: bool = False,
+        live_notify_upcoming: bool = False,
+        live_custom_message: str = "🔴 {channel} právě vysílá: {title}\n{url}",
     ) -> None:
         dashboard_db.update_subscription_settings(
             self,
@@ -333,6 +336,9 @@ class Database:
             enabled=enabled,
             custom_message=custom_message,
             check_interval=check_interval,
+            live_enabled=live_enabled,
+            live_notify_upcoming=live_notify_upcoming,
+            live_custom_message=live_custom_message,
         )
 
     def count_configured_guilds(self, guild_ids: list[int]) -> int:

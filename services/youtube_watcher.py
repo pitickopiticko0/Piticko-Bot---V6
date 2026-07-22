@@ -77,7 +77,23 @@ class YouTubeWatcher:
             )
             return
 
-        if sub["last_video_id"] == latest.id:
+        broadcast_status = getattr(latest, "broadcast_status", "none")
+        is_stream = broadcast_status in {"upcoming", "live"}
+        is_live_announcement = is_stream and bool(sub["live_enabled"]) and (
+            broadcast_status == "live" or bool(sub["live_notify_upcoming"])
+        )
+
+        if is_stream and not sub["live_enabled"]:
+            db.set_last_video(sub["guild_id"], sub["youtube_channel_id"], latest.id)
+            logger.info("YouTube watcher: stream %s je v nastavení vypnutý.", latest.id)
+            return
+
+        if broadcast_status == "upcoming" and not sub["live_notify_upcoming"]:
+            db.set_last_video(sub["guild_id"], sub["youtube_channel_id"], latest.id)
+            logger.info("YouTube watcher: stream %s čeká na skutečné zahájení.", latest.id)
+            return
+
+        if sub["last_video_id"] == latest.id and not is_live_announcement:
             db.mark_youtube_announced(
                 sub["guild_id"], sub["youtube_channel_id"], latest.id
             )
@@ -140,8 +156,12 @@ class YouTubeWatcher:
         if sub["mention_role_id"]:
             mention = f"<@&{sub['mention_role_id']}>"
 
+        message_template = (
+            sub["live_custom_message"] if is_live_announcement
+            else sub["custom_message"]
+        )
         content = render_youtube_message(
-            sub["custom_message"],
+            message_template,
             title=latest.title,
             url=latest.url,
             channel=sub["youtube_name"],
@@ -158,7 +178,9 @@ class YouTubeWatcher:
             thumbnail=latest.thumbnail,
             published_at=latest.published_at,
         )
-        if has_custom_template(sub["custom_message"]):
+        if is_live_announcement:
+            embed.title = "🔴 YouTube stream právě začal" if broadcast_status == "live" else "🗓️ Plánovaný YouTube stream"
+        if has_custom_template(message_template):
             embed = self._build_video_media_embed(
                 latest.url,
                 latest.thumbnail,

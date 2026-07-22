@@ -347,6 +347,11 @@
             <label><span>Interval kontroly</span><div class="input-suffix"><input type="number" min="60" max="3600" name="check_interval" value="{{ settings.youtube.check_interval }}"><span>sekund</span></div></label>
           </div>
           <label><span>Text oznámení</span><textarea name="custom_message" rows="6" placeholder="📺 Nové video: {title}\n{url}">{{ settings.youtube.custom_message }}</textarea><small>Proměnné: {title}, {url}, {channel}, {channel_url}, {thumbnail}, {published}, {role}</small></label>
+          <div class="form-grid compact">
+            <label class="toggle-row mini"><span><strong>YouTube Live</strong><small>Oznamovat livestreamy samostatnou zprávou.</small></span><input type="checkbox" name="live_enabled" {% if settings.youtube.live_enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+            <label class="toggle-row mini"><span><strong>Plánované streamy</strong><small>Oznámit už naplánování; jinak až skutečné zahájení.</small></span><input type="checkbox" name="live_notify_upcoming" {% if settings.youtube.live_notify_upcoming %}checked{% endif %}><i aria-hidden="true"></i></label>
+          </div>
+          <label><span>Text Live oznámení</span><textarea name="live_custom_message" rows="4">{{ settings.youtube.live_custom_message }}</textarea><small>Proměnné jsou stejné jako u videa.</small></label>
           <div class="form-actions"><button class="button primary" type="submit">Uložit YouTube</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
       </div>
