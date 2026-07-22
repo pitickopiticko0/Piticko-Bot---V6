@@ -63,6 +63,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "support_role_id": "",
         "log_channel_id": "",
     },
+    "moderation": {"auto_punishments": False},
 }
 
 
@@ -176,6 +177,16 @@ class DashboardStorage:
                 "log_channel_id": str(_value(tickets, "log_channel_id", "")),
             })
 
+        with db.connect() as conn:
+            moderation = conn.execute(
+                "SELECT auto_punishments FROM moderation_settings WHERE guild_id = ?",
+                (guild_id,),
+            ).fetchone()
+        if moderation is not None:
+            settings["moderation"]["auto_punishments"] = bool(
+                _value(moderation, "auto_punishments", 0)
+            )
+
         return settings
 
     async def update_module(self, guild_id: str, module: str, values: dict[str, Any]) -> None:
@@ -187,6 +198,7 @@ class DashboardStorage:
             "modlogs": self._save_modlogs_sync,
             "antispam": self._save_antispam_sync,
             "tickets": self._save_tickets_sync,
+            "moderation": self._save_moderation_sync,
         }
         handler = handlers.get(module)
         if handler is None:
@@ -296,6 +308,19 @@ class DashboardStorage:
         else:
             db.set_ticket_enabled(guild_id, False)
 
+    def _save_moderation_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = int(bool(values.get("auto_punishments")))
+        with db.connect() as conn:
+            excluded = "EXCLUDED" if db.using_postgres else "excluded"
+            conn.execute(f"""
+                INSERT INTO moderation_settings
+                (guild_id, auto_punishments, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    auto_punishments = {excluded}.auto_punishments,
+                    updated_at = {excluded}.updated_at
+            """, (guild_id, enabled, db.now()))
+            conn.commit()
+
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
         youtube_channel_id = str(values.get("youtube_channel_id") or "").strip()
@@ -390,4 +415,21 @@ class DashboardStorage:
 
     def _get_makejpc_products_sync(self) -> list[dict[str, Any]]:
         rows = list(db.get_makejpc_products())[:50]
+        return [{key: row[key] for key in row.keys()} for row in rows]
+
+    async def get_moderation_events(self, guild_id: str) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._get_moderation_events_sync, int(guild_id))
+
+    def _get_moderation_events_sync(self, guild_id: int) -> list[dict[str, Any]]:
+        with db.connect() as conn:
+            rows = conn.execute("""
+                SELECT id, user_id, moderator_id, 'warn' AS action, reason,
+                       NULL AS duration_minutes, created_at
+                FROM moderation_warnings WHERE guild_id = ?
+                UNION ALL
+                SELECT id, user_id, moderator_id, action, reason,
+                       duration_minutes, created_at
+                FROM moderation_actions WHERE guild_id = ?
+                ORDER BY created_at DESC LIMIT 50
+            """, (guild_id, guild_id)).fetchall()
         return [{key: row[key] for key in row.keys()} for row in rows]
