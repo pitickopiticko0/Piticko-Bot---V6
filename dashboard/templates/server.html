@@ -99,6 +99,7 @@
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
+      <button class="tab" type="button" data-tab="giveaways"><span>🎁</span>Giveaway</button>
       <div class="module-nav-label">Konfigurace</div>
       <button class="tab" type="button" data-tab="general"><span>⚙️</span>Obecné</button>
     </aside>
@@ -365,6 +366,22 @@
             {% endfor %}
           </div>
         {% endif %}
+      </div>
+
+      <div class="tab-panel" id="giveaways">
+        <div class="section-heading"><div><p class="eyebrow">GIVEAWAY MODUL</p><h2>Přehled soutěží</h2><p>Aktivní a naposledy vytvořené giveaway na tomto serveru.</p></div><span class="badge {{ 'on' if giveaways|selectattr('status', 'equalto', 'active')|list else 'off' }}">{{ 'Probíhá' if giveaways|selectattr('status', 'equalto', 'active')|list else 'Bez aktivní' }}</span></div>
+        {% if giveaways %}
+          <div class="settings-form">
+            {% for giveaway in giveaways %}
+              <div class="toggle-row">
+                <span><strong>#{{ giveaway.id }} · {{ giveaway.prize }}</strong><small>Stav: {{ giveaway.status }} · účastníci: {{ giveaway.entry_count }} · výherci: {{ giveaway.winner_count }} · kanál: &lt;#{{ giveaway.channel_id }}&gt;<br>Konec: {{ giveaway.end_at }}</small></span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state"><h3>Zatím žádná giveaway</h3><p>Vytvoř ji na Discordu příkazem <code>/giveaway create</code>.</p></div>
+        {% endif %}
+        <small>Vytváření a ukončování zatím zůstává v Discordu, protože tyto akce musí provést běžící bot.</small>
       </div>
 
       <div class="tab-panel" id="general">

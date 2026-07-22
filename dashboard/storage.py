@@ -367,3 +367,20 @@ class DashboardStorage:
             db.count_configured_guilds,
             [int(guild_id) for guild_id in guild_ids],
         )
+
+    async def get_giveaways(self, guild_id: str) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._get_giveaways_sync, int(guild_id))
+
+    def _get_giveaways_sync(self, guild_id: int) -> list[dict[str, Any]]:
+        with db.connect() as conn:
+            rows = conn.execute("""
+                SELECT g.*,
+                       (SELECT COUNT(*) FROM giveaway_entries e
+                        WHERE e.giveaway_id = g.id) AS entry_count
+                FROM giveaways g
+                WHERE g.guild_id = ?
+                ORDER BY CASE WHEN g.status = 'active' THEN 0 ELSE 1 END,
+                         g.id DESC
+                LIMIT 25
+            """, (guild_id,)).fetchall()
+        return [{key: row[key] for key in row.keys()} for row in rows]
