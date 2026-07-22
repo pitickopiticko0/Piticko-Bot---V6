@@ -95,6 +95,7 @@
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
       <button class="tab" type="button" data-tab="modlogs"><span>📋</span>ModLogy</button>
+      <button class="tab" type="button" data-tab="moderation"><span>🔨</span>Moderace</button>
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
@@ -263,6 +264,15 @@
           </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit ModLogy</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
+      </div>
+
+      <div class="tab-panel" id="moderation">
+        <div class="section-heading"><div><p class="eyebrow">MODERACE</p><h2>Historie zásahů</h2><p>Poslední varování, timeouty, kicky a bany na serveru.</p></div></div>
+        <form method="post" action="/server/{{ guild.id }}/moderation" class="settings-form">
+          <label class="toggle-row"><span><strong>Automatické tresty</strong><small>3 warny → timeout, 5 → kick, 7 → ban.</small></span><input type="checkbox" name="auto_punishments" {% if settings.moderation.auto_punishments %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit moderaci</button></div>
+        </form>
+        {% if moderation_events %}<div class="settings-form">{% for event in moderation_events %}<div class="toggle-row"><span><strong>{{ event.action|upper }} · uživatel {{ event.user_id }}</strong><small>{{ event.reason }}{% if event.duration_minutes %} · {{ event.duration_minutes }} minut{% endif %}<br>Moderátor: {{ event.moderator_id }} · {{ event.created_at }}</small></span></div>{% endfor %}</div>{% else %}<div class="empty-state"><h3>Žádné zásahy</h3><p>Historie moderace je zatím prázdná.</p></div>{% endif %}
       </div>
 
       <div class="tab-panel" id="antispam">

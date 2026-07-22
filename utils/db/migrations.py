@@ -90,6 +90,10 @@ POSTGRES_TABLES = (
         user_id BIGINT NOT NULL, joined_at TEXT NOT NULL,
         UNIQUE(giveaway_id, user_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS moderation_warnings (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS moderation_actions (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, duration_minutes INTEGER, created_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS moderation_notes (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS moderation_settings (guild_id BIGINT PRIMARY KEY, auto_punishments INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""",
 )
 
 
@@ -180,6 +184,10 @@ SQLITE_TABLES = (
         user_id INTEGER NOT NULL, joined_at TEXT NOT NULL,
         UNIQUE(giveaway_id, user_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS moderation_warnings (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS moderation_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, duration_minutes INTEGER, created_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS moderation_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS moderation_settings (guild_id INTEGER PRIMARY KEY, auto_punishments INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""",
 )
 
 

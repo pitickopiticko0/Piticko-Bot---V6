@@ -376,6 +376,7 @@ async def server_dashboard(request: Request, guild_id: str):
     )
     giveaways = await storage.get_giveaways(guild_id)
     makejpc_products = await storage.get_makejpc_products()
+    moderation_events = await storage.get_moderation_events(guild_id)
 
     return templates.TemplateResponse(
         request=request,
@@ -393,6 +394,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "twitch_subscriptions": twitch_subscriptions,
             "giveaways": giveaways,
             "makejpc_products": makejpc_products,
+            "moderation_events": moderation_events,
         },
     )
 
@@ -557,7 +559,6 @@ async def save_welcome(
             "dm_enabled": dm_enabled == "on",
         },
     )
-
     return RedirectResponse(
         f"/server/{guild_id}?saved=welcome",
         status_code=303,
@@ -726,6 +727,23 @@ async def save_tickets(
     return RedirectResponse(
         f"/server/{guild_id}?saved=tickets#tickets",
         status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/moderation")
+async def save_moderation(
+    request: Request, guild_id: str,
+    auto_punishments: str | None = Form(default=None),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    await storage.update_module(
+        guild_id, "moderation", {"auto_punishments": auto_punishments == "on"}
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=moderation#moderation", status_code=303
     )
 
 
