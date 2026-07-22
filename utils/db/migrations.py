@@ -33,6 +33,14 @@ POSTGRES_TABLES = (
         service TEXT PRIMARY KEY, status TEXT NOT NULL,
         message TEXT, checked_at TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS twitch_subscriptions (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
+        twitch_user_id TEXT NOT NULL, streamer_login TEXT NOT NULL,
+        streamer_name TEXT NOT NULL, discord_channel_id BIGINT NOT NULL,
+        mention_role_id BIGINT, profile_image_url TEXT, last_stream_id TEXT,
+        is_live INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL, UNIQUE(guild_id, twitch_user_id)
+    )""",
     """CREATE TABLE IF NOT EXISTS welcome_settings (
         guild_id BIGINT PRIMARY KEY, channel_id BIGINT, role_id BIGINT,
         enabled INTEGER NOT NULL DEFAULT 0, message TEXT NOT NULL,
@@ -135,6 +143,14 @@ SQLITE_TABLES = (
     """CREATE TABLE IF NOT EXISTS service_health (
         service TEXT PRIMARY KEY, status TEXT NOT NULL,
         message TEXT, checked_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS twitch_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        twitch_user_id TEXT NOT NULL, streamer_login TEXT NOT NULL,
+        streamer_name TEXT NOT NULL, discord_channel_id INTEGER NOT NULL,
+        mention_role_id INTEGER, profile_image_url TEXT, last_stream_id TEXT,
+        is_live INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL, UNIQUE(guild_id, twitch_user_id)
     )""",
     """CREATE TABLE IF NOT EXISTS welcome_settings (
         guild_id INTEGER PRIMARY KEY, channel_id INTEGER, role_id INTEGER,

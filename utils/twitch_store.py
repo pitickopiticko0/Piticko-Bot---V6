@@ -4,32 +4,6 @@ from utils.database import db
 
 
 class TwitchStore:
-    def __init__(self) -> None:
-        self._init_table()
-
-    def _init_table(self) -> None:
-        id_column = "BIGSERIAL PRIMARY KEY" if db.using_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
-        integer_type = "BIGINT" if db.using_postgres else "INTEGER"
-        with db.connect() as conn:
-            conn.execute(f"""
-                CREATE TABLE IF NOT EXISTS twitch_subscriptions (
-                    id {id_column},
-                    guild_id {integer_type} NOT NULL,
-                    twitch_user_id TEXT NOT NULL,
-                    streamer_login TEXT NOT NULL,
-                    streamer_name TEXT NOT NULL,
-                    discord_channel_id {integer_type} NOT NULL,
-                    mention_role_id {integer_type},
-                    profile_image_url TEXT,
-                    last_stream_id TEXT,
-                    is_live INTEGER NOT NULL DEFAULT 0,
-                    enabled INTEGER NOT NULL DEFAULT 1,
-                    created_at TEXT NOT NULL,
-                    UNIQUE(guild_id, twitch_user_id)
-                )
-            """)
-            conn.commit()
-
     def add_subscription(self, guild_id: int, twitch_user_id: str, streamer_login: str,
                          streamer_name: str, discord_channel_id: int,
                          mention_role_id: Optional[int], profile_image_url: Optional[str]) -> None:
