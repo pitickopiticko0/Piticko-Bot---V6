@@ -77,6 +77,19 @@ POSTGRES_TABLES = (
         status TEXT NOT NULL DEFAULT 'open', claimed_by BIGINT,
         created_at TEXT NOT NULL, closed_at TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS giveaways (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
+        channel_id BIGINT NOT NULL, message_id BIGINT, host_id BIGINT NOT NULL,
+        prize TEXT NOT NULL, description TEXT NOT NULL,
+        winner_count INTEGER NOT NULL DEFAULT 1, end_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL,
+        ended_at TEXT, winners_text TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS giveaway_entries (
+        id BIGSERIAL PRIMARY KEY, giveaway_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL, joined_at TEXT NOT NULL,
+        UNIQUE(giveaway_id, user_id)
+    )""",
 )
 
 
@@ -153,6 +166,19 @@ SQLITE_TABLES = (
         subject TEXT NOT NULL, description TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'open', claimed_by INTEGER,
         created_at TEXT NOT NULL, closed_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS giveaways (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL, message_id INTEGER, host_id INTEGER NOT NULL,
+        prize TEXT NOT NULL, description TEXT NOT NULL,
+        winner_count INTEGER NOT NULL DEFAULT 1, end_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL,
+        ended_at TEXT, winners_text TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS giveaway_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, giveaway_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL, joined_at TEXT NOT NULL,
+        UNIQUE(giveaway_id, user_id)
     )""",
 )
 

@@ -374,6 +374,7 @@ async def server_dashboard(request: Request, guild_id: str):
     twitch_subscriptions = await asyncio.to_thread(
         twitch_store.get_guild_subscriptions, int(guild_id)
     )
+    giveaways = await storage.get_giveaways(guild_id)
 
     return templates.TemplateResponse(
         request=request,
@@ -389,6 +390,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
             "twitch_subscriptions": twitch_subscriptions,
+            "giveaways": giveaways,
         },
     )
 
