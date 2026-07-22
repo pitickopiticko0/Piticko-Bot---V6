@@ -612,6 +612,9 @@ async def save_youtube(
     custom_message: str = Form(default="📺 Nové video: {title}\\n{url}"),
     mention_role_id: str = Form(default=""),
     check_interval: int = Form(default=300),
+    live_enabled: str | None = Form(default=None),
+    live_notify_upcoming: str | None = Form(default=None),
+    live_custom_message: str = Form(default="🔴 {channel} právě vysílá: {title}\\n{url}"),
 ):
     redirect = require_login(request)
     if redirect:
@@ -631,6 +634,9 @@ async def save_youtube(
             "custom_message": custom_message.strip(),
             "mention_role_id": mention_role_id.strip(),
             "check_interval": check_interval,
+            "live_enabled": live_enabled == "on",
+            "live_notify_upcoming": live_notify_upcoming == "on",
+            "live_custom_message": live_custom_message.strip(),
         },
     )
 

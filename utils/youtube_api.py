@@ -29,6 +29,7 @@ class YouTubeVideo:
     thumbnail: Optional[str]
     published_at: Optional[str]
     live: bool = False
+    broadcast_status: str = "none"
 
 
 class YouTubeAPI:
@@ -188,9 +189,11 @@ class YouTubeAPI:
         )
 
         live = False
+        broadcast_status = "none"
         if video_data.get("items"):
             live_snippet = video_data["items"][0].get("snippet", {})
-            live = live_snippet.get("liveBroadcastContent") == "live"
+            broadcast_status = live_snippet.get("liveBroadcastContent", "none")
+            live = broadcast_status == "live"
 
         thumbnails = snippet.get("thumbnails", {})
 
@@ -206,6 +209,7 @@ class YouTubeAPI:
             ).get("url"),
             published_at=snippet.get("publishedAt"),
             live=live,
+            broadcast_status=broadcast_status,
         )
 
 

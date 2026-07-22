@@ -111,6 +111,9 @@ def update_subscription_settings(
     enabled: bool,
     custom_message: str = "📺 Nové video: {title}\n{url}",
     check_interval: int = 300,
+    live_enabled: bool = False,
+    live_notify_upcoming: bool = False,
+    live_custom_message: str = "🔴 {channel} právě vysílá: {title}\n{url}",
 ) -> None:
     check_interval = max(60, min(int(check_interval), 3600))
     with database.connect() as conn:
@@ -121,6 +124,9 @@ def update_subscription_settings(
                 enabled = ?,
                 custom_message = ?,
                 check_interval = ?
+                , live_enabled = ?
+                , live_notify_upcoming = ?
+                , live_custom_message = ?
             WHERE guild_id = ? AND youtube_channel_id = ?
         """, (
             discord_channel_id,
@@ -128,6 +134,9 @@ def update_subscription_settings(
             int(enabled),
             custom_message,
             check_interval,
+            int(live_enabled),
+            int(live_notify_upcoming),
+            live_custom_message,
             guild_id,
             youtube_channel_id,
         ))

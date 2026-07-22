@@ -215,6 +215,9 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE welcome_settings ADD COLUMN IF NOT EXISTS dm_enabled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS custom_message TEXT NOT NULL DEFAULT '📺 Nové video: {title}\n{url}'",
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS check_interval INTEGER NOT NULL DEFAULT 300",
+    "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_notify_upcoming INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_custom_message TEXT NOT NULL DEFAULT '🔴 {channel} právě vysílá: {title}\n{url}'",
 )
 
 
@@ -227,6 +230,9 @@ SQLITE_MIGRATIONS = {
     "subscriptions": {
         "custom_message": "ALTER TABLE subscriptions ADD COLUMN custom_message TEXT NOT NULL DEFAULT '📺 Nové video: {title}\n{url}'",
         "check_interval": "ALTER TABLE subscriptions ADD COLUMN check_interval INTEGER NOT NULL DEFAULT 300",
+        "live_enabled": "ALTER TABLE subscriptions ADD COLUMN live_enabled INTEGER NOT NULL DEFAULT 0",
+        "live_notify_upcoming": "ALTER TABLE subscriptions ADD COLUMN live_notify_upcoming INTEGER NOT NULL DEFAULT 0",
+        "live_custom_message": "ALTER TABLE subscriptions ADD COLUMN live_custom_message TEXT NOT NULL DEFAULT '🔴 {channel} právě vysílá: {title}\n{url}'",
     },
 }
 
