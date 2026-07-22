@@ -11,6 +11,7 @@ from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import youtube_api
 from utils.youtube_message import has_custom_template, render_youtube_message
+from utils.service_health import mark_error, mark_success
 
 
 class YouTubeWatcher:
@@ -37,7 +38,8 @@ class YouTubeWatcher:
         while not self.bot.is_closed():
             try:
                 await self.check_all()
-            except Exception:
+            except Exception as error:
+                mark_error("youtube", error)
                 logger.exception("Neočekávaná chyba v YouTube watcheru.")
 
             await asyncio.sleep(CHECK_INTERVAL)
@@ -46,6 +48,7 @@ class YouTubeWatcher:
         subscriptions = db.get_enabled_subscriptions()
 
         if not subscriptions:
+            mark_success("youtube", "Žádné aktivní odběry.")
             logger.info("YouTube watcher: žádné aktivní odběry.")
             return
 
@@ -54,12 +57,15 @@ class YouTubeWatcher:
         for sub in subscriptions:
             try:
                 await self._check_subscription(sub)
-            except Exception:
+            except Exception as error:
+                mark_error("youtube", error)
                 logger.exception(
                     "Chyba při kontrole YouTube kanálu %s pro guild %s.",
                     sub["youtube_channel_id"],
                     sub["guild_id"],
                 )
+                return
+        mark_success("youtube", f"Zkontrolováno odběrů: {len(subscriptions)}")
 
     async def _check_subscription(self, sub) -> None:
         latest = await youtube_api.get_latest_video(sub["youtube_channel_id"])

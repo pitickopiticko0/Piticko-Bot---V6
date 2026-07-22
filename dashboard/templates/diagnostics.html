@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="server-shell">
+  <header class="server-hero"><div><p class="eyebrow">SYSTÉM</p><h1>Diagnostika</h1><p>Stav databáze, konfigurace a automatických watcherů.</p></div></header>
+
+  <section class="stats-grid">
+    <article class="stat-card"><span class="stat-icon">🗄️</span><div><small>Databáze</small><strong>{{ 'Online' if database_ok else 'Chyba' }}</strong></div><span class="status-dot {{ 'is-online' if database_ok else 'is-offline' }}"></span></article>
+    <article class="stat-card"><span class="stat-icon">⏱️</span><div><small>Dashboard uptime</small><strong>{{ uptime_seconds }} s</strong></div></article>
+  </section>
+  {% if database_error %}<div class="toast toast-error"><strong>Databáze</strong><span>{{ database_error }}</span></div>{% endif %}
+
+  <section class="module-content">
+    <div class="section-heading"><div><p class="eyebrow">KONFIGURACE</p><h2>Externí služby</h2><p>Zobrazuje se pouze přítomnost údajů, nikdy jejich hodnota.</p></div></div>
+    <div class="module-grid">{% for name, configured in api_configuration.items() %}<article class="module-card"><div class="module-card-top"><div class="module-icon">🔑</div><span class="badge {{ 'on' if configured else 'off' }}">{{ 'Nastaveno' if configured else 'Chybí' }}</span></div><h3>{{ name }}</h3></article>{% endfor %}</div>
+  </section>
+
+  <section class="module-content">
+    <div class="section-heading"><div><p class="eyebrow">WATCHERY</p><h2>Poslední kontroly</h2></div></div>
+    {% if services %}<div class="settings-form">{% for service in services %}<div class="toggle-row"><span><strong>{{ service.service|upper }}</strong><small>{{ service.message or 'Bez podrobností' }}<br>Kontrola: {{ service.checked_at }}</small></span><span class="badge {{ 'on' if service.status == 'ok' else 'off' }}">{{ service.status }}</span></div>{% endfor %}</div>{% else %}<div class="empty-state"><h3>Zatím nejsou data</h3><p>Stavy se objeví po první kontrole watcherů a restartu bota.</p></div>{% endif %}
+  </section>
+</section>
+{% endblock %}
