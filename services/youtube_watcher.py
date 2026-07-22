@@ -72,6 +72,9 @@ class YouTubeWatcher:
             return
 
         if sub["last_video_id"] == latest.id:
+            db.mark_youtube_announced(
+                sub["guild_id"], sub["youtube_channel_id"], latest.id
+            )
             logger.info(
                 "YouTube watcher: žádné nové video pro %s.",
                 sub["youtube_name"],
@@ -94,11 +97,27 @@ class YouTubeWatcher:
                 youtube_channel_id=sub["youtube_channel_id"],
                 video_id=latest.id,
             )
+            db.mark_youtube_announced(
+                sub["guild_id"], sub["youtube_channel_id"], latest.id
+            )
 
             logger.info(
                 "YouTube watcher: inicializován kanál %s posledním videem %s.",
                 sub["youtube_name"],
                 latest.id,
+            )
+            return
+
+        if db.youtube_announcement_exists(
+            sub["guild_id"], sub["youtube_channel_id"], latest.id
+        ):
+            db.set_last_video(
+                sub["guild_id"], sub["youtube_channel_id"], latest.id
+            )
+            logger.info(
+                "YouTube watcher: video %s už bylo pro %s oznámeno.",
+                latest.id,
+                sub["youtube_name"],
             )
             return
 
@@ -157,6 +176,9 @@ class YouTubeWatcher:
             guild_id=sub["guild_id"],
             youtube_channel_id=sub["youtube_channel_id"],
             video_id=latest.id,
+        )
+        db.mark_youtube_announced(
+            sub["guild_id"], sub["youtube_channel_id"], latest.id
         )
 
         logger.info(

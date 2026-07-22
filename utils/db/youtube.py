@@ -123,6 +123,42 @@ def video_exists(database: Any, video_id: str) -> bool:
         ).fetchone() is not None
 
 
+def announcement_exists(
+    database: Any,
+    guild_id: int,
+    youtube_channel_id: str,
+    video_id: str,
+) -> bool:
+    with database.connect() as conn:
+        return conn.execute("""
+            SELECT 1 FROM youtube_announcements
+            WHERE guild_id = ? AND youtube_channel_id = ? AND video_id = ?
+        """, (guild_id, youtube_channel_id, video_id)).fetchone() is not None
+
+
+def mark_announced(
+    database: Any,
+    guild_id: int,
+    youtube_channel_id: str,
+    video_id: str,
+) -> None:
+    with database.connect() as conn:
+        if database.using_postgres:
+            conn.execute("""
+                INSERT INTO youtube_announcements
+                (guild_id, youtube_channel_id, video_id, announced_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (guild_id, youtube_channel_id, video_id) DO NOTHING
+            """, (guild_id, youtube_channel_id, video_id, database.now()))
+        else:
+            conn.execute("""
+                INSERT OR IGNORE INTO youtube_announcements
+                (guild_id, youtube_channel_id, video_id, announced_at)
+                VALUES (?, ?, ?, ?)
+            """, (guild_id, youtube_channel_id, video_id, database.now()))
+        conn.commit()
+
+
 def add_video(
     database: Any,
     video_id: str,
