@@ -16,6 +16,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from dashboard.auth import router as auth_router
 from dashboard.storage import DashboardStorage
+from utils import kick_store
+from utils.kick_api import KickAPIError, kick_api
 from utils.twitch_api import TwitchAPIError, twitch_api
 from utils.twitch_store import twitch_store
 from utils.service_health import get_all as get_service_health
@@ -348,6 +350,7 @@ async def diagnostics(request: Request):
         "Discord bot": bool(os.getenv("TOKEN")),
         "YouTube API": bool(os.getenv("YOUTUBE_API_KEY")),
         "Twitch API": bool(os.getenv("TWITCH_CLIENT_ID") and os.getenv("TWITCH_CLIENT_SECRET")),
+        "Kick API": bool(os.getenv("KICK_CLIENT_ID") and os.getenv("KICK_CLIENT_SECRET")),
     }
     return templates.TemplateResponse(
         request=request,
@@ -411,6 +414,7 @@ async def server_dashboard(request: Request, guild_id: str):
     twitch_subscriptions = await asyncio.to_thread(
         twitch_store.get_guild_subscriptions, int(guild_id)
     )
+    kick_subscriptions = await asyncio.to_thread(kick_store.get_guild, int(guild_id))
     giveaways = await storage.get_giveaways(guild_id)
     makejpc_products = await storage.get_makejpc_products()
     moderation_events = await storage.get_moderation_events(guild_id)
@@ -429,6 +433,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
             "twitch_subscriptions": twitch_subscriptions,
+            "kick_subscriptions": kick_subscriptions,
             "giveaways": giveaways,
             "makejpc_products": makejpc_products,
             "moderation_events": moderation_events,
@@ -496,6 +501,72 @@ async def remove_twitch_subscription(
         twitch_store.remove_subscription, int(guild_id), streamer_login.strip()
     )
     return RedirectResponse(f"/server/{guild_id}?saved=twitch-remove#twitch", status_code=303)
+
+
+@app.post("/server/{guild_id}/kick/add")
+async def add_kick_subscription(
+    request: Request,
+    guild_id: str,
+    streamer: str = Form(default=""),
+    channel_id: str = Form(default=""),
+    mention_role_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+
+    streamer = streamer.strip()
+    if not streamer or not channel_id.isdigit() or (
+        mention_role_id and not mention_role_id.isdigit()
+    ):
+        return RedirectResponse(f"/server/{guild_id}?kick_error=invalid#kick", status_code=303)
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"]:
+        allowed_channels = {
+            str(channel["id"])
+            for channel in resources["channels"]
+            if channel.get("can_send")
+        }
+        allowed_roles = {str(role["id"]) for role in resources["roles"]}
+        if channel_id not in allowed_channels or (
+            mention_role_id and mention_role_id not in allowed_roles
+        ):
+            return RedirectResponse(
+                f"/server/{guild_id}?kick_error=invalid#kick", status_code=303
+            )
+    try:
+        channel = await kick_api.get_channel(streamer)
+    except (KickAPIError, aiohttp.ClientError, asyncio.TimeoutError, OSError):
+        return RedirectResponse(f"/server/{guild_id}?kick_error=api#kick", status_code=303)
+    if channel is None:
+        return RedirectResponse(f"/server/{guild_id}?kick_error=not-found#kick", status_code=303)
+
+    await asyncio.to_thread(
+        kick_store.add,
+        int(guild_id),
+        channel.user_id,
+        channel.slug,
+        int(channel_id),
+        int(mention_role_id) if mention_role_id else None,
+    )
+    return RedirectResponse(f"/server/{guild_id}?saved=kick#kick", status_code=303)
+
+
+@app.post("/server/{guild_id}/kick/remove")
+async def remove_kick_subscription(
+    request: Request,
+    guild_id: str,
+    streamer_slug: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    await asyncio.to_thread(
+        kick_store.remove, int(guild_id), kick_api.normalize_slug(streamer_slug)
+    )
+    return RedirectResponse(f"/server/{guild_id}?saved=kick-remove#kick", status_code=303)
 
 
 @app.post("/server/{guild_id}/avatar")
