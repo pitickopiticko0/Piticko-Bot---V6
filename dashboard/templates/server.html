@@ -65,6 +65,20 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('kick_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Kick odběr se nepodařilo uložit</strong>
+      {% if request.query_params.get('kick_error') == 'not-found' %}
+        <span>Streamer nebyl na Kicku nalezen.</span>
+      {% elif request.query_params.get('kick_error') == 'api' %}
+        <span>Kick API je nedostupné nebo nejsou nastavené přístupové údaje.</span>
+      {% else %}
+        <span>Vyplň streamera a platný cílový kanál.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   <section class="stats-grid" aria-label="Stav modulů">
     <article class="stat-card">
       <span class="stat-icon">👋</span>
@@ -100,6 +114,7 @@
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
+      <button class="tab" type="button" data-tab="kick"><span>🟢</span>Kick</button>
       <button class="tab" type="button" data-tab="giveaways"><span>🎁</span>Giveaway</button>
       <button class="tab" type="button" data-tab="makejpc"><span>🖥️</span>MakejPC</button>
       <div class="module-nav-label">Konfigurace</div>
@@ -146,6 +161,12 @@
             <div class="module-card-top"><div class="module-icon">📺</div><span class="badge {{ 'on' if settings.youtube.enabled else 'off' }}">{{ 'Zapnuto' if settings.youtube.enabled else 'Vypnuto' }}</span></div>
             <h3>YouTube</h3>
             <p>Automatická oznámení nových videí do vybraného Discord kanálu.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="kick" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🟢</div><span class="badge {{ 'on' if kick_subscriptions else 'off' }}">{{ 'Aktivní' if kick_subscriptions else 'Neaktivní' }}</span></div>
+            <h3>Kick</h3>
+            <p>Automatická oznámení při zahájení živého vysílání na Kicku.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="general" tabindex="0" role="button">
@@ -377,6 +398,34 @@
               <form method="post" action="/server/{{ guild.id }}/twitch/remove" class="toggle-row">
                 <span><strong>{{ subscription.streamer_name }}</strong><small>@{{ subscription.streamer_login }} · kanál &lt;#{{ subscription.discord_channel_id }}&gt;</small></span>
                 <input type="hidden" name="streamer_login" value="{{ subscription.streamer_login }}">
+                <button class="button subtle" type="submit">Odebrat</button>
+              </form>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="tab-panel" id="kick">
+        <div class="section-heading"><div><p class="eyebrow">KICK MODUL</p><h2>Oznámení živých streamů</h2><p>Přidej streamera a bot oznámí přechod z offline do živého vysílání.</p></div><span class="badge {{ 'on' if kick_subscriptions else 'off' }}">{{ 'Aktivní' if kick_subscriptions else 'Neaktivní' }}</span></div>
+        <form method="post" action="/server/{{ guild.id }}/kick/add" class="settings-form">
+          <div class="form-grid">
+            <label><span>Kick streamer</span><input name="streamer" required placeholder="jméno nebo kick.com/streamer"><small>Lze zadat jméno nebo celý odkaz na profil.</small></label>
+            <label><span>Cílový Discord kanál</span>
+              {% if discord_resources_available %}<select name="channel_id" required><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if not channel.can_send %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="channel_id" required inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}
+            </label>
+            <label><span>Role pro označení</span>
+              {% if discord_resources_available %}<select name="mention_role_id"><option value="">Bez označení role</option>{% for role in discord_roles %}<option value="{{ role.id }}">@{{ role.name }}</option>{% endfor %}</select>{% else %}<input name="mention_role_id" inputmode="numeric" placeholder="Volitelné ID role">{% endif %}
+            </label>
+          </div>
+          <div class="form-actions"><button class="button primary" type="submit">Přidat Kick odběr</button></div>
+        </form>
+        {% if kick_subscriptions %}
+          <div class="settings-form">
+            <h3>Sledovaní streameři</h3>
+            {% for subscription in kick_subscriptions %}
+              <form method="post" action="/server/{{ guild.id }}/kick/remove" class="toggle-row">
+                <span><strong>{{ subscription.streamer_slug }}</strong><small>kick.com/{{ subscription.streamer_slug }} · kanál &lt;#{{ subscription.discord_channel_id }}&gt;</small></span>
+                <input type="hidden" name="streamer_slug" value="{{ subscription.streamer_slug }}">
                 <button class="button subtle" type="submit">Odebrat</button>
               </form>
             {% endfor %}

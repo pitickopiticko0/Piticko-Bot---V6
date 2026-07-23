@@ -41,6 +41,13 @@ POSTGRES_TABLES = (
         is_live INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL, UNIQUE(guild_id, twitch_user_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS kick_subscriptions (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
+        kick_user_id TEXT NOT NULL, streamer_slug TEXT NOT NULL,
+        discord_channel_id BIGINT NOT NULL, mention_role_id BIGINT,
+        is_live INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL, UNIQUE(guild_id, kick_user_id)
+    )""",
     """CREATE TABLE IF NOT EXISTS welcome_settings (
         guild_id BIGINT PRIMARY KEY, channel_id BIGINT, role_id BIGINT,
         enabled INTEGER NOT NULL DEFAULT 0, message TEXT NOT NULL,
@@ -151,6 +158,13 @@ SQLITE_TABLES = (
         mention_role_id INTEGER, profile_image_url TEXT, last_stream_id TEXT,
         is_live INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL, UNIQUE(guild_id, twitch_user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS kick_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        kick_user_id TEXT NOT NULL, streamer_slug TEXT NOT NULL,
+        discord_channel_id INTEGER NOT NULL, mention_role_id INTEGER,
+        is_live INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL, UNIQUE(guild_id, kick_user_id)
     )""",
     """CREATE TABLE IF NOT EXISTS welcome_settings (
         guild_id INTEGER PRIMARY KEY, channel_id INTEGER, role_id INTEGER,
