@@ -192,11 +192,23 @@ def bot_can_send_to_channel(
     return permissions & required == required
 
 
+def bot_can_post_to_forum(
+    guild_id: str,
+    member: dict[str, Any],
+    roles: list[dict[str, Any]],
+    channel: dict[str, Any],
+) -> bool:
+    # Discord u forum příspěvků vyžaduje oprávnění Send Messages;
+    # Create Public Threads se u thread-only kanálů ignoruje.
+    return bot_can_send_to_channel(guild_id, member, roles, channel)
+
+
 async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
     empty = {
         "profile": None,
         "channels": [],
         "categories": [],
+        "forums": [],
         "roles": [],
         "available": False,
     }
@@ -272,6 +284,18 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
             if int(channel.get("type", -1)) == 4
         ]
         categories.sort(key=lambda item: item["name"].casefold())
+        forums = [
+            {
+                "id": str(channel["id"]),
+                "name": channel.get("name") or "Fórum",
+                "can_post": bot_can_post_to_forum(
+                    guild_id, member, raw_roles, channel
+                ),
+            }
+            for channel in raw_channels
+            if int(channel.get("type", -1)) == 15
+        ]
+        forums.sort(key=lambda item: item["name"].casefold())
         roles = [
             {
                 "id": str(role["id"]),
@@ -295,6 +319,7 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
             },
             "channels": channels,
             "categories": categories,
+            "forums": forums,
             "roles": roles,
             "available": True,
         }
@@ -434,6 +459,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "bot_profile": discord_resources["profile"],
             "discord_channels": discord_resources["channels"],
             "discord_categories": discord_resources["categories"],
+            "discord_forums": discord_resources["forums"],
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
             "twitch_subscriptions": twitch_subscriptions,
@@ -854,8 +880,10 @@ async def save_pc_advice(
     request: Request,
     guild_id: str,
     enabled: str | None = Form(default=None),
+    mode: str = Form(default="private"),
     panel_channel_id: str = Form(default=""),
     category_id: str = Form(default=""),
+    forum_channel_id: str = Form(default=""),
     advisor_role_id: str = Form(default=""),
     log_channel_id: str = Form(default=""),
 ):
@@ -873,11 +901,17 @@ async def save_pc_advice(
         allowed_categories = {
             str(category["id"]) for category in resources["categories"]
         }
+        allowed_forums = {
+            str(forum["id"])
+            for forum in resources["forums"]
+            if forum.get("can_post")
+        }
         allowed_roles = {str(role["id"]) for role in resources["roles"]}
         if (
             (panel_channel_id and panel_channel_id not in allowed_channels)
             or (log_channel_id and log_channel_id not in allowed_channels)
             or (category_id and category_id not in allowed_categories)
+            or (forum_channel_id and forum_channel_id not in allowed_forums)
             or (advisor_role_id and advisor_role_id not in allowed_roles)
         ):
             raise HTTPException(
@@ -889,8 +923,10 @@ async def save_pc_advice(
         "pc_advice",
         {
             "enabled": enabled == "on",
+            "mode": mode.strip(),
             "panel_channel_id": panel_channel_id.strip(),
             "category_id": category_id.strip(),
+            "forum_channel_id": forum_channel_id.strip(),
             "advisor_role_id": advisor_role_id.strip(),
             "log_channel_id": log_channel_id.strip(),
         },

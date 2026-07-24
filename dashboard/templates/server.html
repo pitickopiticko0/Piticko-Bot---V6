@@ -343,15 +343,27 @@
       </div>
 
       <div class="tab-panel" id="pc-advice">
-        <div class="section-heading"><div><p class="eyebrow">PC PORADNA</p><h2>Sestavy, upgrady a diagnostika</h2><p>Uživatel vyplní přesný formulář a bot vytvoří soukromý kanál s poradci.</p></div><span class="badge {{ 'on' if settings.pc_advice.enabled else 'off' }}">{{ 'Aktivní' if settings.pc_advice.enabled else 'Neaktivní' }}</span></div>
+        <div class="section-heading"><div><p class="eyebrow">PC PORADNA</p><h2>Sestavy, upgrady a diagnostika</h2><p>Uživatel vyplní přesný formulář a bot vytvoří soukromý kanál nebo veřejný forum příspěvek.</p></div><span class="badge {{ 'on' if settings.pc_advice.enabled else 'off' }}">{{ 'Aktivní' if settings.pc_advice.enabled else 'Neaktivní' }}</span></div>
         <form method="post" action="/server/{{ guild.id }}/pc-advice" class="settings-form">
           <label class="toggle-row"><span><strong>Zapnout PC poradnu</strong><small>Povolit vytváření strukturovaných požadavků.</small></span><input type="checkbox" name="enabled" {% if settings.pc_advice.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <label><span>Režim poradny</span>
+            <select name="mode">
+              <option value="private" {% if settings.pc_advice.mode == 'private' %}selected{% endif %}>Soukromé kanály</option>
+              <option value="forum" {% if settings.pc_advice.mode == 'forum' %}selected{% endif %}>Veřejné Discord fórum</option>
+            </select>
+            <small>Ve fóru uvidí příspěvky všichni členové s přístupem do daného fóra.</small>
+          </label>
           <div class="form-grid">
             <label><span>Kanál panelu poradny</span>
               {% if discord_resources_available %}<select name="panel_channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.pc_advice.panel_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.pc_advice.panel_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="panel_channel_id" value="{{ settings.pc_advice.panel_channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}
             </label>
             <label><span>Kategorie požadavků</span>
               {% if discord_resources_available %}<select name="category_id"><option value="">Vyber kategorii</option>{% for category in discord_categories %}<option value="{{ category.id }}" {% if category.id == settings.pc_advice.category_id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>{% else %}<input name="category_id" value="{{ settings.pc_advice.category_id }}" inputmode="numeric" placeholder="Discord ID kategorie">{% endif %}
+              <small>Povinné pouze v režimu soukromých kanálů.</small>
+            </label>
+            <label><span>Fórum pro veřejné požadavky</span>
+              {% if discord_resources_available %}<select name="forum_channel_id"><option value="">Vyber Discord fórum</option>{% for forum in discord_forums %}<option value="{{ forum.id }}" {% if forum.id == settings.pc_advice.forum_channel_id %}selected{% endif %} {% if not forum.can_post and forum.id != settings.pc_advice.forum_channel_id %}disabled{% endif %}>{{ forum.name }}{% if not forum.can_post %} — bot nemůže zakládat příspěvky{% endif %}</option>{% endfor %}</select>{% else %}<input name="forum_channel_id" value="{{ settings.pc_advice.forum_channel_id }}" inputmode="numeric" placeholder="Discord ID fóra">{% endif %}
+              <small>Povinné pouze v režimu veřejného fóra.</small>
             </label>
             <label><span>Role PC poradců</span>
               {% if discord_resources_available %}<select name="advisor_role_id"><option value="">Vyber roli</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.pc_advice.advisor_role_id %}selected{% endif %}>@{{ role.name }}</option>{% endfor %}</select>{% else %}<input name="advisor_role_id" value="{{ settings.pc_advice.advisor_role_id }}" inputmode="numeric" placeholder="Discord ID role">{% endif %}
@@ -361,6 +373,7 @@
             </label>
           </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit PC poradnu</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+          <small>Pro automatické stavy vytvoř ve fóru štítky: <code>Nová PC sestava</code>, <code>Upgrade počítače</code>, <code>Diagnostika problému</code>, <code>Čeká na poradce</code>, <code>Řeší se</code> a <code>Vyřešeno</code>.</small>
           <small>Po uložení použij na Discordu <code>/pcporadna panel</code>.</small>
         </form>
         {% if pc_advice_requests %}
