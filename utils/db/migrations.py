@@ -101,6 +101,19 @@ POSTGRES_TABLES = (
         status TEXT NOT NULL DEFAULT 'open', claimed_by BIGINT,
         created_at TEXT NOT NULL, closed_at TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS pc_advice_settings (
+        guild_id BIGINT PRIMARY KEY, panel_channel_id BIGINT NOT NULL,
+        category_id BIGINT NOT NULL, advisor_role_id BIGINT NOT NULL,
+        log_channel_id BIGINT, enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_advice_requests (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
+        channel_id BIGINT UNIQUE NOT NULL, user_id BIGINT NOT NULL,
+        request_type TEXT NOT NULL, answers TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open', claimed_by BIGINT,
+        created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT
+    )""",
     """CREATE TABLE IF NOT EXISTS giveaways (
         id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
         channel_id BIGINT NOT NULL, message_id BIGINT, host_id BIGINT NOT NULL,
@@ -218,6 +231,19 @@ SQLITE_TABLES = (
         subject TEXT NOT NULL, description TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'open', claimed_by INTEGER,
         created_at TEXT NOT NULL, closed_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_advice_settings (
+        guild_id INTEGER PRIMARY KEY, panel_channel_id INTEGER NOT NULL,
+        category_id INTEGER NOT NULL, advisor_role_id INTEGER NOT NULL,
+        log_channel_id INTEGER, enabled INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_advice_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        channel_id INTEGER UNIQUE NOT NULL, user_id INTEGER NOT NULL,
+        request_type TEXT NOT NULL, answers TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open', claimed_by INTEGER,
+        created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS giveaways (
         id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
