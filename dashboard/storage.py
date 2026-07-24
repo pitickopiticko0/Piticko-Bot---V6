@@ -66,6 +66,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "support_role_id": "",
         "log_channel_id": "",
     },
+    "pc_advice": {
+        "enabled": False,
+        "panel_channel_id": "",
+        "category_id": "",
+        "advisor_role_id": "",
+        "log_channel_id": "",
+    },
     "moderation": {"auto_punishments": False},
 }
 
@@ -183,6 +190,16 @@ class DashboardStorage:
                 "log_channel_id": str(_value(tickets, "log_channel_id", "")),
             })
 
+        pc_advice = db.get_pc_advice_settings(guild_id)
+        if pc_advice is not None:
+            settings["pc_advice"].update({
+                "enabled": bool(_value(pc_advice, "enabled", 0)),
+                "panel_channel_id": str(_value(pc_advice, "panel_channel_id", "")),
+                "category_id": str(_value(pc_advice, "category_id", "")),
+                "advisor_role_id": str(_value(pc_advice, "advisor_role_id", "")),
+                "log_channel_id": str(_value(pc_advice, "log_channel_id", "")),
+            })
+
         with db.connect() as conn:
             moderation = conn.execute(
                 "SELECT auto_punishments FROM moderation_settings WHERE guild_id = ?",
@@ -204,6 +221,7 @@ class DashboardStorage:
             "modlogs": self._save_modlogs_sync,
             "antispam": self._save_antispam_sync,
             "tickets": self._save_tickets_sync,
+            "pc_advice": self._save_pc_advice_sync,
             "moderation": self._save_moderation_sync,
         }
         handler = handlers.get(module)
@@ -313,6 +331,31 @@ class DashboardStorage:
             )
         else:
             db.set_ticket_enabled(guild_id, False)
+
+    def _save_pc_advice_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        panel_channel_id = _discord_id(
+            values.get("panel_channel_id"), field="Kanál panelu PC poradny",
+            required=enabled,
+        )
+        category_id = _discord_id(
+            values.get("category_id"), field="Kategorie PC poradny",
+            required=enabled,
+        )
+        advisor_role_id = _discord_id(
+            values.get("advisor_role_id"), field="Role PC poradců",
+            required=enabled,
+        )
+        log_channel_id = _discord_id(
+            values.get("log_channel_id"), field="Log PC poradny",
+        )
+        if panel_channel_id and category_id and advisor_role_id:
+            db.set_pc_advice_settings(
+                guild_id, panel_channel_id, category_id, advisor_role_id,
+                log_channel_id, enabled=enabled,
+            )
+        else:
+            db.set_pc_advice_enabled(guild_id, False)
 
     def _save_moderation_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = int(bool(values.get("auto_punishments")))

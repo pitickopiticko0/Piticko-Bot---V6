@@ -112,6 +112,7 @@
       <button class="tab" type="button" data-tab="moderation"><span>🔨</span>Moderace</button>
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
+      <button class="tab" type="button" data-tab="pc-advice"><span>🖥️</span>PC poradna</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
       <button class="tab" type="button" data-tab="kick"><span>🟢</span>Kick</button>
@@ -155,6 +156,12 @@
             <div class="module-card-top"><div class="module-icon">🎫</div><span class="badge {{ 'on' if settings.tickets.enabled else 'off' }}">{{ 'Zapnuto' if settings.tickets.enabled else 'Vypnuto' }}</span></div>
             <h3>Tickety</h3>
             <p>Soukromé kanály pro komunikaci členů se support týmem.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="pc-advice" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🖥️</div><span class="badge {{ 'on' if settings.pc_advice.enabled else 'off' }}">{{ 'Zapnuto' if settings.pc_advice.enabled else 'Vypnuto' }}</span></div>
+            <h3>PC poradna</h3>
+            <p>Strukturované požadavky na sestavu, upgrade a diagnostiku počítače.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="youtube" tabindex="0" role="button">
@@ -333,6 +340,41 @@
           <div class="form-actions"><button class="button primary" type="submit">Uložit Tickety</button><button class="button subtle" type="reset">Vrátit změny</button></div>
           <small>Po uložení použij na Discordu příkaz <code>/ticket panel</code>, který odešle ovládací panel do vybraného kanálu.</small>
         </form>
+      </div>
+
+      <div class="tab-panel" id="pc-advice">
+        <div class="section-heading"><div><p class="eyebrow">PC PORADNA</p><h2>Sestavy, upgrady a diagnostika</h2><p>Uživatel vyplní přesný formulář a bot vytvoří soukromý kanál s poradci.</p></div><span class="badge {{ 'on' if settings.pc_advice.enabled else 'off' }}">{{ 'Aktivní' if settings.pc_advice.enabled else 'Neaktivní' }}</span></div>
+        <form method="post" action="/server/{{ guild.id }}/pc-advice" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout PC poradnu</strong><small>Povolit vytváření strukturovaných požadavků.</small></span><input type="checkbox" name="enabled" {% if settings.pc_advice.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <div class="form-grid">
+            <label><span>Kanál panelu poradny</span>
+              {% if discord_resources_available %}<select name="panel_channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.pc_advice.panel_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.pc_advice.panel_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="panel_channel_id" value="{{ settings.pc_advice.panel_channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}
+            </label>
+            <label><span>Kategorie požadavků</span>
+              {% if discord_resources_available %}<select name="category_id"><option value="">Vyber kategorii</option>{% for category in discord_categories %}<option value="{{ category.id }}" {% if category.id == settings.pc_advice.category_id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>{% else %}<input name="category_id" value="{{ settings.pc_advice.category_id }}" inputmode="numeric" placeholder="Discord ID kategorie">{% endif %}
+            </label>
+            <label><span>Role PC poradců</span>
+              {% if discord_resources_available %}<select name="advisor_role_id"><option value="">Vyber roli</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.pc_advice.advisor_role_id %}selected{% endif %}>@{{ role.name }}</option>{% endfor %}</select>{% else %}<input name="advisor_role_id" value="{{ settings.pc_advice.advisor_role_id }}" inputmode="numeric" placeholder="Discord ID role">{% endif %}
+            </label>
+            <label><span>Kanál pro uzavřené požadavky</span>
+              {% if discord_resources_available %}<select name="log_channel_id"><option value="">Bez samostatného logu</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.pc_advice.log_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.pc_advice.log_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="log_channel_id" value="{{ settings.pc_advice.log_channel_id }}" inputmode="numeric" placeholder="Volitelné ID kanálu">{% endif %}
+            </label>
+          </div>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit PC poradnu</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+          <small>Po uložení použij na Discordu <code>/pcporadna panel</code>.</small>
+        </form>
+        {% if pc_advice_requests %}
+          <div class="settings-form">
+            <h3>Poslední požadavky</h3>
+            {% for advice in pc_advice_requests %}
+              <div class="toggle-row">
+                <span><strong>#{{ advice.id }} · {% if advice.request_type == 'build' %}Nová sestava{% elif advice.request_type == 'upgrade' %}Upgrade{% elif advice.request_type == 'diagnostics' %}Diagnostika{% else %}{{ advice.request_type }}{% endif %}</strong><small>Uživatel: {{ advice.user_id }} · stav: {{ advice.status }}{% if advice.claimed_by %} · poradce: {{ advice.claimed_by }}{% endif %}<br>Vytvořeno: {{ advice.created_at }}</small></span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state"><h3>Zatím žádné požadavky</h3><p>Po odeslání panelu se zde zobrazí historie PC poradny.</p></div>
+        {% endif %}
       </div>
 
       <div class="tab-panel" id="youtube">

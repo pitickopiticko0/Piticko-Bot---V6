@@ -13,6 +13,7 @@ from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
+from utils.db import pc_advice as pc_advice_db
 from utils.db import tickets as tickets_db
 from utils.db import welcome as welcome_db
 from utils.db import youtube as youtube_db
@@ -147,6 +148,47 @@ class Database:
 
     def close_ticket_record(self, channel_id: int) -> None:
         tickets_db.close_ticket(self, channel_id)
+
+    def get_pc_advice_settings(self, guild_id: int):
+        return pc_advice_db.get_settings(self, guild_id)
+
+    def set_pc_advice_settings(
+        self, guild_id: int, panel_channel_id: int, category_id: int,
+        advisor_role_id: int, log_channel_id: Optional[int], **values,
+    ) -> None:
+        pc_advice_db.save_settings(
+            self, guild_id, panel_channel_id, category_id,
+            advisor_role_id, log_channel_id, **values,
+        )
+
+    def set_pc_advice_enabled(self, guild_id: int, enabled: bool) -> None:
+        pc_advice_db.set_enabled(self, guild_id, enabled)
+
+    def get_active_pc_advice(self, guild_id: int, user_id: int):
+        return pc_advice_db.get_active_for_user(self, guild_id, user_id)
+
+    def get_pc_advice_by_channel(self, channel_id: int):
+        return pc_advice_db.get_by_channel(self, channel_id)
+
+    def create_pc_advice_request(
+        self, guild_id: int, channel_id: int, user_id: int,
+        request_type: str, answers: dict[str, str],
+    ) -> None:
+        pc_advice_db.create_request(
+            self, guild_id, channel_id, user_id, request_type, answers,
+        )
+
+    def claim_pc_advice(self, channel_id: int, user_id: int) -> None:
+        pc_advice_db.set_claimed(self, channel_id, user_id)
+
+    def resolve_pc_advice(self, channel_id: int) -> None:
+        pc_advice_db.set_resolved(self, channel_id)
+
+    def close_pc_advice(self, channel_id: int) -> None:
+        pc_advice_db.set_closed(self, channel_id)
+
+    def get_recent_pc_advice(self, guild_id: int, limit: int = 20):
+        return pc_advice_db.get_recent(self, guild_id, limit)
 
     def _init_db(self):
         database_migrations.initialize(self)

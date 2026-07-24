@@ -17,6 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from dashboard.auth import router as auth_router
 from dashboard.storage import DashboardStorage
 from utils import kick_store
+from utils.database import db
 from utils.kick_api import KickAPIError, kick_api
 from utils.twitch_api import TwitchAPIError, twitch_api
 from utils.twitch_store import twitch_store
@@ -418,6 +419,9 @@ async def server_dashboard(request: Request, guild_id: str):
     giveaways = await storage.get_giveaways(guild_id)
     makejpc_products = await storage.get_makejpc_products()
     moderation_events = await storage.get_moderation_events(guild_id)
+    pc_advice_requests = await asyncio.to_thread(
+        db.get_recent_pc_advice, int(guild_id), 20
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -437,6 +441,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "giveaways": giveaways,
             "makejpc_products": makejpc_products,
             "moderation_events": moderation_events,
+            "pc_advice_requests": pc_advice_requests,
         },
     )
 
@@ -841,6 +846,57 @@ async def save_tickets(
     return RedirectResponse(
         f"/server/{guild_id}?saved=tickets#tickets",
         status_code=303,
+    )
+
+
+@app.post("/server/{guild_id}/pc-advice")
+async def save_pc_advice(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    panel_channel_id: str = Form(default=""),
+    category_id: str = Form(default=""),
+    advisor_role_id: str = Form(default=""),
+    log_channel_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"]:
+        allowed_channels = {
+            str(channel["id"])
+            for channel in resources["channels"]
+            if channel.get("can_send")
+        }
+        allowed_categories = {
+            str(category["id"]) for category in resources["categories"]
+        }
+        allowed_roles = {str(role["id"]) for role in resources["roles"]}
+        if (
+            (panel_channel_id and panel_channel_id not in allowed_channels)
+            or (log_channel_id and log_channel_id not in allowed_channels)
+            or (category_id and category_id not in allowed_categories)
+            or (advisor_role_id and advisor_role_id not in allowed_roles)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Vybraný kanál, kategorie nebo role nepatří tomuto serveru.",
+            )
+    await storage.update_module(
+        guild_id,
+        "pc_advice",
+        {
+            "enabled": enabled == "on",
+            "panel_channel_id": panel_channel_id.strip(),
+            "category_id": category_id.strip(),
+            "advisor_role_id": advisor_role_id.strip(),
+            "log_channel_id": log_channel_id.strip(),
+        },
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=pc-advice#pc-advice", status_code=303
     )
 
 
