@@ -154,11 +154,12 @@ class Database:
 
     def set_pc_advice_settings(
         self, guild_id: int, panel_channel_id: int, category_id: int,
-        advisor_role_id: int, log_channel_id: Optional[int], **values,
+        advisor_role_id: int, log_channel_id: Optional[int],
+        mode: str = "private", forum_channel_id: Optional[int] = None, **values,
     ) -> None:
         pc_advice_db.save_settings(
             self, guild_id, panel_channel_id, category_id,
-            advisor_role_id, log_channel_id, **values,
+            advisor_role_id, log_channel_id, mode, forum_channel_id, **values,
         )
 
     def set_pc_advice_enabled(self, guild_id: int, enabled: bool) -> None:

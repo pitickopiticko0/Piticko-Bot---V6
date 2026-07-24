@@ -175,6 +175,32 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             or any(role.id == int(settings["advisor_role_id"]) for role in member.roles)
         )
 
+    @staticmethod
+    def forum_tags(
+        forum: discord.ForumChannel, *names: str
+    ) -> list[discord.ForumTag]:
+        wanted = {name.casefold() for name in names}
+        return [tag for tag in forum.available_tags if tag.name.casefold() in wanted][:5]
+
+    async def update_forum_status(
+        self, channel: discord.abc.GuildChannel | discord.Thread, status: str
+    ) -> None:
+        if not isinstance(channel, discord.Thread):
+            return
+        forum = channel.parent
+        if not isinstance(forum, discord.ForumChannel):
+            return
+        status_names = {"čeká na poradce", "řeší se", "vyřešeno"}
+        kept = [
+            tag for tag in channel.applied_tags
+            if tag.name.casefold() not in status_names
+        ]
+        replacement = self.forum_tags(forum, status)
+        try:
+            await channel.edit(applied_tags=(kept + replacement)[:5])
+        except discord.HTTPException:
+            logger.exception("Aktualizace štítku PC poradny selhala.")
+
     async def create_request(
         self, interaction: discord.Interaction, request_type: str, answers: dict[str, str],
     ) -> None:
@@ -190,45 +216,19 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             await interaction.followup.send("❌ Už máš aktivní požadavek.", ephemeral=True)
             return
 
-        category = guild.get_channel(int(settings["category_id"]))
         advisor_role = guild.get_role(int(settings["advisor_role_id"]))
-        if not isinstance(category, discord.CategoryChannel) or advisor_role is None or guild.me is None:
-            await interaction.followup.send(
-                "❌ Kategorie, role poradců nebo bot nejsou dostupní.", ephemeral=True
-            )
-            return
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, read_message_history=True,
-                attach_files=True, embed_links=True,
-            ),
-            advisor_role: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, read_message_history=True,
-            ),
-            guild.me: discord.PermissionOverwrite(
-                view_channel=True, send_messages=True, read_message_history=True,
-                manage_channels=True, manage_messages=True,
-            ),
-        }
-        try:
-            channel = await guild.create_text_channel(
-                name=f"pc-{request_type}-{clean_name(interaction.user.display_name)}",
-                category=category,
-                overwrites=overwrites,
-                topic=f"PC poradna | {request_type} | uživatel {interaction.user.id}",
-                reason="Piticko Bot PC poradna",
-            )
-        except (discord.Forbidden, discord.HTTPException):
-            logger.exception("Vytvoření kanálu PC poradny selhalo.")
-            await interaction.followup.send(
-                "❌ Bot nemůže vytvořit kanál poradny.", ephemeral=True
-            )
-            return
-
-        db.create_pc_advice_request(
-            guild.id, channel.id, interaction.user.id, request_type, answers,
+        mode = str(settings["mode"] or "private")
+        destination_id = (
+            settings["forum_channel_id"]
+            if mode == "forum"
+            else settings["category_id"]
         )
+        destination = guild.get_channel(int(destination_id))
+        if advisor_role is None or guild.me is None:
+            await interaction.followup.send(
+                "❌ Role poradců nebo bot nejsou dostupní.", ephemeral=True
+            )
+            return
         definition = REQUEST_TYPES[request_type]
         embed = discord.Embed(
             title=f"{definition['emoji']} {definition['label']}",
@@ -240,16 +240,89 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         for label, value in answers.items():
             embed.add_field(name=label, value=value[:1024], inline=False)
         embed.set_footer(text=EMBED_FOOTER)
-        await channel.send(
-            content=f"{interaction.user.mention} {advisor_role.mention}",
-            embed=embed,
-            view=AdviceControls(self),
-            allowed_mentions=discord.AllowedMentions(
-                users=True, roles=True, everyone=False
-            ),
+        content = f"{interaction.user.mention} {advisor_role.mention}"
+        allowed_mentions = discord.AllowedMentions(
+            users=True, roles=True, everyone=False
+        )
+        try:
+            if mode == "forum":
+                if not isinstance(destination, discord.ForumChannel):
+                    await interaction.followup.send(
+                        "❌ Nastavené fórum nebylo nalezeno.", ephemeral=True
+                    )
+                    return
+                post_name = (
+                    f"[{definition['label']}] "
+                    f"{interaction.user.display_name}"
+                )[:100]
+                tags = self.forum_tags(
+                    destination, definition["label"], "Čeká na poradce"
+                )
+                if (
+                    not tags
+                    and destination.flags.require_tag
+                    and destination.available_tags
+                ):
+                    tags = [destination.available_tags[0]]
+                created = await destination.create_thread(
+                    name=post_name,
+                    content=content,
+                    embed=embed,
+                    view=AdviceControls(self),
+                    applied_tags=tags,
+                    allowed_mentions=allowed_mentions,
+                    reason="Piticko Bot PC poradna",
+                )
+                channel = created.thread
+            else:
+                if not isinstance(destination, discord.CategoryChannel):
+                    await interaction.followup.send(
+                        "❌ Kategorie PC poradny nebyla nalezena.", ephemeral=True
+                    )
+                    return
+                overwrites = {
+                    guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.user: discord.PermissionOverwrite(
+                        view_channel=True, send_messages=True, read_message_history=True,
+                        attach_files=True, embed_links=True,
+                    ),
+                    advisor_role: discord.PermissionOverwrite(
+                        view_channel=True, send_messages=True, read_message_history=True,
+                    ),
+                    guild.me: discord.PermissionOverwrite(
+                        view_channel=True, send_messages=True, read_message_history=True,
+                        manage_channels=True, manage_messages=True,
+                    ),
+                }
+                channel = await guild.create_text_channel(
+                    name=f"pc-{request_type}-{clean_name(interaction.user.display_name)}",
+                    category=destination,
+                    overwrites=overwrites,
+                    topic=f"PC poradna | {request_type} | uživatel {interaction.user.id}",
+                    reason="Piticko Bot PC poradna",
+                )
+                await channel.send(
+                    content=content,
+                    embed=embed,
+                    view=AdviceControls(self),
+                    allowed_mentions=allowed_mentions,
+                )
+        except (discord.Forbidden, discord.HTTPException):
+            logger.exception("Vytvoření požadavku PC poradny selhalo.")
+            await interaction.followup.send(
+                "❌ Bot nemůže vytvořit požadavek poradny.", ephemeral=True
+            )
+            return
+        db.create_pc_advice_request(
+            guild.id, channel.id, interaction.user.id, request_type, answers,
         )
         await interaction.followup.send(
-            f"✅ Požadavek byl vytvořen: {channel.mention}", ephemeral=True
+            f"✅ Požadavek byl vytvořen: {channel.mention}\n"
+            + (
+                "ℹ️ Tento příspěvek je veřejný pro členy, kteří vidí fórum."
+                if mode == "forum" else ""
+            ),
+            ephemeral=True,
         )
 
     async def _context(self, interaction: discord.Interaction):
@@ -281,8 +354,10 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
                 f"ℹ️ Požadavek už převzal <@{request['claimed_by']}>.", ephemeral=True
             )
             return
+        await interaction.response.defer()
         db.claim_pc_advice(interaction.channel.id, interaction.user.id)
-        await interaction.response.send_message(
+        await self.update_forum_status(interaction.channel, "Řeší se")
+        await interaction.followup.send(
             f"🙋 Požadavek převzal {interaction.user.mention}."
         )
 
@@ -298,8 +373,10 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
                 "❌ Jako vyřešené jej může označit pouze poradce.", ephemeral=True
             )
             return
+        await interaction.response.defer()
         db.resolve_pc_advice(interaction.channel.id)
-        await interaction.response.send_message(
+        await self.update_forum_status(interaction.channel, "Vyřešeno")
+        await interaction.followup.send(
             f"✅ Požadavek označil {interaction.user.mention} jako vyřešený."
         )
 
@@ -346,22 +423,40 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
                     logger.exception("Odeslání logu PC poradny selhalo.")
         await asyncio.sleep(5)
         try:
-            await interaction.channel.delete(reason=f"PC poradnu zavřel {interaction.user}")
+            if isinstance(interaction.channel, discord.Thread):
+                await interaction.channel.edit(archived=True, locked=True)
+            else:
+                await interaction.channel.delete(
+                    reason=f"PC poradnu zavřel {interaction.user}"
+                )
         except discord.HTTPException:
-            logger.exception("Smazání kanálu PC poradny selhalo.")
+            logger.exception("Uzavření kanálu PC poradny selhalo.")
 
     @app_commands.command(name="setup", description="Nastaví PC poradnu.")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_command(
         self, interaction: discord.Interaction, panel: discord.TextChannel,
-        kategorie: discord.CategoryChannel, poradci: discord.Role,
+        poradci: discord.Role,
+        kategorie: Optional[discord.CategoryChannel] = None,
+        forum: Optional[discord.ForumChannel] = None,
         log: Optional[discord.TextChannel] = None,
     ) -> None:
         if interaction.guild is None:
             return
+        if (kategorie is None) == (forum is None):
+            await interaction.response.send_message(
+                "❌ Vyber právě jednu možnost: kategorii pro soukromý režim, "
+                "nebo fórum pro veřejný režim.",
+                ephemeral=True,
+            )
+            return
+        destination_id = forum.id if forum else kategorie.id
         db.set_pc_advice_settings(
-            interaction.guild.id, panel.id, kategorie.id, poradci.id,
-            log.id if log else None, enabled=True,
+            interaction.guild.id, panel.id, destination_id, poradci.id,
+            log.id if log else None,
+            mode="forum" if forum else "private",
+            forum_channel_id=forum.id if forum else None,
+            enabled=True,
         )
         await interaction.response.send_message(
             "✅ PC poradna nastavena. Použij `/pcporadna panel`.", ephemeral=True
@@ -388,7 +483,11 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             title="🖥️ PC poradna",
             description=(
                 "Vyber typ požadavku. Bot ti otevře formulář a následně "
-                "vytvoří soukromý kanál s našimi poradci."
+                + (
+                    "vytvoří veřejný příspěvek v poradenském fóru."
+                    if str(settings["mode"] or "private") == "forum"
+                    else "vytvoří soukromý kanál s našimi poradci."
+                )
             ),
             color=EMBED_COLOR,
         )
@@ -406,6 +505,12 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             value="Přesné modely komponent, rozpočet a co nejpodrobnější popis.",
             inline=False,
         )
+        if str(settings["mode"] or "private") == "forum":
+            embed.add_field(
+                name="👁️ Veřejný režim",
+                value="Požadavek a odpovědi uvidí všichni členové s přístupem do fóra.",
+                inline=False,
+            )
         embed.set_footer(text=EMBED_FOOTER)
         await channel.send(embed=embed, view=AdvicePanel(self))
         await interaction.response.send_message(

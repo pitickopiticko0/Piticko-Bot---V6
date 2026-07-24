@@ -18,6 +18,8 @@ def save_settings(
     category_id: int,
     advisor_role_id: int,
     log_channel_id: Optional[int],
+    mode: str = "private",
+    forum_channel_id: Optional[int] = None,
     *,
     enabled: bool = True,
 ) -> None:
@@ -26,18 +28,20 @@ def save_settings(
         conn.execute(f"""
             INSERT INTO pc_advice_settings
                 (guild_id, panel_channel_id, category_id, advisor_role_id,
-                 log_channel_id, enabled, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 log_channel_id, mode, forum_channel_id, enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (guild_id) DO UPDATE SET
                 panel_channel_id = {excluded}.panel_channel_id,
                 category_id = {excluded}.category_id,
                 advisor_role_id = {excluded}.advisor_role_id,
                 log_channel_id = {excluded}.log_channel_id,
+                mode = {excluded}.mode,
+                forum_channel_id = {excluded}.forum_channel_id,
                 enabled = {excluded}.enabled,
                 updated_at = {excluded}.updated_at
         """, (
             guild_id, panel_channel_id, category_id, advisor_role_id,
-            log_channel_id, int(enabled), database.now(),
+            log_channel_id, mode, forum_channel_id, int(enabled), database.now(),
         ))
         conn.commit()
 

@@ -13,7 +13,7 @@ Discord YouTube notifier připravený pro Wispbytehosting.
 - Logování do konzole i souboru
 - `.env` konfigurace
 - Kick stream oznámení přes oficiální Kick API a správu v dashboardu
-- PC poradna pro návrhy sestav, upgrady a diagnostiku s privátními požadavky
+- PC poradna pro sestavy, upgrady a diagnostiku v soukromých kanálech nebo veřejném fóru
 
 ## Instalace lokálně
 

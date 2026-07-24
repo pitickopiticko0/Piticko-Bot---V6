@@ -104,7 +104,8 @@ POSTGRES_TABLES = (
     """CREATE TABLE IF NOT EXISTS pc_advice_settings (
         guild_id BIGINT PRIMARY KEY, panel_channel_id BIGINT NOT NULL,
         category_id BIGINT NOT NULL, advisor_role_id BIGINT NOT NULL,
-        log_channel_id BIGINT, enabled INTEGER NOT NULL DEFAULT 1,
+        log_channel_id BIGINT, mode TEXT NOT NULL DEFAULT 'private',
+        forum_channel_id BIGINT, enabled INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS pc_advice_requests (
@@ -235,7 +236,8 @@ SQLITE_TABLES = (
     """CREATE TABLE IF NOT EXISTS pc_advice_settings (
         guild_id INTEGER PRIMARY KEY, panel_channel_id INTEGER NOT NULL,
         category_id INTEGER NOT NULL, advisor_role_id INTEGER NOT NULL,
-        log_channel_id INTEGER, enabled INTEGER NOT NULL DEFAULT 1,
+        log_channel_id INTEGER, mode TEXT NOT NULL DEFAULT 'private',
+        forum_channel_id INTEGER, enabled INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS pc_advice_requests (
@@ -274,6 +276,8 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_enabled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_notify_upcoming INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_custom_message TEXT NOT NULL DEFAULT '🔴 {channel} právě vysílá: {title}\n{url}'",
+    "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'private'",
+    "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS forum_channel_id BIGINT",
 )
 
 
@@ -289,6 +293,10 @@ SQLITE_MIGRATIONS = {
         "live_enabled": "ALTER TABLE subscriptions ADD COLUMN live_enabled INTEGER NOT NULL DEFAULT 0",
         "live_notify_upcoming": "ALTER TABLE subscriptions ADD COLUMN live_notify_upcoming INTEGER NOT NULL DEFAULT 0",
         "live_custom_message": "ALTER TABLE subscriptions ADD COLUMN live_custom_message TEXT NOT NULL DEFAULT '🔴 {channel} právě vysílá: {title}\n{url}'",
+    },
+    "pc_advice_settings": {
+        "mode": "ALTER TABLE pc_advice_settings ADD COLUMN mode TEXT NOT NULL DEFAULT 'private'",
+        "forum_channel_id": "ALTER TABLE pc_advice_settings ADD COLUMN forum_channel_id INTEGER",
     },
 }
 

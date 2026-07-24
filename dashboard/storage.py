@@ -68,8 +68,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     },
     "pc_advice": {
         "enabled": False,
+        "mode": "private",
         "panel_channel_id": "",
         "category_id": "",
+        "forum_channel_id": "",
         "advisor_role_id": "",
         "log_channel_id": "",
     },
@@ -194,8 +196,10 @@ class DashboardStorage:
         if pc_advice is not None:
             settings["pc_advice"].update({
                 "enabled": bool(_value(pc_advice, "enabled", 0)),
+                "mode": str(_value(pc_advice, "mode", "private")),
                 "panel_channel_id": str(_value(pc_advice, "panel_channel_id", "")),
                 "category_id": str(_value(pc_advice, "category_id", "")),
+                "forum_channel_id": str(_value(pc_advice, "forum_channel_id", "")),
                 "advisor_role_id": str(_value(pc_advice, "advisor_role_id", "")),
                 "log_channel_id": str(_value(pc_advice, "log_channel_id", "")),
             })
@@ -334,13 +338,20 @@ class DashboardStorage:
 
     def _save_pc_advice_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
+        mode = str(values.get("mode") or "private")
+        if mode not in {"private", "forum"}:
+            raise ValueError("Neplatný režim PC poradny.")
         panel_channel_id = _discord_id(
             values.get("panel_channel_id"), field="Kanál panelu PC poradny",
             required=enabled,
         )
         category_id = _discord_id(
             values.get("category_id"), field="Kategorie PC poradny",
-            required=enabled,
+            required=enabled and mode == "private",
+        )
+        forum_channel_id = _discord_id(
+            values.get("forum_channel_id"), field="Fórum PC poradny",
+            required=enabled and mode == "forum",
         )
         advisor_role_id = _discord_id(
             values.get("advisor_role_id"), field="Role PC poradců",
@@ -349,10 +360,12 @@ class DashboardStorage:
         log_channel_id = _discord_id(
             values.get("log_channel_id"), field="Log PC poradny",
         )
-        if panel_channel_id and category_id and advisor_role_id:
+        effective_category_id = category_id or forum_channel_id
+        if panel_channel_id and effective_category_id and advisor_role_id:
             db.set_pc_advice_settings(
-                guild_id, panel_channel_id, category_id, advisor_role_id,
-                log_channel_id, enabled=enabled,
+                guild_id, panel_channel_id, effective_category_id, advisor_role_id,
+                log_channel_id, mode=mode, forum_channel_id=forum_channel_id,
+                enabled=enabled,
             )
         else:
             db.set_pc_advice_enabled(guild_id, False)
