@@ -115,6 +115,20 @@ POSTGRES_TABLES = (
         status TEXT NOT NULL DEFAULT 'open', claimed_by BIGINT,
         created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS abi_rank_settings (
+        guild_id BIGINT PRIMARY KEY, review_channel_id BIGINT NOT NULL,
+        reviewer_role_id BIGINT NOT NULL, rookie_role_id BIGINT,
+        vanguard_role_id BIGINT, elite_role_id BIGINT, expert_role_id BIGINT,
+        master_role_id BIGINT, ace_role_id BIGINT, legend_role_id BIGINT,
+        enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS abi_rank_requests (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+        game_name TEXT NOT NULL, game_uid TEXT NOT NULL, rank_key TEXT NOT NULL,
+        division TEXT, screenshot_url TEXT NOT NULL, review_message_id BIGINT,
+        status TEXT NOT NULL DEFAULT 'pending', reviewer_id BIGINT,
+        review_reason TEXT, created_at TEXT NOT NULL, reviewed_at TEXT
+    )""",
     """CREATE TABLE IF NOT EXISTS giveaways (
         id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL,
         channel_id BIGINT NOT NULL, message_id BIGINT, host_id BIGINT NOT NULL,
@@ -246,6 +260,21 @@ SQLITE_TABLES = (
         request_type TEXT NOT NULL, answers TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'open', claimed_by INTEGER,
         created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS abi_rank_settings (
+        guild_id INTEGER PRIMARY KEY, review_channel_id INTEGER NOT NULL,
+        reviewer_role_id INTEGER NOT NULL, rookie_role_id INTEGER,
+        vanguard_role_id INTEGER, elite_role_id INTEGER, expert_role_id INTEGER,
+        master_role_id INTEGER, ace_role_id INTEGER, legend_role_id INTEGER,
+        enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS abi_rank_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL, game_name TEXT NOT NULL, game_uid TEXT NOT NULL,
+        rank_key TEXT NOT NULL, division TEXT, screenshot_url TEXT NOT NULL,
+        review_message_id INTEGER, status TEXT NOT NULL DEFAULT 'pending',
+        reviewer_id INTEGER, review_reason TEXT, created_at TEXT NOT NULL,
+        reviewed_at TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS giveaways (
         id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,

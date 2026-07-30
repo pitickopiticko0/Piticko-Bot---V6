@@ -75,6 +75,18 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "advisor_role_id": "",
         "log_channel_id": "",
     },
+    "abi_rank": {
+        "enabled": False,
+        "review_channel_id": "",
+        "reviewer_role_id": "",
+        "rookie_role_id": "",
+        "vanguard_role_id": "",
+        "elite_role_id": "",
+        "expert_role_id": "",
+        "master_role_id": "",
+        "ace_role_id": "",
+        "legend_role_id": "",
+    },
     "moderation": {"auto_punishments": False},
 }
 
@@ -204,6 +216,17 @@ class DashboardStorage:
                 "log_channel_id": str(_value(pc_advice, "log_channel_id", "")),
             })
 
+        abi_rank = db.get_abi_rank_settings(guild_id)
+        if abi_rank is not None:
+            settings["abi_rank"].update({
+                key: (
+                    bool(_value(abi_rank, key, 0))
+                    if key == "enabled"
+                    else str(_value(abi_rank, key, ""))
+                )
+                for key in settings["abi_rank"]
+            })
+
         with db.connect() as conn:
             moderation = conn.execute(
                 "SELECT auto_punishments FROM moderation_settings WHERE guild_id = ?",
@@ -226,6 +249,7 @@ class DashboardStorage:
             "antispam": self._save_antispam_sync,
             "tickets": self._save_tickets_sync,
             "pc_advice": self._save_pc_advice_sync,
+            "abi_rank": self._save_abi_rank_sync,
             "moderation": self._save_moderation_sync,
         }
         handler = handlers.get(module)
@@ -369,6 +393,33 @@ class DashboardStorage:
             )
         else:
             db.set_pc_advice_enabled(guild_id, False)
+
+    def _save_abi_rank_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        review_channel_id = _discord_id(
+            values.get("review_channel_id"), field="ABI kontrolní kanál",
+            required=enabled,
+        )
+        reviewer_role_id = _discord_id(
+            values.get("reviewer_role_id"), field="Role ABI ověřovatelů",
+            required=enabled,
+        )
+        rank_roles = {
+            rank: _discord_id(
+                values.get(f"{rank}_role_id"), field=f"ABI role {rank}"
+            )
+            for rank in (
+                "rookie", "vanguard", "elite", "expert",
+                "master", "ace", "legend",
+            )
+        }
+        if review_channel_id and reviewer_role_id:
+            db.set_abi_rank_settings(
+                guild_id, review_channel_id, reviewer_role_id,
+                rank_roles, enabled=enabled,
+            )
+        else:
+            db.set_abi_rank_enabled(guild_id, False)
 
     def _save_moderation_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = int(bool(values.get("auto_punishments")))
