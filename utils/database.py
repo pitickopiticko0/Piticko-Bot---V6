@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from config import DATABASE
 from utils.db import antispam as antispam_db
+from utils.db import abi_rank as abi_rank_db
 from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
 from utils.db import makejpc as makejpc_db
@@ -190,6 +191,48 @@ class Database:
 
     def get_recent_pc_advice(self, guild_id: int, limit: int = 20):
         return pc_advice_db.get_recent(self, guild_id, limit)
+
+    def get_abi_rank_settings(self, guild_id: int):
+        return abi_rank_db.get_settings(self, guild_id)
+
+    def set_abi_rank_settings(self, guild_id: int, review_channel_id: int,
+                              reviewer_role_id: int, rank_roles: dict,
+                              enabled: bool = True) -> None:
+        abi_rank_db.save_settings(
+            self, guild_id, review_channel_id, reviewer_role_id,
+            rank_roles, enabled=enabled,
+        )
+
+    def set_abi_rank_enabled(self, guild_id: int, enabled: bool) -> None:
+        abi_rank_db.set_enabled(self, guild_id, enabled)
+
+    def get_pending_abi_rank(self, guild_id: int, user_id: int):
+        return abi_rank_db.get_pending_for_user(self, guild_id, user_id)
+
+    def create_abi_rank_request(self, guild_id: int, user_id: int,
+                                game_name: str, game_uid: str, rank_key: str,
+                                division: Optional[str], screenshot_url: str) -> int:
+        return abi_rank_db.create_request(
+            self, guild_id, user_id, game_name, game_uid, rank_key,
+            division, screenshot_url,
+        )
+
+    def set_abi_rank_review_message(self, request_id: int, message_id: int) -> None:
+        abi_rank_db.set_review_message(self, request_id, message_id)
+
+    def get_abi_rank_by_review_message(self, guild_id: int, message_id: int):
+        return abi_rank_db.get_by_review_message(self, guild_id, message_id)
+
+    def finish_abi_rank_request(self, request_id: int, status: str,
+                                reviewer_id: int,
+                                reason: Optional[str] = None) -> None:
+        abi_rank_db.finish(self, request_id, status, reviewer_id, reason)
+
+    def get_recent_abi_ranks(self, guild_id: int, limit: int = 20):
+        return abi_rank_db.get_recent(self, guild_id, limit)
+
+    def get_abi_rank_leaderboard(self, guild_id: int, limit: int = 20):
+        return abi_rank_db.get_leaderboard(self, guild_id, limit)
 
     def _init_db(self):
         database_migrations.initialize(self)

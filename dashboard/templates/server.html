@@ -113,6 +113,7 @@
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="pc-advice"><span>🖥️</span>PC poradna</button>
+      <button class="tab" type="button" data-tab="abi-rank"><span>🎖️</span>ABI Rank</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
       <button class="tab" type="button" data-tab="kick"><span>🟢</span>Kick</button>
@@ -162,6 +163,12 @@
             <div class="module-card-top"><div class="module-icon">🖥️</div><span class="badge {{ 'on' if settings.pc_advice.enabled else 'off' }}">{{ 'Zapnuto' if settings.pc_advice.enabled else 'Vypnuto' }}</span></div>
             <h3>PC poradna</h3>
             <p>Strukturované požadavky na sestavu, upgrade a diagnostiku počítače.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="abi-rank" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🎖️</div><span class="badge {{ 'on' if settings.abi_rank.enabled else 'off' }}">{{ 'Zapnuto' if settings.abi_rank.enabled else 'Vypnuto' }}</span></div>
+            <h3>ABI Rank</h3>
+            <p>Ruční ověření Arena Breakout: Infinite ranku, role a serverový žebříček.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="youtube" tabindex="0" role="button">
@@ -387,6 +394,42 @@
           </div>
         {% else %}
           <div class="empty-state"><h3>Zatím žádné požadavky</h3><p>Po odeslání panelu se zde zobrazí historie PC poradny.</p></div>
+        {% endif %}
+      </div>
+
+      <div class="tab-panel" id="abi-rank">
+        <div class="section-heading"><div><p class="eyebrow">ARENA BREAKOUT: INFINITE</p><h2>Ověřování hráčských ranků</h2><p>Hráč odešle UID a screenshot. Ověřovatel žádost ručně schválí nebo zamítne.</p></div><span class="badge {{ 'on' if settings.abi_rank.enabled else 'off' }}">{{ 'Aktivní' if settings.abi_rank.enabled else 'Neaktivní' }}</span></div>
+        <form method="post" action="/server/{{ guild.id }}/abi-rank" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout ABI Rank</strong><small>Povolit příkaz <code>/abirank zadost</code>.</small></span><input type="checkbox" name="enabled" {% if settings.abi_rank.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <div class="form-grid">
+            <label><span>Kontrolní kanál</span>
+              {% if discord_resources_available %}<select name="review_channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.abi_rank.review_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.abi_rank.review_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="review_channel_id" value="{{ settings.abi_rank.review_channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}
+            </label>
+            <label><span>Role ověřovatelů</span>
+              {% if discord_resources_available %}<select name="reviewer_role_id"><option value="">Vyber roli</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.abi_rank.reviewer_role_id %}selected{% endif %}>@{{ role.name }}</option>{% endfor %}</select>{% else %}<input name="reviewer_role_id" value="{{ settings.abi_rank.reviewer_role_id }}" inputmode="numeric" placeholder="Discord ID role">{% endif %}
+            </label>
+          </div>
+          <h3>Role podle hodnosti</h3>
+          <p>Role jsou volitelné. Bot před přidáním nového ranku odebere předchozí nakonfigurovanou ABI roli.</p>
+          <div class="form-grid">
+            {% for key, label in [('rookie', 'Rookie'), ('vanguard', 'Vanguard'), ('elite', 'Elite'), ('expert', 'Expert'), ('master', 'Master'), ('ace', 'Ace'), ('legend', 'Legend')] %}
+              <label><span>{{ label }}</span>
+                {% if discord_resources_available %}<select name="{{ key }}_role_id"><option value="">Bez role</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.abi_rank[key ~ '_role_id'] %}selected{% endif %} {% if not role.assignable and role.id != settings.abi_rank[key ~ '_role_id'] %}disabled{% endif %}>@{{ role.name }}{% if not role.assignable %} — bot ji nemůže přidat{% endif %}</option>{% endfor %}</select>{% else %}<input name="{{ key }}_role_id" value="{{ settings.abi_rank[key ~ '_role_id'] }}" inputmode="numeric" placeholder="Volitelné Discord ID role">{% endif %}
+              </label>
+            {% endfor %}
+          </div>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit ABI Rank</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+          <small>Bot používá ruční ověření. Nejde o přímé propojení s herním účtem ani oficiální ABI API.</small>
+        </form>
+        {% if abi_rank_requests %}
+          <div class="settings-form">
+            <h3>Poslední žádosti</h3>
+            {% for item in abi_rank_requests %}
+              <div class="toggle-row"><span><strong>#{{ item.id }} · {{ item.game_name }} · {{ item.rank_key|title }}{% if item.division %} {{ item.division }}{% endif %}</strong><small>Uživatel: {{ item.user_id }} · UID: {{ item.game_uid }} · stav: {{ item.status }}{% if item.reviewer_id %} · ověřil: {{ item.reviewer_id }}{% endif %}<br>Vytvořeno: {{ item.created_at }}</small></span></div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state"><h3>Zatím žádné žádosti</h3><p>Hráči je vytvoří příkazem <code>/abirank zadost</code>.</p></div>
         {% endif %}
       </div>
 

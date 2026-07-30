@@ -447,6 +447,9 @@ async def server_dashboard(request: Request, guild_id: str):
     pc_advice_requests = await asyncio.to_thread(
         db.get_recent_pc_advice, int(guild_id), 20
     )
+    abi_rank_requests = await asyncio.to_thread(
+        db.get_recent_abi_ranks, int(guild_id), 20
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -468,6 +471,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "makejpc_products": makejpc_products,
             "moderation_events": moderation_events,
             "pc_advice_requests": pc_advice_requests,
+            "abi_rank_requests": abi_rank_requests,
         },
     )
 
@@ -933,6 +937,61 @@ async def save_pc_advice(
     )
     return RedirectResponse(
         f"/server/{guild_id}?saved=pc-advice#pc-advice", status_code=303
+    )
+
+
+@app.post("/server/{guild_id}/abi-rank")
+async def save_abi_rank(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    review_channel_id: str = Form(default=""),
+    reviewer_role_id: str = Form(default=""),
+    rookie_role_id: str = Form(default=""),
+    vanguard_role_id: str = Form(default=""),
+    elite_role_id: str = Form(default=""),
+    expert_role_id: str = Form(default=""),
+    master_role_id: str = Form(default=""),
+    ace_role_id: str = Form(default=""),
+    legend_role_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"]:
+        allowed_channels = {
+            str(channel["id"]) for channel in resources["channels"]
+            if channel.get("can_send")
+        }
+        allowed_roles = {str(role["id"]) for role in resources["roles"]}
+        role_values = {
+            reviewer_role_id, rookie_role_id, vanguard_role_id, elite_role_id,
+            expert_role_id, master_role_id, ace_role_id, legend_role_id,
+        } - {""}
+        if (
+            (review_channel_id and review_channel_id not in allowed_channels)
+            or not role_values.issubset(allowed_roles)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Vybraný ABI kanál nebo role nepatří tomuto serveru.",
+            )
+    await storage.update_module(guild_id, "abi_rank", {
+        "enabled": enabled == "on",
+        "review_channel_id": review_channel_id.strip(),
+        "reviewer_role_id": reviewer_role_id.strip(),
+        "rookie_role_id": rookie_role_id.strip(),
+        "vanguard_role_id": vanguard_role_id.strip(),
+        "elite_role_id": elite_role_id.strip(),
+        "expert_role_id": expert_role_id.strip(),
+        "master_role_id": master_role_id.strip(),
+        "ace_role_id": ace_role_id.strip(),
+        "legend_role_id": legend_role_id.strip(),
+    })
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=abi-rank#abi-rank", status_code=303
     )
 
 
