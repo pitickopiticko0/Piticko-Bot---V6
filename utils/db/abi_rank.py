@@ -21,7 +21,8 @@ def save_settings(
 ) -> None:
     columns = (
         "rookie_role_id", "vanguard_role_id", "elite_role_id",
-        "expert_role_id", "master_role_id", "ace_role_id", "legend_role_id",
+        "expert_role_id", "master_role_id", "ace_role_id", "hero_role_id",
+        "legend_role_id",
     )
     values = [rank_roles.get(name.removesuffix("_role_id")) for name in columns]
     excluded = "EXCLUDED" if database.using_postgres else "excluded"
@@ -134,8 +135,8 @@ def get_leaderboard(database: Any, guild_id: int, limit: int = 20):
                 WHERE guild_id = ? AND status = 'approved' GROUP BY user_id
               )
             ORDER BY CASE rank_key
-                WHEN 'legend' THEN 7 WHEN 'ace' THEN 6 WHEN 'master' THEN 5
-                WHEN 'expert' THEN 4 WHEN 'elite' THEN 3
+                WHEN 'legend' THEN 8 WHEN 'hero' THEN 7 WHEN 'ace' THEN 6
+                WHEN 'master' THEN 5 WHEN 'expert' THEN 4 WHEN 'elite' THEN 3
                 WHEN 'vanguard' THEN 2 ELSE 1 END DESC, reviewed_at ASC
             LIMIT ?
         """, (guild_id, guild_id, limit)).fetchall()
