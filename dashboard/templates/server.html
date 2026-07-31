@@ -412,7 +412,7 @@
           <h3>Role podle hodnosti</h3>
           <p>Role jsou volitelné. Bot před přidáním nového ranku odebere předchozí nakonfigurovanou ABI roli.</p>
           <div class="form-grid">
-            {% for key, label in [('rookie', 'Rookie'), ('vanguard', 'Vanguard'), ('elite', 'Elite'), ('expert', 'Expert'), ('master', 'Master'), ('ace', 'Ace'), ('legend', 'Legend')] %}
+            {% for key, label in [('rookie', 'Rookie'), ('vanguard', 'Vanguard'), ('elite', 'Elite'), ('expert', 'Expert'), ('master', 'Master'), ('ace', 'Ace'), ('hero', 'Hero'), ('legend', 'Legend')] %}
               <label><span>{{ label }}</span>
                 {% if discord_resources_available %}<select name="{{ key }}_role_id"><option value="">Bez role</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.abi_rank[key ~ '_role_id'] %}selected{% endif %} {% if not role.assignable and role.id != settings.abi_rank[key ~ '_role_id'] %}disabled{% endif %}>@{{ role.name }}{% if not role.assignable %} — bot ji nemůže přidat{% endif %}</option>{% endfor %}</select>{% else %}<input name="{{ key }}_role_id" value="{{ settings.abi_rank[key ~ '_role_id'] }}" inputmode="numeric" placeholder="Volitelné Discord ID role">{% endif %}
               </label>

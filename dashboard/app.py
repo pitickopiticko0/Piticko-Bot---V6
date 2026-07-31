@@ -953,6 +953,7 @@ async def save_abi_rank(
     expert_role_id: str = Form(default=""),
     master_role_id: str = Form(default=""),
     ace_role_id: str = Form(default=""),
+    hero_role_id: str = Form(default=""),
     legend_role_id: str = Form(default=""),
 ):
     redirect = require_login(request)
@@ -968,7 +969,8 @@ async def save_abi_rank(
         allowed_roles = {str(role["id"]) for role in resources["roles"]}
         role_values = {
             reviewer_role_id, rookie_role_id, vanguard_role_id, elite_role_id,
-            expert_role_id, master_role_id, ace_role_id, legend_role_id,
+            expert_role_id, master_role_id, ace_role_id, hero_role_id,
+            legend_role_id,
         } - {""}
         if (
             (review_channel_id and review_channel_id not in allowed_channels)
@@ -988,6 +990,7 @@ async def save_abi_rank(
         "expert_role_id": expert_role_id.strip(),
         "master_role_id": master_role_id.strip(),
         "ace_role_id": ace_role_id.strip(),
+        "hero_role_id": hero_role_id.strip(),
         "legend_role_id": legend_role_id.strip(),
     })
     return RedirectResponse(

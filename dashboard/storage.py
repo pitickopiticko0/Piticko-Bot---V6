@@ -85,6 +85,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "expert_role_id": "",
         "master_role_id": "",
         "ace_role_id": "",
+        "hero_role_id": "",
         "legend_role_id": "",
     },
     "moderation": {"auto_punishments": False},
@@ -410,7 +411,7 @@ class DashboardStorage:
             )
             for rank in (
                 "rookie", "vanguard", "elite", "expert",
-                "master", "ace", "legend",
+                "master", "ace", "hero", "legend",
             )
         }
         if review_channel_id and reviewer_role_id:

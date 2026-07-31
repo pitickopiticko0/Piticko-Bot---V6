@@ -119,7 +119,8 @@ POSTGRES_TABLES = (
         guild_id BIGINT PRIMARY KEY, review_channel_id BIGINT NOT NULL,
         reviewer_role_id BIGINT NOT NULL, rookie_role_id BIGINT,
         vanguard_role_id BIGINT, elite_role_id BIGINT, expert_role_id BIGINT,
-        master_role_id BIGINT, ace_role_id BIGINT, legend_role_id BIGINT,
+        master_role_id BIGINT, ace_role_id BIGINT, hero_role_id BIGINT,
+        legend_role_id BIGINT,
         enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS abi_rank_requests (
@@ -265,7 +266,8 @@ SQLITE_TABLES = (
         guild_id INTEGER PRIMARY KEY, review_channel_id INTEGER NOT NULL,
         reviewer_role_id INTEGER NOT NULL, rookie_role_id INTEGER,
         vanguard_role_id INTEGER, elite_role_id INTEGER, expert_role_id INTEGER,
-        master_role_id INTEGER, ace_role_id INTEGER, legend_role_id INTEGER,
+        master_role_id INTEGER, ace_role_id INTEGER, hero_role_id INTEGER,
+        legend_role_id INTEGER,
         enabled INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS abi_rank_requests (
@@ -307,6 +309,7 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_custom_message TEXT NOT NULL DEFAULT '🔴 {channel} právě vysílá: {title}\n{url}'",
     "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'private'",
     "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS forum_channel_id BIGINT",
+    "ALTER TABLE abi_rank_settings ADD COLUMN IF NOT EXISTS hero_role_id BIGINT",
 )
 
 
@@ -326,6 +329,9 @@ SQLITE_MIGRATIONS = {
     "pc_advice_settings": {
         "mode": "ALTER TABLE pc_advice_settings ADD COLUMN mode TEXT NOT NULL DEFAULT 'private'",
         "forum_channel_id": "ALTER TABLE pc_advice_settings ADD COLUMN forum_channel_id INTEGER",
+    },
+    "abi_rank_settings": {
+        "hero_role_id": "ALTER TABLE abi_rank_settings ADD COLUMN hero_role_id INTEGER",
     },
 }
 

@@ -15,6 +15,7 @@ RANKS = {
     "expert": "Expert",
     "master": "Master",
     "ace": "Ace",
+    "hero": "Hero",
     "legend": "Legend",
 }
 RANK_CHOICES = [
