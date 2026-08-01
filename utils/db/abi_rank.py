@@ -26,12 +26,13 @@ def save_settings(
     )
     values = [rank_roles.get(name.removesuffix("_role_id")) for name in columns]
     excluded = "EXCLUDED" if database.using_postgres else "excluded"
+    placeholders = ", ".join("?" for _ in range(5 + len(columns)))
     with database.connect() as conn:
         conn.execute(f"""
             INSERT INTO abi_rank_settings
                 (guild_id, review_channel_id, reviewer_role_id, {", ".join(columns)},
                  enabled, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ({placeholders})
             ON CONFLICT (guild_id) DO UPDATE SET
                 review_channel_id = {excluded}.review_channel_id,
                 reviewer_role_id = {excluded}.reviewer_role_id,
