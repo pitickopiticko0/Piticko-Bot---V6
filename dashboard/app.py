@@ -22,12 +22,14 @@ from utils.kick_api import KickAPIError, kick_api
 from utils.twitch_api import TwitchAPIError, twitch_api
 from utils.twitch_store import twitch_store
 from utils.service_health import get_all as get_service_health
+from utils.support import get_support_url
 
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.globals["support_url"] = get_support_url()
 storage = DashboardStorage()
 
 SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY")

@@ -49,6 +49,9 @@
     </nav>
 
     <div class="account">
+      {% if support_url %}
+      <a class="button primary" href="{{ support_url }}" target="_blank" rel="noopener noreferrer">❤️ Podpořit bota</a>
+      {% endif %}
       {% if user.avatar and user.id %}
         <img
           class="avatar"
