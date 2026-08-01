@@ -14,6 +14,7 @@ Discord YouTube notifier připravený pro Wispbytehosting.
 - `.env` konfigurace
 - Kick stream oznámení přes oficiální Kick API a správu v dashboardu
 - PC poradna pro sestavy, upgrady a diagnostiku v soukromých kanálech nebo veřejném fóru
+- Dobrovolná podpora provozu přes `/podpora` a externí platební stránku
 
 ## Instalace lokálně
 
@@ -27,6 +28,7 @@ Zkopíruj `.env.example` na `.env` a vlož token:
 TOKEN=tvuj_discord_bot_token
 KICK_CLIENT_ID=tvuj_kick_client_id
 KICK_CLIENT_SECRET=tvuj_kick_client_secret
+SUPPORT_URL=https://tvoje-verejna-stranka.example/podpora
 ```
 
 Kick údaje získáš po vytvoření aplikace na [Kick Dev](https://dev.kick.com/).

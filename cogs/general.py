@@ -4,6 +4,7 @@ from discord.ext import commands
 from config import EMBED_COLOR
 
 from utils.embeds import status_embed
+from utils.support import get_support_url
 
 
 class General(commands.Cog):
@@ -18,6 +19,32 @@ class General(commands.Cog):
     async def status(self, interaction: discord.Interaction):
         await interaction.response.send_message(embed=status_embed(self.bot))
 
+    @app_commands.command(
+        name="podpora", description="Zobrazí možnosti dobrovolné podpory bota."
+    )
+    async def support(self, interaction: discord.Interaction):
+        support_url = get_support_url()
+        if not support_url:
+            await interaction.response.send_message(
+                "ℹ️ Odkaz pro podporu zatím není nastavený.", ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title="❤️ Podpoř Piticko Bota",
+            description=(
+                "Líbí se ti bot? Dobrovolnou podporou pomůžeš s úhradou "
+                "hostingu a dalším vývojem.\n\n"
+                "Podpora neposkytuje žádnou herní ani moderátorskou výhodu."
+            ),
+            color=EMBED_COLOR,
+        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(
+            label="Podpořit bota", emoji="❤️", url=support_url,
+        ))
+        await interaction.response.send_message(embed=embed, view=view)
+
     @app_commands.command(name="help", description="Zobrazí nápovědu.")
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
@@ -27,6 +54,7 @@ class General(commands.Cog):
         )
         embed.add_field(name="/ping", value="Odezva bota", inline=False)
         embed.add_field(name="/status", value="Stav bota", inline=False)
+        embed.add_field(name="/podpora", value="Dobrovolná podpora provozu bota", inline=False)
         embed.add_field(name="/youtube add", value="Přidá YouTube kanál pro notifikace", inline=False)
         embed.add_field(name="/youtube remove", value="Odebere sledovaný YouTube kanál", inline=False)
         embed.add_field(name="/youtube list", value="Seznam sledovaných kanálů", inline=False)
