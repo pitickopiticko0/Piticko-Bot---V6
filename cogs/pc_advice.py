@@ -466,16 +466,20 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
     @app_commands.checks.has_permissions(administrator=True)
     async def panel_command(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Příkaz funguje pouze na serveru.", ephemeral=True
+            )
             return
+        await interaction.response.defer(ephemeral=True)
         settings = self.get_settings(interaction.guild.id)
         if settings is None or not settings["enabled"]:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Nejdřív PC poradnu nastav.", ephemeral=True
             )
             return
         channel = interaction.guild.get_channel(int(settings["panel_channel_id"]))
         if not isinstance(channel, discord.TextChannel):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ Kanál panelu nebyl nalezen.", ephemeral=True
             )
             return
@@ -513,7 +517,7 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             )
         embed.set_footer(text=EMBED_FOOTER)
         await channel.send(embed=embed, view=AdvicePanel(self))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Panel byl odeslán do {channel.mention}.", ephemeral=True
         )
 
