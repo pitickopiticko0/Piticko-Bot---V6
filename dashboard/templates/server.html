@@ -113,6 +113,22 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('modlogs_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>ModLogy se nepodařilo uložit</strong>
+      <span>Vyber textový kanál, který bot vidí a ve kterém má oprávnění Posílat zprávy.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('modlogs_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>ModLogy byly uloženy bez ověření</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj oprávnění bota v logovacím kanálu.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>

@@ -991,12 +991,35 @@ async def save_modlogs(
         return redirect
 
     get_accessible_guild(request, guild_id)
+    is_enabled = enabled == "on"
+    selected_channel_id = channel_id.strip()
+    saved_unverified = False
+
+    if is_enabled:
+        if not selected_channel_id.isdigit():
+            return RedirectResponse(
+                f"/server/{guild_id}?modlogs_error=channel#modlogs",
+                status_code=303,
+            )
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            if selected_channel_id not in allowed_channels:
+                return RedirectResponse(
+                    f"/server/{guild_id}?modlogs_error=channel#modlogs",
+                    status_code=303,
+                )
+
     await storage.update_module(
         guild_id,
         "modlogs",
         {
-            "enabled": enabled == "on",
-            "channel_id": channel_id.strip(),
+            "enabled": is_enabled,
+            "channel_id": selected_channel_id,
             "log_members": log_members == "on",
             "log_messages": log_messages == "on",
             "log_voice": log_voice == "on",
@@ -1004,10 +1027,10 @@ async def save_modlogs(
             "log_bans": log_bans == "on",
         },
     )
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=modlogs#modlogs",
-        status_code=303,
-    )
+    query = "saved=modlogs"
+    if saved_unverified:
+        query += "&modlogs_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#modlogs", status_code=303)
 
 
 @app.post("/server/{guild_id}/antispam")
