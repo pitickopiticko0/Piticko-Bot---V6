@@ -145,6 +145,22 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('pc_advice_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>PC poradnu se nepodařilo uložit</strong>
+      <span>Vyber kanál panelu a roli poradců. Pro soukromý režim vyber kategorii, pro veřejný režim Discord fórum, ve kterém bot může vytvářet příspěvky.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('pc_advice_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>PC poradna byla uložena bez ověření</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj vybrané kanály, kategorii nebo fórum, roli poradců a oprávnění bota.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>
