@@ -851,44 +851,42 @@ async def save_autorole(
     get_accessible_guild(request, guild_id)
     is_enabled = enabled == "on"
     selected_role_id = role_id.strip()
+    saved_unverified = False
 
     if is_enabled:
         resources = await get_bot_guild_resources(guild_id)
         if not resources["available"]:
-            return RedirectResponse(
-                f"/server/{guild_id}?autorole_error=discord#autorole",
-                status_code=303,
-            )
-        if not resources["can_manage_roles"]:
+            saved_unverified = True
+        elif not resources["can_manage_roles"]:
             return RedirectResponse(
                 f"/server/{guild_id}?autorole_error=permission#autorole",
                 status_code=303,
             )
-
-        selected_role = next(
-            (role for role in resources["roles"] if role["id"] == selected_role_id),
-            None,
-        )
-        if selected_role is None:
-            return RedirectResponse(
-                f"/server/{guild_id}?autorole_error=role#autorole",
-                status_code=303,
+        else:
+            selected_role = next(
+                (role for role in resources["roles"] if role["id"] == selected_role_id),
+                None,
             )
-        if not selected_role["assignable"]:
-            return RedirectResponse(
-                f"/server/{guild_id}?autorole_error=hierarchy#autorole",
-                status_code=303,
-            )
+            if selected_role is None:
+                return RedirectResponse(
+                    f"/server/{guild_id}?autorole_error=role#autorole",
+                    status_code=303,
+                )
+            if not selected_role["assignable"]:
+                return RedirectResponse(
+                    f"/server/{guild_id}?autorole_error=hierarchy#autorole",
+                    status_code=303,
+                )
 
     await storage.update_module(
         guild_id,
         "autorole",
         {"enabled": is_enabled, "role_id": selected_role_id},
     )
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=autorole#autorole",
-        status_code=303,
-    )
+    query = "saved=autorole"
+    if saved_unverified:
+        query += "&autorole_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#autorole", status_code=303)
 
 
 @app.post("/server/{guild_id}/modlogs")

@@ -67,6 +67,14 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('autorole_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>AutoRole byla uložena bez ověření</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj, že role bota je výše než přidělovaná role a že má oprávnění Spravovat role.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>
