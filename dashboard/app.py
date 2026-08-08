@@ -1084,21 +1084,63 @@ async def save_tickets(
         return redirect
 
     get_accessible_guild(request, guild_id)
+    is_enabled = enabled == "on"
+    panel_id = panel_channel_id.strip()
+    selected_category_id = category_id.strip()
+    selected_support_role_id = support_role_id.strip()
+    selected_log_channel_id = log_channel_id.strip()
+    saved_unverified = False
+
+    required_ids = (panel_id, selected_category_id, selected_support_role_id)
+    all_ids = (*required_ids, selected_log_channel_id)
+    if any(value and not value.isdigit() for value in all_ids) or (
+        is_enabled and not all(required_ids)
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?tickets_error=invalid#tickets",
+            status_code=303,
+        )
+
+    if is_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            allowed_categories = {category["id"] for category in resources["categories"]}
+            allowed_roles = {role["id"] for role in resources["roles"]}
+            invalid_selection = (
+                panel_id not in allowed_channels
+                or selected_category_id not in allowed_categories
+                or selected_support_role_id not in allowed_roles
+                or (
+                    selected_log_channel_id
+                    and selected_log_channel_id not in allowed_channels
+                )
+            )
+            if invalid_selection:
+                return RedirectResponse(
+                    f"/server/{guild_id}?tickets_error=invalid#tickets",
+                    status_code=303,
+                )
+
     await storage.update_module(
         guild_id,
         "tickets",
         {
-            "enabled": enabled == "on",
-            "panel_channel_id": panel_channel_id.strip(),
-            "category_id": category_id.strip(),
-            "support_role_id": support_role_id.strip(),
-            "log_channel_id": log_channel_id.strip(),
+            "enabled": is_enabled,
+            "panel_channel_id": panel_id,
+            "category_id": selected_category_id,
+            "support_role_id": selected_support_role_id,
+            "log_channel_id": selected_log_channel_id,
         },
     )
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=tickets#tickets",
-        status_code=303,
-    )
+    query = "saved=tickets"
+    if saved_unverified:
+        query += "&tickets_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#tickets", status_code=303)
 
 
 @app.post("/server/{guild_id}/pc-advice")

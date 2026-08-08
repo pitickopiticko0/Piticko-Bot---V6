@@ -129,6 +129,22 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('tickets_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Tickety se nepodařilo uložit</strong>
+      <span>Vyber platný kanál panelu, kategorii a roli podpory. Bot musí v použitých kanálech vidět a posílat zprávy.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('tickets_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>Tickety byly uloženy bez ověření</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj kanály, kategorii, roli podpory a oprávnění bota.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>
