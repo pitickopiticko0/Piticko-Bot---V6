@@ -69,6 +69,9 @@ VIEW_CHANNEL = 1 << 10
 SEND_MESSAGES = 1 << 11
 ADMINISTRATOR = 1 << 3
 MANAGE_ROLES = 1 << 28
+DISCORD_RESOURCE_CACHE_TTL = 20.0
+DISCORD_RESOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+DISCORD_RESOURCE_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
@@ -207,6 +210,30 @@ def bot_can_post_to_forum(
     return bot_can_send_to_channel(guild_id, member, roles, channel)
 
 
+async def discord_get_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    headers: dict[str, str],
+) -> httpx.Response:
+    response = await client.get(url, headers=headers)
+    if response.status_code != 429:
+        return response
+
+    try:
+        retry_after = float(response.json().get("retry_after", 0))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        try:
+            retry_after = float(response.headers.get("Retry-After", 0))
+        except (TypeError, ValueError):
+            retry_after = 0
+
+    if retry_after <= 0 or retry_after > 10:
+        return response
+
+    await asyncio.sleep(retry_after + 0.1)
+    return await client.get(url, headers=headers)
+
+
 async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
     empty = {
         "profile": None,
@@ -217,32 +244,51 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
         "can_manage_roles": False,
         "available": False,
     }
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            headers = bot_authorization()
-            member_response, channels_response, roles_response = await asyncio.gather(
-                client.get(
-                    f"{DISCORD_API}/guilds/{guild_id}/members/@me",
-                    headers=headers,
-                ),
-                client.get(
-                    f"{DISCORD_API}/guilds/{guild_id}/channels",
-                    headers=headers,
-                ),
-                client.get(
-                    f"{DISCORD_API}/guilds/{guild_id}/roles",
-                    headers=headers,
-                ),
-            )
+    cached = DISCORD_RESOURCE_CACHE.get(guild_id)
+    if cached and time.monotonic() - cached[0] < DISCORD_RESOURCE_CACHE_TTL:
+        return cached[1]
+
+    lock = DISCORD_RESOURCE_LOCKS.setdefault(guild_id, asyncio.Lock())
+    async with lock:
+        cached = DISCORD_RESOURCE_CACHE.get(guild_id)
+        if cached and time.monotonic() - cached[0] < DISCORD_RESOURCE_CACHE_TTL:
+            return cached[1]
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                headers = bot_authorization()
+                member_response, channels_response, roles_response = await asyncio.gather(
+                    discord_get_with_retry(
+                        client,
+                        f"{DISCORD_API}/guilds/{guild_id}/members/@me",
+                        headers,
+                    ),
+                    discord_get_with_retry(
+                        client,
+                        f"{DISCORD_API}/guilds/{guild_id}/channels",
+                        headers,
+                    ),
+                    discord_get_with_retry(
+                        client,
+                        f"{DISCORD_API}/guilds/{guild_id}/roles",
+                        headers,
+                    ),
+                )
+        except (httpx.HTTPError, RuntimeError):
+            return empty
+
         if any(
             response.status_code != 200
             for response in (member_response, channels_response, roles_response)
         ):
             return empty
 
-        member = member_response.json()
-        raw_channels = channels_response.json()
-        raw_roles = roles_response.json()
+        try:
+            member = member_response.json()
+            raw_channels = channels_response.json()
+            raw_roles = roles_response.json()
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return empty
         member_role_ids = {
             str(role_id) for role_id in member.get("roles", [])
         }
@@ -317,7 +363,7 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
         ]
         roles.sort(key=lambda item: item["position"], reverse=True)
 
-        return {
+        result = {
             "profile": {
                 "avatar_url": avatar_url(guild_id, member),
                 "has_custom_avatar": bool(member.get("avatar")),
@@ -329,8 +375,8 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
             "can_manage_roles": can_manage_roles,
             "available": True,
         }
-    except (httpx.HTTPError, RuntimeError, TypeError, ValueError):
-        return empty
+        DISCORD_RESOURCE_CACHE[guild_id] = (time.monotonic(), result)
+        return result
 
 
 async def set_bot_guild_avatar(guild_id: str, image: str | None) -> None:
