@@ -51,6 +51,22 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('welcome_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Welcome se nepodařilo uložit</strong>
+      <span>Vyber textový kanál, který bot vidí a ve kterém má oprávnění Posílat zprávy.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('welcome_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>Welcome bylo uloženo bez ověření</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj oprávnění bota Zobrazit kanál a Posílat zprávy.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('autorole_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>AutoRole se nepodařilo uložit</strong>

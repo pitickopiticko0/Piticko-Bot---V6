@@ -786,23 +786,50 @@ async def save_welcome(
         return redirect
 
     get_accessible_guild(request, guild_id)
+    is_enabled = enabled == "on"
+    selected_channel_id = channel_id.strip()
+    saved_unverified = False
+
+    if is_enabled:
+        if not selected_channel_id.isdigit():
+            return RedirectResponse(
+                f"/server/{guild_id}?welcome_error=channel#welcome",
+                status_code=303,
+            )
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            selected_channel = next(
+                (
+                    channel
+                    for channel in resources["channels"]
+                    if channel["id"] == selected_channel_id
+                ),
+                None,
+            )
+            if selected_channel is None or not selected_channel["can_send"]:
+                return RedirectResponse(
+                    f"/server/{guild_id}?welcome_error=channel#welcome",
+                    status_code=303,
+                )
 
     await storage.update_module(
         guild_id,
         "welcome",
         {
-            "enabled": enabled == "on",
-            "channel_id": channel_id.strip(),
+            "enabled": is_enabled,
+            "channel_id": selected_channel_id,
             "message": message.strip(),
             "embed_title": embed_title.strip(),
             "embed_color": embed_color.strip(),
             "dm_enabled": dm_enabled == "on",
         },
     )
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=welcome",
-        status_code=303,
-    )
+    query = "saved=welcome"
+    if saved_unverified:
+        query += "&welcome_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#welcome", status_code=303)
 
 
 @app.post("/server/{guild_id}/youtube")
