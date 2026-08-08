@@ -408,21 +408,7 @@ async def health() -> dict[str, Any]:
     }
 
 
-@app.get("/diagnostics", response_class=HTMLResponse)
-async def diagnostics(request: Request):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-
-    database_ok = True
-    database_error = ""
-    rows = []
-    try:
-        rows = await asyncio.to_thread(get_service_health)
-    except Exception as error:
-        database_ok = False
-        database_error = str(error)[:500]
-
+def summarize_service_health(rows: list[Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     services = [{key: row[key] for key in row.keys()} for row in rows]
     bot_health = {
         "online": False,
@@ -456,6 +442,26 @@ async def diagnostics(request: Request):
             bot_health["user"] = details.get("user")
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
+
+    return bot_health, watcher_services
+
+
+@app.get("/diagnostics", response_class=HTMLResponse)
+async def diagnostics(request: Request):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    database_ok = True
+    database_error = ""
+    rows = []
+    try:
+        rows = await asyncio.to_thread(get_service_health)
+    except Exception as error:
+        database_ok = False
+        database_error = str(error)[:500]
+
+    bot_health, watcher_services = summarize_service_health(rows)
     api_configuration = {
         "Discord bot": bool(os.getenv("TOKEN")),
         "YouTube API": bool(os.getenv("YOUTUBE_API_KEY")),
@@ -499,6 +505,11 @@ async def dashboard_home(request: Request):
     configured = await storage.count_configured_guilds(
         [str(g.get("id")) for g in guilds]
     )
+    try:
+        health_rows = await asyncio.to_thread(get_service_health)
+    except Exception:
+        health_rows = []
+    bot_health, _ = summarize_service_health(health_rows)
 
     return templates.TemplateResponse(
         request=request,
@@ -508,6 +519,7 @@ async def dashboard_home(request: Request):
             "user": current_user(request),
             "guilds": guilds,
             "configured_count": configured,
+            "bot_health": bot_health,
             "uptime_seconds": int(time.time() - STARTED_AT),
         },
     )

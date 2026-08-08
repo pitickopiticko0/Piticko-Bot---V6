@@ -6,15 +6,26 @@
     <h1>Ahoj, {{ user.global_name or user.username }}.</h1>
     <p class="muted">Vyber server a otevři jeho nastavení.</p>
   </div>
-  <div class="status-pill"><span></span> Dashboard online</div>
+  <div>
+    <div class="status-pill"><span></span> Dashboard online</div>
+    <a class="status-pill" href="/diagnostics"><span class="{{ 'is-online' if bot_health.online else 'is-offline' }}"></span> Discord bot {{ 'online' if bot_health.online else 'offline' }}</a>
+  </div>
 </section>
 
 <section class="stats">
   <article class="stat-card"><span>Spravované servery</span><strong>{{ guilds|length }}</strong></article>
   <article class="stat-card"><span>Nastavené servery</span><strong>{{ configured_count }}</strong></article>
-  <article class="stat-card"><span>Aktivní moduly</span><strong>Welcome + YouTube</strong></article>
+  <article class="stat-card"><span>Discord ping</span><strong>{{ bot_health.latency_ms ~ ' ms' if bot_health.latency_ms is not none else '—' }}</strong></article>
   <article class="stat-card"><span>Uptime dashboardu</span><strong data-uptime="{{ uptime_seconds }}">...</strong></article>
 </section>
+
+{% if not bot_health.online %}
+  <div class="toast toast-error" role="alert">
+    <strong>Discord bot je offline</strong>
+    <span>Poslední heartbeat: {{ bot_health.last_seen or 'zatím nebyl přijat' }}. Podrobnosti najdeš v diagnostice.</span>
+    <a class="button subtle" href="/diagnostics">Otevřít diagnostiku</a>
+  </div>
+{% endif %}
 
 <section class="section-heading">
   <div><p class="eyebrow">SERVERY</p><h2>Vyber server</h2></div>
