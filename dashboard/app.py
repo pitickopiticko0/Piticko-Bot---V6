@@ -214,6 +214,7 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
         "categories": [],
         "forums": [],
         "roles": [],
+        "can_manage_roles": False,
         "available": False,
     }
     try:
@@ -325,6 +326,7 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
             "categories": categories,
             "forums": forums,
             "roles": roles,
+            "can_manage_roles": can_manage_roles,
             "available": True,
         }
     except (httpx.HTTPError, RuntimeError, TypeError, ValueError):
@@ -801,10 +803,41 @@ async def save_autorole(
         return redirect
 
     get_accessible_guild(request, guild_id)
+    is_enabled = enabled == "on"
+    selected_role_id = role_id.strip()
+
+    if is_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            return RedirectResponse(
+                f"/server/{guild_id}?autorole_error=discord#autorole",
+                status_code=303,
+            )
+        if not resources["can_manage_roles"]:
+            return RedirectResponse(
+                f"/server/{guild_id}?autorole_error=permission#autorole",
+                status_code=303,
+            )
+
+        selected_role = next(
+            (role for role in resources["roles"] if role["id"] == selected_role_id),
+            None,
+        )
+        if selected_role is None:
+            return RedirectResponse(
+                f"/server/{guild_id}?autorole_error=role#autorole",
+                status_code=303,
+            )
+        if not selected_role["assignable"]:
+            return RedirectResponse(
+                f"/server/{guild_id}?autorole_error=hierarchy#autorole",
+                status_code=303,
+            )
+
     await storage.update_module(
         guild_id,
         "autorole",
-        {"enabled": enabled == "on", "role_id": role_id.strip()},
+        {"enabled": is_enabled, "role_id": selected_role_id},
     )
     return RedirectResponse(
         f"/server/{guild_id}?saved=autorole#autorole",

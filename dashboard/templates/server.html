@@ -51,6 +51,22 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('autorole_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>AutoRole se nepodařilo uložit</strong>
+      {% if request.query_params.get('autorole_error') == 'permission' %}
+        <span>Bot nemá oprávnění Spravovat role. Povol ho v nastavení role bota.</span>
+      {% elif request.query_params.get('autorole_error') == 'hierarchy' %}
+        <span>Vybraná role je příliš vysoko. Přesuň hlavní roli bota nad tuto AutoRole.</span>
+      {% elif request.query_params.get('autorole_error') == 'role' %}
+        <span>Vybraná role neexistuje, spravuje ji integrace nebo nebyla vybrána.</span>
+      {% else %}
+        <span>Discord data serveru se nepodařilo načíst. Zkontroluj, že je bot na serveru a zkus to znovu.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>
