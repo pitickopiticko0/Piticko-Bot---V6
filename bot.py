@@ -7,6 +7,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from config import GUILD_ID
+from services.bot_heartbeat import BotHeartbeat
 from services.youtube_watcher import YouTubeWatcher
 from utils.logger import logger
 
@@ -31,6 +32,7 @@ bot = commands.Bot(
     intents=intents,
     help_command=None,
 )
+heartbeat = BotHeartbeat(bot)
 
 
 async def load_cogs() -> None:
@@ -58,6 +60,7 @@ async def setup_hook() -> None:
 
     watcher = YouTubeWatcher(bot)
     watcher.start()
+    heartbeat.start()
 
     try:
         if GUILD_ID:
