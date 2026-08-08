@@ -91,6 +91,28 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('youtube_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>YouTube nastavení se nepodařilo uložit</strong>
+      {% if request.query_params.get('youtube_error') == 'channel' %}
+        <span>Vyber cílový kanál, který bot vidí a ve kterém může posílat zprávy.</span>
+      {% elif request.query_params.get('youtube_error') == 'role' %}
+        <span>Vybraná role pro označení na serveru neexistuje.</span>
+      {% else %}
+        <span>Zadej platné ID YouTube kanálu. Začíná na UC a má celkem 24 znaků.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('youtube_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>YouTube bylo uloženo bez ověření Discordu</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj oprávnění bota v cílovém kanálu.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>

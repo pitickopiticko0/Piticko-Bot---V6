@@ -3,6 +3,7 @@ import base64
 from datetime import datetime, timezone
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -853,16 +854,61 @@ async def save_youtube(
     get_accessible_guild(request, guild_id)
 
     check_interval = max(60, min(int(check_interval), 3600))
+    is_enabled = enabled == "on"
+    selected_channel_id = channel_id.strip()
+    selected_role_id = mention_role_id.strip()
+    selected_youtube_id = youtube_channel_id.strip()
+    saved_unverified = False
+
+    if selected_channel_id and not selected_channel_id.isdigit():
+        return RedirectResponse(
+            f"/server/{guild_id}?youtube_error=channel#youtube",
+            status_code=303,
+        )
+    if selected_role_id and not selected_role_id.isdigit():
+        return RedirectResponse(
+            f"/server/{guild_id}?youtube_error=role#youtube",
+            status_code=303,
+        )
+    if is_enabled and not re.fullmatch(r"UC[A-Za-z0-9_-]{22}", selected_youtube_id):
+        return RedirectResponse(
+            f"/server/{guild_id}?youtube_error=youtube#youtube",
+            status_code=303,
+        )
+    if is_enabled:
+        if not selected_channel_id:
+            return RedirectResponse(
+                f"/server/{guild_id}?youtube_error=channel#youtube",
+                status_code=303,
+            )
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            allowed_roles = {role["id"] for role in resources["roles"]}
+            if selected_channel_id not in allowed_channels:
+                return RedirectResponse(
+                    f"/server/{guild_id}?youtube_error=channel#youtube",
+                    status_code=303,
+                )
+            if selected_role_id and selected_role_id not in allowed_roles:
+                return RedirectResponse(
+                    f"/server/{guild_id}?youtube_error=role#youtube",
+                    status_code=303,
+                )
 
     await storage.update_module(
         guild_id,
         "youtube",
         {
-            "enabled": enabled == "on",
-            "channel_id": channel_id.strip(),
-            "youtube_channel_id": youtube_channel_id.strip(),
+            "enabled": is_enabled,
+            "channel_id": selected_channel_id,
+            "youtube_channel_id": selected_youtube_id,
             "custom_message": custom_message.strip(),
-            "mention_role_id": mention_role_id.strip(),
+            "mention_role_id": selected_role_id,
             "check_interval": check_interval,
             "live_enabled": live_enabled == "on",
             "live_notify_upcoming": live_notify_upcoming == "on",
@@ -870,10 +916,10 @@ async def save_youtube(
         },
     )
 
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=youtube",
-        status_code=303,
-    )
+    query = "saved=youtube"
+    if saved_unverified:
+        query += "&youtube_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#youtube", status_code=303)
 
 
 @app.post("/server/{guild_id}/autorole")
