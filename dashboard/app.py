@@ -1159,49 +1159,89 @@ async def save_pc_advice(
     if redirect:
         return redirect
     get_accessible_guild(request, guild_id)
-    resources = await get_bot_guild_resources(guild_id)
-    if resources["available"]:
-        allowed_channels = {
-            str(channel["id"])
-            for channel in resources["channels"]
-            if channel.get("can_send")
-        }
-        allowed_categories = {
-            str(category["id"]) for category in resources["categories"]
-        }
-        allowed_forums = {
-            str(forum["id"])
-            for forum in resources["forums"]
-            if forum.get("can_post")
-        }
-        allowed_roles = {str(role["id"]) for role in resources["roles"]}
-        if (
-            (panel_channel_id and panel_channel_id not in allowed_channels)
-            or (log_channel_id and log_channel_id not in allowed_channels)
-            or (category_id and category_id not in allowed_categories)
-            or (forum_channel_id and forum_channel_id not in allowed_forums)
-            or (advisor_role_id and advisor_role_id not in allowed_roles)
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Vybraný kanál, kategorie nebo role nepatří tomuto serveru.",
+    is_enabled = enabled == "on"
+    selected_mode = mode.strip()
+    panel_id = panel_channel_id.strip()
+    selected_category_id = category_id.strip()
+    selected_forum_id = forum_channel_id.strip()
+    selected_advisor_role_id = advisor_role_id.strip()
+    selected_log_channel_id = log_channel_id.strip()
+    saved_unverified = False
+
+    all_ids = (
+        panel_id,
+        selected_category_id,
+        selected_forum_id,
+        selected_advisor_role_id,
+        selected_log_channel_id,
+    )
+    required_missing = is_enabled and (
+        not panel_id
+        or not selected_advisor_role_id
+        or (selected_mode == "private" and not selected_category_id)
+        or (selected_mode == "forum" and not selected_forum_id)
+    )
+    if (
+        selected_mode not in {"private", "forum"}
+        or any(value and not value.isdigit() for value in all_ids)
+        or required_missing
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?pc_advice_error=invalid#pc-advice",
+            status_code=303,
+        )
+
+    if is_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            allowed_categories = {category["id"] for category in resources["categories"]}
+            allowed_forums = {
+                forum["id"] for forum in resources["forums"] if forum["can_post"]
+            }
+            allowed_roles = {role["id"] for role in resources["roles"]}
+            invalid_selection = (
+                panel_id not in allowed_channels
+                or selected_advisor_role_id not in allowed_roles
+                or (
+                    selected_log_channel_id
+                    and selected_log_channel_id not in allowed_channels
+                )
+                or (
+                    selected_mode == "private"
+                    and selected_category_id not in allowed_categories
+                )
+                or (
+                    selected_mode == "forum"
+                    and selected_forum_id not in allowed_forums
+                )
             )
+            if invalid_selection:
+                return RedirectResponse(
+                    f"/server/{guild_id}?pc_advice_error=invalid#pc-advice",
+                    status_code=303,
+                )
     await storage.update_module(
         guild_id,
         "pc_advice",
         {
-            "enabled": enabled == "on",
-            "mode": mode.strip(),
-            "panel_channel_id": panel_channel_id.strip(),
-            "category_id": category_id.strip(),
-            "forum_channel_id": forum_channel_id.strip(),
-            "advisor_role_id": advisor_role_id.strip(),
-            "log_channel_id": log_channel_id.strip(),
+            "enabled": is_enabled,
+            "mode": selected_mode,
+            "panel_channel_id": panel_id,
+            "category_id": selected_category_id,
+            "forum_channel_id": selected_forum_id,
+            "advisor_role_id": selected_advisor_role_id,
+            "log_channel_id": selected_log_channel_id,
         },
     )
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=pc-advice#pc-advice", status_code=303
-    )
+    query = "saved=pc-advice"
+    if saved_unverified:
+        query += "&pc_advice_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#pc-advice", status_code=303)
 
 
 @app.post("/server/{guild_id}/abi-rank")
