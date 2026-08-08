@@ -10,6 +10,17 @@
   {% if database_error %}<div class="toast toast-error"><strong>Databáze</strong><span>{{ database_error }}</span></div>{% endif %}
 
   <section class="module-content">
+    <div class="section-heading"><div><p class="eyebrow">DISCORD BOT</p><h2>Živý stav</h2><p>Bot se přes sdílenou databázi hlásí každou minutu.</p></div></div>
+    <div class="stats-grid">
+      <article class="stat-card"><span class="stat-icon">🤖</span><div><small>Stav</small><strong>{{ 'Online' if bot_health.online else 'Offline' }}</strong></div><span class="status-dot {{ 'is-online' if bot_health.online else 'is-offline' }}"></span></article>
+      <article class="stat-card"><span class="stat-icon">📡</span><div><small>Discord ping</small><strong>{{ bot_health.latency_ms ~ ' ms' if bot_health.latency_ms is not none else '—' }}</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">⏱️</span><div><small>Uptime bota</small><strong data-uptime="{{ bot_health.uptime_seconds }}">—</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">🏠</span><div><small>Počet serverů</small><strong>{{ bot_health.guild_count if bot_health.guild_count is not none else '—' }}</strong></div></article>
+    </div>
+    <p class="form-hint">Poslední spojení: {{ bot_health.last_seen or 'bot zatím neposlal heartbeat' }}{% if bot_health.user %} · {{ bot_health.user }}{% endif %}</p>
+  </section>
+
+  <section class="module-content">
     <div class="section-heading"><div><p class="eyebrow">KONFIGURACE</p><h2>Externí služby</h2><p>Zobrazuje se pouze přítomnost údajů, nikdy jejich hodnota.</p></div></div>
     <div class="module-grid">{% for name, configured in api_configuration.items() %}<article class="module-card"><div class="module-card-top"><div class="module-icon">🔑</div><span class="badge {{ 'on' if configured else 'off' }}">{{ 'Nastaveno' if configured else 'Chybí' }}</span></div><h3>{{ name }}</h3></article>{% endfor %}</div>
   </section>

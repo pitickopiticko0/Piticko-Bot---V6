@@ -1,5 +1,7 @@
 import asyncio
 import base64
+from datetime import datetime, timezone
+import json
 import os
 import time
 from pathlib import Path
@@ -374,6 +376,38 @@ async def diagnostics(request: Request):
         database_error = str(error)[:500]
 
     services = [{key: row[key] for key in row.keys()} for row in rows]
+    bot_health = {
+        "online": False,
+        "last_seen": None,
+        "latency_ms": None,
+        "uptime_seconds": 0,
+        "guild_count": None,
+        "user": None,
+    }
+    watcher_services = []
+    for service in services:
+        if service["service"] != "discord_bot":
+            watcher_services.append(service)
+            continue
+
+        bot_health["last_seen"] = service["checked_at"]
+        try:
+            checked_at = datetime.fromisoformat(str(service["checked_at"]).replace("Z", "+00:00"))
+            if checked_at.tzinfo is None:
+                checked_at = checked_at.replace(tzinfo=timezone.utc)
+            age_seconds = (datetime.now(timezone.utc) - checked_at).total_seconds()
+            bot_health["online"] = service["status"] == "ok" and age_seconds <= 150
+        except (TypeError, ValueError):
+            bot_health["online"] = False
+
+        try:
+            details = json.loads(service["message"] or "{}")
+            bot_health["latency_ms"] = details.get("latency_ms")
+            bot_health["uptime_seconds"] = max(0, int(details.get("uptime_seconds", 0)))
+            bot_health["guild_count"] = details.get("guild_count")
+            bot_health["user"] = details.get("user")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
     api_configuration = {
         "Discord bot": bool(os.getenv("TOKEN")),
         "YouTube API": bool(os.getenv("YOUTUBE_API_KEY")),
@@ -388,7 +422,8 @@ async def diagnostics(request: Request):
             "user": current_user(request),
             "database_ok": database_ok,
             "database_error": database_error,
-            "services": services,
+            "services": watcher_services,
+            "bot_health": bot_health,
             "api_configuration": api_configuration,
             "uptime_seconds": int(time.time() - STARTED_AT),
         },
