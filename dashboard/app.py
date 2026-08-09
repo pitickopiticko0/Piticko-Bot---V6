@@ -7,6 +7,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
@@ -44,6 +45,30 @@ app = FastAPI(
     title="Piticko Dashboard V3",
     version="3.0.0",
 )
+
+
+@app.middleware("http")
+async def reject_cross_site_writes(request: Request, call_next):
+    """Blokuje změny nastavení odeslané z cizího webu."""
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        fetch_site = request.headers.get("sec-fetch-site", "").lower()
+        if fetch_site == "cross-site":
+            return JSONResponse(
+                {"detail": "Cross-site požadavek byl odmítnut."},
+                status_code=403,
+            )
+
+        origin = request.headers.get("origin")
+        if origin:
+            origin_host = urlsplit(origin).netloc.lower()
+            request_host = request.headers.get("host", "").lower()
+            if not origin_host or origin_host != request_host:
+                return JSONResponse(
+                    {"detail": "Neplatný původ požadavku."},
+                    status_code=403,
+                )
+
+    return await call_next(request)
 
 app.add_middleware(
     SessionMiddleware,

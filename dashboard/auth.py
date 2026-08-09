@@ -1,4 +1,3 @@
-import json
 import os
 import secrets
 from urllib.parse import urlencode
@@ -7,6 +6,8 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
+
+from utils.logger import logger
 
 
 load_dotenv()
@@ -40,11 +41,6 @@ def build_login_url(state: str) -> str:
     }
 
     url = f"{DISCORD_AUTH_URL}?{urlencode(params)}"
-
-    print("==== OAUTH DEBUG ====")
-    print("CLIENT_ID:", CLIENT_ID)
-    print("REDIRECT_URI:", REDIRECT_URI)
-    print("=====================")
 
     return url
 
@@ -93,11 +89,6 @@ async def auth_callback(
     state: str | None = None,
     error: str | None = None,
 ):
-    print("==== OAUTH CALLBACK ====")
-    print("HAS CODE:", bool(code))
-    print("ERROR:", error)
-    print("========================")
-
     if error:
         request.session.clear()
         return RedirectResponse("/login-page", status_code=303)
@@ -105,12 +96,12 @@ async def auth_callback(
     expected_state = request.session.pop("oauth_state", None)
 
     if not state or not expected_state or not secrets.compare_digest(state, expected_state):
-        print("OAUTH ERROR: Neplatný nebo chybějící state.")
+        logger.warning("Discord OAuth callback obsahoval neplatný state.")
         request.session.clear()
         return RedirectResponse("/login-page", status_code=303)
 
     if not code:
-        print("OAUTH ERROR: Chybí autorizační kód.")
+        logger.warning("Discord OAuth callback neobsahoval autorizační kód.")
         request.session.clear()
         return RedirectResponse("/login-page", status_code=303)
 
@@ -139,10 +130,9 @@ async def auth_callback(
             )
 
             if token_response.status_code != 200:
-                print(
-                    "TOKEN ERROR:",
+                logger.warning(
+                    "Discord OAuth token endpoint vrátil HTTP %s.",
                     token_response.status_code,
-                    token_response.text[:500],
                 )
                 request.session.clear()
                 return RedirectResponse("/login-page", status_code=303)
@@ -151,7 +141,7 @@ async def auth_callback(
             access_token = token_data.get("access_token")
 
             if not access_token:
-                print("TOKEN ERROR: Discord nevrátil access_token.")
+                logger.warning("Discord OAuth nevrátil access token.")
                 request.session.clear()
                 return RedirectResponse("/login-page", status_code=303)
 
@@ -168,15 +158,14 @@ async def auth_callback(
             )
 
     except httpx.HTTPError as exc:
-        print("DISCORD HTTP ERROR:", repr(exc))
+        logger.warning("Discord OAuth HTTP požadavek selhal: %s", exc)
         request.session.clear()
         return RedirectResponse("/login-page", status_code=303)
 
     if user_response.status_code != 200:
-        print(
-            "USER ERROR:",
+        logger.warning(
+            "Discord OAuth načtení uživatele vrátilo HTTP %s.",
             user_response.status_code,
-            user_response.text[:500],
         )
         request.session.clear()
         return RedirectResponse("/login-page", status_code=303)
@@ -186,16 +175,13 @@ async def auth_callback(
     if guilds_response.status_code == 200:
         guilds = guilds_response.json()
     else:
-        print(
-            "GUILDS ERROR:",
+        logger.warning(
+            "Discord OAuth načtení serverů vrátilo HTTP %s.",
             guilds_response.status_code,
-            guilds_response.text[:500],
         )
         guilds = []
 
     manageable_guilds = []
-
-    print("==== MANAGEABLE GUILDS ====")
 
     for guild in guilds:
         permissions = int(guild.get("permissions", 0))
@@ -212,16 +198,6 @@ async def auth_callback(
             }
             manageable_guilds.append(compact_guild)
 
-            print(
-                compact_guild["name"],
-                compact_guild["id"],
-                "owner=", is_owner,
-                "manage=", has_manage_guild,
-                "admin=", has_administrator,
-            )
-
-    print("===========================")
-
     # Před zápisem odstraníme případná stará data.
     request.session.clear()
 
@@ -235,17 +211,10 @@ async def auth_callback(
     request.session["guilds"] = manageable_guilds
 
     # Access token záměrně neukládáme do cookie session.
-    session_json = json.dumps(
-        dict(request.session),
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode("utf-8")
-
-    print("LOGIN SUCCESS")
-    print("User:", request.session["user"]["username"])
-    print("Serverů:", len(manageable_guilds))
-    print("SESSION DATA SIZE:", len(session_json), "bytes")
-    print("===========================")
+    logger.info(
+        "Přihlášení do dashboardu proběhlo úspěšně; dostupných serverů: %s.",
+        len(manageable_guilds),
+    )
 
     return RedirectResponse("/", status_code=303)
 
