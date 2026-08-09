@@ -1264,42 +1264,76 @@ async def save_abi_rank(
     if redirect:
         return redirect
     get_accessible_guild(request, guild_id)
-    resources = await get_bot_guild_resources(guild_id)
-    if resources["available"]:
-        allowed_channels = {
-            str(channel["id"]) for channel in resources["channels"]
-            if channel.get("can_send")
-        }
-        allowed_roles = {str(role["id"]) for role in resources["roles"]}
-        role_values = {
-            reviewer_role_id, rookie_role_id, vanguard_role_id, elite_role_id,
-            expert_role_id, master_role_id, ace_role_id, hero_role_id,
-            legend_role_id,
-        } - {""}
-        if (
-            (review_channel_id and review_channel_id not in allowed_channels)
-            or not role_values.issubset(allowed_roles)
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Vybraný ABI kanál nebo role nepatří tomuto serveru.",
-            )
-    await storage.update_module(guild_id, "abi_rank", {
-        "enabled": enabled == "on",
-        "review_channel_id": review_channel_id.strip(),
-        "reviewer_role_id": reviewer_role_id.strip(),
-        "rookie_role_id": rookie_role_id.strip(),
-        "vanguard_role_id": vanguard_role_id.strip(),
-        "elite_role_id": elite_role_id.strip(),
-        "expert_role_id": expert_role_id.strip(),
-        "master_role_id": master_role_id.strip(),
-        "ace_role_id": ace_role_id.strip(),
-        "hero_role_id": hero_role_id.strip(),
-        "legend_role_id": legend_role_id.strip(),
-    })
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=abi-rank#abi-rank", status_code=303
+    is_enabled = enabled == "on"
+    selected_review_channel_id = review_channel_id.strip()
+    selected_reviewer_role_id = reviewer_role_id.strip()
+    rank_roles = {
+        "rookie": rookie_role_id.strip(),
+        "vanguard": vanguard_role_id.strip(),
+        "elite": elite_role_id.strip(),
+        "expert": expert_role_id.strip(),
+        "master": master_role_id.strip(),
+        "ace": ace_role_id.strip(),
+        "hero": hero_role_id.strip(),
+        "legend": legend_role_id.strip(),
+    }
+    all_ids = (
+        selected_review_channel_id,
+        selected_reviewer_role_id,
+        *rank_roles.values(),
     )
+    saved_unverified = False
+
+    if any(value and not value.isdigit() for value in all_ids) or (
+        is_enabled and (not selected_review_channel_id or not selected_reviewer_role_id)
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?abi_rank_error=invalid#abi-rank",
+            status_code=303,
+        )
+
+    if is_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            existing_roles = {role["id"] for role in resources["roles"]}
+            assignable_roles = {
+                role["id"] for role in resources["roles"] if role["assignable"]
+            }
+            selected_rank_roles = {role_id for role_id in rank_roles.values() if role_id}
+
+            if (
+                selected_review_channel_id not in allowed_channels
+                or selected_reviewer_role_id not in existing_roles
+            ):
+                return RedirectResponse(
+                    f"/server/{guild_id}?abi_rank_error=invalid#abi-rank",
+                    status_code=303,
+                )
+            if selected_rank_roles and not resources["can_manage_roles"]:
+                return RedirectResponse(
+                    f"/server/{guild_id}?abi_rank_error=permission#abi-rank",
+                    status_code=303,
+                )
+            if not selected_rank_roles.issubset(assignable_roles):
+                return RedirectResponse(
+                    f"/server/{guild_id}?abi_rank_error=hierarchy#abi-rank",
+                    status_code=303,
+                )
+    await storage.update_module(guild_id, "abi_rank", {
+        "enabled": is_enabled,
+        "review_channel_id": selected_review_channel_id,
+        "reviewer_role_id": selected_reviewer_role_id,
+        **{f"{rank}_role_id": role_id for rank, role_id in rank_roles.items()},
+    })
+    query = "saved=abi-rank"
+    if saved_unverified:
+        query += "&abi_rank_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#abi-rank", status_code=303)
 
 
 @app.post("/server/{guild_id}/moderation")
