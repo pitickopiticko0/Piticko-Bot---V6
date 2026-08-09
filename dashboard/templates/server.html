@@ -161,6 +161,28 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('abi_rank_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>ABI Rank se nepodařilo uložit</strong>
+      {% if request.query_params.get('abi_rank_error') == 'permission' %}
+        <span>Bot nemá oprávnění Spravovat role, které potřebuje pro přidělování ranků.</span>
+      {% elif request.query_params.get('abi_rank_error') == 'hierarchy' %}
+        <span>Některá rank role je příliš vysoko. Přesuň hlavní roli bota nad všechny ABI rank role.</span>
+      {% else %}
+        <span>Vyber platný kontrolní kanál a roli ověřovatelů. Bot musí v kontrolním kanálu vidět a posílat zprávy.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('abi_rank_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>ABI Rank byl uložen bez ověření</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj kontrolní kanál, role a oprávnění Spravovat role.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>
