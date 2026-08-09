@@ -11,20 +11,39 @@ DEFAULT_WELCOME_MESSAGE = "👋 Vítej {user} na serveru **{server}**! Jsi náš
 
 
 def render_welcome_message(template: str, member: discord.Member) -> str:
+    member_count = str(member.guild.member_count or 0)
     return (
         template
+        .replace("{mention}", member.mention)
         .replace("{user}", member.mention)
         .replace("{username}", member.name)
         .replace("{server}", member.guild.name)
-        .replace("{members}", str(member.guild.member_count or 0))
+        .replace("{member_count}", member_count)
+        .replace("{members}", member_count)
     )
 
 
-def build_welcome_embed(member: discord.Member, message: str) -> discord.Embed:
+def parse_embed_color(value: object) -> int:
+    try:
+        text = str(value or "").strip().removeprefix("#")
+        if len(text) != 6:
+            raise ValueError
+        return int(text, 16)
+    except (TypeError, ValueError):
+        return EMBED_COLOR
+
+
+def build_welcome_embed(
+    member: discord.Member,
+    message: str,
+    *,
+    title: object = "🎉 Nový člen!",
+    color: object = EMBED_COLOR,
+) -> discord.Embed:
     embed = discord.Embed(
-        title="🎉 Nový člen!",
-        description=message,
-        color=EMBED_COLOR,
+        title=(str(title or "Vítej!").strip() or "Vítej!")[:256],
+        description=message[:4096],
+        color=parse_embed_color(color),
     )
     embed.add_field(name="Uživatel", value=f"{member.mention}\n`{member.id}`", inline=False)
     embed.add_field(name="Server", value=member.guild.name, inline=True)
@@ -108,7 +127,12 @@ class Welcome(commands.GroupCog, name="welcome"):
                     logger.exception("Nepodařilo se přidat welcome roli na serveru %s.", member.guild.id)
 
         message = render_welcome_message(settings["message"], member)
-        embed = build_welcome_embed(member, message)
+        embed = build_welcome_embed(
+            member,
+            message,
+            title=settings["embed_title"],
+            color=settings["embed_color"],
+        )
 
         try:
             await channel.send(embed=embed)
@@ -117,6 +141,15 @@ class Welcome(commands.GroupCog, name="welcome"):
             logger.warning("Bot nemá oprávnění poslat zprávu do kanálu %s.", channel.id)
         except Exception:
             logger.exception("Nepodařilo se odeslat welcome zprávu do kanálu %s.", channel.id)
+
+        if settings["dm_enabled"]:
+            try:
+                await member.send(embed=embed)
+                logger.info("Welcome DM odeslána uživateli %s.", member.id)
+            except discord.Forbidden:
+                logger.info("Uživatel %s nepovoluje welcome DM.", member.id)
+            except discord.HTTPException:
+                logger.exception("Nepodařilo se odeslat welcome DM uživateli %s.", member.id)
 
     @app_commands.command(name="setup", description="Nastaví welcome zprávy pro tento server.")
     @app_commands.describe(
@@ -175,6 +208,13 @@ class Welcome(commands.GroupCog, name="welcome"):
         embed.add_field(name="Stav", value="🟢 Zapnuto" if settings["enabled"] else "🔴 Vypnuto", inline=True)
         embed.add_field(name="Kanál", value=channel.mention if channel else "Nenalezen", inline=True)
         embed.add_field(name="Role", value=role.mention if role else "Žádná", inline=True)
+        embed.add_field(
+            name="Soukromá zpráva",
+            value="Ano" if settings["dm_enabled"] else "Ne",
+            inline=True,
+        )
+        embed.add_field(name="Nadpis", value=settings["embed_title"], inline=True)
+        embed.add_field(name="Barva", value=settings["embed_color"], inline=True)
         embed.add_field(name="Zpráva", value=settings["message"], inline=False)
         embed.set_footer(text=EMBED_FOOTER)
 
@@ -214,7 +254,12 @@ class Welcome(commands.GroupCog, name="welcome"):
             return
 
         message = render_welcome_message(settings["message"], interaction.user)
-        embed = build_welcome_embed(interaction.user, message)
+        embed = build_welcome_embed(
+            interaction.user,
+            message,
+            title=settings["embed_title"],
+            color=settings["embed_color"],
+        )
 
         await channel.send(embed=embed)
         await interaction.followup.send(f"✅ Testovací welcome zpráva byla odeslána do {channel.mention}.", ephemeral=True)
