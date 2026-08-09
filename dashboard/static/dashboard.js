@@ -135,6 +135,45 @@ document.addEventListener("DOMContentLoaded", () => {
     renderWelcomePreview();
   }
 
+  document.querySelectorAll("[data-youtube-preview]").forEach((preview) => {
+    const source = document.getElementById(preview.dataset.source || "");
+    const content = preview.querySelector("[data-preview-content]");
+    const warning = preview.querySelector("[data-preview-warning]");
+    const roleField = preview.closest("form")?.querySelector('[name="mention_role_id"]');
+    if (!(source instanceof HTMLTextAreaElement) || !content || !warning) return;
+
+    const renderYouTubePreview = () => {
+      const isLive = preview.dataset.kind === "live";
+      const role = roleField?.value ? "@YouTube" : "";
+      const replacements = {
+        title: isLive ? "Stavíme herní PC živě!" : "Nová herní sestava do 30 000 Kč",
+        url: "https://youtu.be/Ukazka123",
+        channel: "Makej PC",
+        channel_url: "https://youtube.com/@makejpc",
+        thumbnail: "https://i.ytimg.com/vi/Ukazka123/maxresdefault.jpg",
+        published: isLive ? "<t:1786273200:F>" : "<t:1786269600:F>",
+        role,
+      };
+      const containsRole = source.value.includes("{role}");
+      let rendered = source.value.trim();
+      Object.entries(replacements).forEach(([name, value]) => {
+        rendered = rendered.split(`{${name}}`).join(value);
+      });
+      if (role && !containsRole) rendered = `${role}\n\n${rendered}`.trim();
+
+      content.textContent = rendered || "Text oznámení se zobrazí zde.";
+      const unknown = Array.from(new Set(rendered.match(/\{[^{}]+\}/g) || []));
+      warning.hidden = unknown.length === 0;
+      warning.textContent = unknown.length
+        ? `Neznámé proměnné: ${unknown.join(", ")}`
+        : "";
+    };
+
+    source.addEventListener("input", renderYouTubePreview);
+    roleField?.addEventListener("change", renderYouTubePreview);
+    renderYouTubePreview();
+  });
+
   const avatarInput = document.getElementById("botAvatarInput");
   const avatarPreview = document.getElementById("botAvatarPreview");
   if (avatarInput && avatarPreview) {

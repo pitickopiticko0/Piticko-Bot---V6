@@ -645,12 +645,62 @@
             </label>
             <label><span>Interval kontroly</span><div class="input-suffix"><input type="number" min="60" max="3600" name="check_interval" value="{{ settings.youtube.check_interval }}"><span>sekund</span></div></label>
           </div>
-          <label><span>Text oznámení</span><textarea name="custom_message" rows="6" placeholder="📺 Nové video: {title}\n{url}">{{ settings.youtube.custom_message }}</textarea><small>Proměnné: {title}, {url}, {channel}, {channel_url}, {thumbnail}, {published}, {role}</small></label>
+          <label><span>Text oznámení</span><textarea id="youtubeVideoMessage" name="custom_message" rows="6" maxlength="2000" placeholder="📺 Nové video: {title}\n{url}">{{ settings.youtube.custom_message }}</textarea></label>
+          <div class="template-variables" aria-label="Proměnné YouTube oznámení">
+            <strong>Proměnné – kliknutím vložíš do zprávy</strong>
+            <div class="variable-list">
+              {% for variable, description in [('title', 'Název videa'), ('url', 'Odkaz na video'), ('channel', 'Název kanálu'), ('channel_url', 'Odkaz na kanál'), ('thumbnail', 'Miniatura'), ('published', 'Čas vydání'), ('role', 'Označená role')] %}
+                <button class="variable-chip" type="button" data-insert-variable="{{ '{' ~ variable ~ '}' }}" data-target="youtubeVideoMessage"><code>{{ '{' ~ variable ~ '}' }}</code><span>{{ description }}</span></button>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="message-preview youtube-message-preview" data-youtube-preview data-source="youtubeVideoMessage" data-kind="video">
+            <div class="message-preview-label"><strong>Živý náhled videa</strong><span>Nic se neposílá na Discord</span></div>
+            <div class="discord-message-preview">
+              <div class="discord-bot-avatar">PB</div>
+              <div class="discord-message-body">
+                <div class="discord-message-author">Piticko Bot <span>APP</span><small>právě teď</small></div>
+                <div class="youtube-preview-content" data-preview-content></div>
+                <div class="discord-embed-preview youtube-embed-preview">
+                  <strong>Nové video</strong>
+                  <div class="youtube-preview-thumbnail">Ukázka miniatury YouTube</div>
+                  <small>Piticko Bot · Vše, co tvůj server potřebuje</small>
+                </div>
+                <span class="youtube-preview-button">▶ Otevřít na YouTube</span>
+              </div>
+            </div>
+            <p class="preview-warning" data-preview-warning hidden></p>
+          </div>
           <div class="form-grid compact">
             <label class="toggle-row mini"><span><strong>YouTube Live</strong><small>Oznamovat livestreamy samostatnou zprávou.</small></span><input type="checkbox" name="live_enabled" {% if settings.youtube.live_enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
             <label class="toggle-row mini"><span><strong>Plánované streamy</strong><small>Oznámit už naplánování; jinak až skutečné zahájení.</small></span><input type="checkbox" name="live_notify_upcoming" {% if settings.youtube.live_notify_upcoming %}checked{% endif %}><i aria-hidden="true"></i></label>
           </div>
-          <label><span>Text Live oznámení</span><textarea name="live_custom_message" rows="4">{{ settings.youtube.live_custom_message }}</textarea><small>Proměnné jsou stejné jako u videa.</small></label>
+          <label><span>Text Live oznámení</span><textarea id="youtubeLiveMessage" name="live_custom_message" rows="4" maxlength="2000">{{ settings.youtube.live_custom_message }}</textarea></label>
+          <div class="template-variables" aria-label="Proměnné YouTube Live oznámení">
+            <strong>Proměnné – kliknutím vložíš do zprávy</strong>
+            <div class="variable-list">
+              {% for variable, description in [('title', 'Název streamu'), ('url', 'Odkaz na stream'), ('channel', 'Název kanálu'), ('channel_url', 'Odkaz na kanál'), ('thumbnail', 'Miniatura'), ('published', 'Čas vysílání'), ('role', 'Označená role')] %}
+                <button class="variable-chip" type="button" data-insert-variable="{{ '{' ~ variable ~ '}' }}" data-target="youtubeLiveMessage"><code>{{ '{' ~ variable ~ '}' }}</code><span>{{ description }}</span></button>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="message-preview youtube-message-preview" data-youtube-preview data-source="youtubeLiveMessage" data-kind="live">
+            <div class="message-preview-label"><strong>Živý náhled streamu</strong><span>Nic se neposílá na Discord</span></div>
+            <div class="discord-message-preview">
+              <div class="discord-bot-avatar">PB</div>
+              <div class="discord-message-body">
+                <div class="discord-message-author">Piticko Bot <span>APP</span><small>právě teď</small></div>
+                <div class="youtube-preview-content" data-preview-content></div>
+                <div class="discord-embed-preview youtube-embed-preview live">
+                  <strong>🔴 YouTube stream právě začal</strong>
+                  <div class="youtube-preview-thumbnail">Ukázka miniatury livestreamu</div>
+                  <small>Piticko Bot · Vše, co tvůj server potřebuje</small>
+                </div>
+                <span class="youtube-preview-button">▶ Otevřít na YouTube</span>
+              </div>
+            </div>
+            <p class="preview-warning" data-preview-warning hidden></p>
+          </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit YouTube</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
       </div>
