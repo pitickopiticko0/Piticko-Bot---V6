@@ -183,6 +183,28 @@
     </div>
   {% endif %}
 
+  {% if request.query_params.get('general_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Obecné nastavení se nepodařilo uložit</strong>
+      {% if request.query_params.get('general_error') == 'timezone' %}
+        <span>Zadej platnou IANA časovou zónu, například Europe/Prague.</span>
+      {% elif request.query_params.get('general_error') == 'language' %}
+        <span>Vyber jeden z podporovaných jazyků.</span>
+      {% else %}
+        <span>Příkazový kanál musí patřit tomuto serveru a bot v něm musí vidět a odpovídat.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('general_warning') == 'unverified' %}
+    <div class="toast" role="status" aria-live="polite">
+      <strong>Obecné nastavení bylo uloženo bez ověření kanálu</strong>
+      <span>Discord API je dočasně nedostupné. Zkontroluj, že bot může v příkazovém kanálu odpovídat.</span>
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
   {% if request.query_params.get('twitch_error') %}
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Twitch odběr se nepodařilo uložit</strong>
@@ -703,7 +725,19 @@
             <label><span>Jazyk</span><select name="language"><option value="cs" {% if settings.general.language == 'cs' %}selected{% endif %}>Čeština</option><option value="sk" {% if settings.general.language == 'sk' %}selected{% endif %}>Slovenština</option><option value="en" {% if settings.general.language == 'en' %}selected{% endif %}>English</option></select></label>
             <label><span>Časová zóna</span><input name="timezone" value="{{ settings.general.timezone }}" placeholder="Europe/Prague"></label>
           </div>
-          <label><span>ID kanálu pro příkazy</span><input name="command_channel_id" value="{{ settings.general.command_channel_id }}" inputmode="numeric" placeholder="Volitelné"><small>Nech prázdné, pokud mohou být příkazy používány kdekoliv.</small></label>
+          <label><span>Kanál pro příkazy</span>
+            {% if discord_resources_available %}
+              <select name="command_channel_id">
+                <option value="">Příkazy mohou být kdekoliv</option>
+                {% for channel in discord_channels %}
+                  <option value="{{ channel.id }}" {% if channel.id == settings.general.command_channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.general.command_channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže odpovídat{% endif %}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input name="command_channel_id" value="{{ settings.general.command_channel_id }}" inputmode="numeric" placeholder="Volitelné ID kanálu">
+            {% endif %}
+            <small>Nech prázdné, pokud mohou být příkazy používány kdekoliv.</small>
+          </label>
           <div class="form-actions"><button class="button primary" type="submit">Uložit obecné nastavení</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
       </div>

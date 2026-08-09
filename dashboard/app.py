@@ -7,6 +7,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 import aiohttp
@@ -1367,20 +1368,56 @@ async def save_general(
 
     get_accessible_guild(request, guild_id)
 
+    selected_language = language.strip().lower()
+    selected_timezone = timezone.strip() or "Europe/Prague"
+    selected_command_channel_id = command_channel_id.strip()
+    saved_unverified = False
+
+    if selected_language not in {"cs", "sk", "en"}:
+        return RedirectResponse(
+            f"/server/{guild_id}?general_error=language#general",
+            status_code=303,
+        )
+    try:
+        ZoneInfo(selected_timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        return RedirectResponse(
+            f"/server/{guild_id}?general_error=timezone#general",
+            status_code=303,
+        )
+    if selected_command_channel_id:
+        if not selected_command_channel_id.isdigit():
+            return RedirectResponse(
+                f"/server/{guild_id}?general_error=channel#general",
+                status_code=303,
+            )
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            if selected_command_channel_id not in allowed_channels:
+                return RedirectResponse(
+                    f"/server/{guild_id}?general_error=channel#general",
+                    status_code=303,
+                )
+
     await storage.update_module(
         guild_id,
         "general",
         {
-            "language": language,
-            "timezone": timezone.strip() or "Europe/Prague",
-            "command_channel_id": command_channel_id.strip(),
+            "language": selected_language,
+            "timezone": selected_timezone,
+            "command_channel_id": selected_command_channel_id,
         },
     )
 
-    return RedirectResponse(
-        f"/server/{guild_id}?saved=general",
-        status_code=303,
-    )
+    query = "saved=general"
+    if saved_unverified:
+        query += "&general_warning=unverified"
+    return RedirectResponse(f"/server/{guild_id}?{query}#general", status_code=303)
 
 
 @app.get("/api/server/{guild_id}/settings")
