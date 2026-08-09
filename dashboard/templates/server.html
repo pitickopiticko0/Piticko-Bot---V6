@@ -398,7 +398,17 @@
             </label>
             <label><span>Nadpis embedu</span><input name="embed_title" value="{{ settings.welcome.embed_title }}" placeholder="Vítej!"></label>
           </div>
-          <label><span>Uvítací zpráva</span><textarea name="message" rows="6" maxlength="4096" placeholder="Vítej {mention} na serveru {server}!">{{ settings.welcome.message }}</textarea><small>Proměnné: {mention}, {user}, {username}, {server}, {member_count}, {members}</small></label>
+          <label><span>Uvítací zpráva</span><textarea id="welcomeMessage" name="message" rows="6" maxlength="4096" placeholder="Vítej {mention} na serveru {server}!">{{ settings.welcome.message }}</textarea></label>
+          <div class="template-variables" aria-label="Proměnné uvítací zprávy">
+            <strong>Dostupné proměnné</strong>
+            <div class="variable-list">
+              <button type="button" class="variable-chip" data-insert-variable="{mention}" data-target="welcomeMessage"><code>{mention}</code><span>označení člena</span></button>
+              <button type="button" class="variable-chip" data-insert-variable="{username}" data-target="welcomeMessage"><code>{username}</code><span>uživatelské jméno</span></button>
+              <button type="button" class="variable-chip" data-insert-variable="{server}" data-target="welcomeMessage"><code>{server}</code><span>název serveru</span></button>
+              <button type="button" class="variable-chip" data-insert-variable="{member_count}" data-target="welcomeMessage"><code>{member_count}</code><span>počet členů</span></button>
+            </div>
+            <small><code>{user}</code> funguje stejně jako <code>{mention}</code> a <code>{members}</code> stejně jako <code>{member_count}</code>.</small>
+          </div>
           <div class="form-grid compact">
             <label><span>Barva embedu</span><div class="color-field"><input type="color" name="embed_color" value="{{ settings.welcome.embed_color }}"><code>{{ settings.welcome.embed_color }}</code></div></label>
             <label class="toggle-row mini"><span><strong>Soukromá zpráva</strong><small>Poslat uvítání také do DM.</small></span><input type="checkbox" name="dm_enabled" {% if settings.welcome.dm_enabled %}checked{% endif %}><i aria-hidden="true"></i></label>

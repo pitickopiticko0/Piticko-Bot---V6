@@ -75,6 +75,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  document.querySelectorAll("[data-insert-variable]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = document.getElementById(button.dataset.target || "");
+      const variable = button.dataset.insertVariable || "";
+      if (!(field instanceof HTMLTextAreaElement) || !variable) return;
+
+      const start = field.selectionStart ?? field.value.length;
+      const end = field.selectionEnd ?? start;
+      field.setRangeText(variable, start, end, "end");
+      field.focus();
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  });
+
   const avatarInput = document.getElementById("botAvatarInput");
   const avatarPreview = document.getElementById("botAvatarPreview");
   if (avatarInput && avatarPreview) {
