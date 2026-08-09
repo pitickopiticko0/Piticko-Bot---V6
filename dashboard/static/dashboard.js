@@ -89,6 +89,52 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  const welcomeMessage = document.getElementById("welcomeMessage");
+  const welcomeTitle = document.getElementById("welcomeEmbedTitle");
+  const welcomeColor = document.getElementById("welcomeEmbedColor");
+  const welcomePreview = document.getElementById("welcomePreview");
+  const welcomePreviewTitle = document.getElementById("welcomePreviewTitle");
+  const welcomePreviewMessage = document.getElementById("welcomePreviewMessage");
+  const welcomePreviewEmbed = document.getElementById("welcomeEmbedPreview");
+  const welcomePreviewWarning = document.getElementById("welcomePreviewWarning");
+
+  if (
+    welcomeMessage && welcomeTitle && welcomeColor && welcomePreview &&
+    welcomePreviewTitle && welcomePreviewMessage && welcomePreviewEmbed &&
+    welcomePreviewWarning
+  ) {
+    const renderWelcomePreview = () => {
+      const server = welcomePreview.dataset.serverName || "Můj server";
+      const replacements = {
+        "{mention}": "@NovýČlen",
+        "{user}": "@NovýČlen",
+        "{username}": "NovyClen",
+        "{server}": server,
+        "{member_count}": "123",
+        "{members}": "123",
+      };
+      let rendered = welcomeMessage.value;
+      Object.entries(replacements).forEach(([variable, value]) => {
+        rendered = rendered.split(variable).join(value);
+      });
+
+      welcomePreviewTitle.textContent = welcomeTitle.value.trim() || "Vítej!";
+      welcomePreviewMessage.textContent = rendered || "Uvítací zpráva se zobrazí zde.";
+      welcomePreviewEmbed.style.borderColor = welcomeColor.value;
+
+      const unknown = Array.from(new Set(rendered.match(/\{[^{}]+\}/g) || []));
+      welcomePreviewWarning.hidden = unknown.length === 0;
+      welcomePreviewWarning.textContent = unknown.length
+        ? `Neznámé proměnné: ${unknown.join(", ")}`
+        : "";
+    };
+
+    [welcomeMessage, welcomeTitle, welcomeColor].forEach((field) => {
+      field.addEventListener("input", renderWelcomePreview);
+    });
+    renderWelcomePreview();
+  }
+
   const avatarInput = document.getElementById("botAvatarInput");
   const avatarPreview = document.getElementById("botAvatarPreview");
   if (avatarInput && avatarPreview) {

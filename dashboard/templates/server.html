@@ -396,7 +396,7 @@
               {% endif %}
               <small>Textové kanály, které bot vidí; nedostupné kanály nelze vybrat.</small>
             </label>
-            <label><span>Nadpis embedu</span><input name="embed_title" value="{{ settings.welcome.embed_title }}" placeholder="Vítej!"></label>
+            <label><span>Nadpis embedu</span><input id="welcomeEmbedTitle" name="embed_title" maxlength="256" value="{{ settings.welcome.embed_title }}" placeholder="Vítej!"></label>
           </div>
           <label><span>Uvítací zpráva</span><textarea id="welcomeMessage" name="message" rows="6" maxlength="4096" placeholder="Vítej {mention} na serveru {server}!">{{ settings.welcome.message }}</textarea></label>
           <div class="template-variables" aria-label="Proměnné uvítací zprávy">
@@ -409,8 +409,24 @@
             </div>
             <small><code>{user}</code> funguje stejně jako <code>{mention}</code> a <code>{members}</code> stejně jako <code>{member_count}</code>.</small>
           </div>
+          <div class="message-preview" id="welcomePreview" data-server-name="{{ guild.name }}">
+            <div class="message-preview-label"><strong>Živý náhled</strong><span>Nic se neposílá na Discord</span></div>
+            <div class="discord-message-preview">
+              <div class="discord-bot-avatar">PB</div>
+              <div class="discord-message-body">
+                <div class="discord-message-author">Piticko Bot <span>APP</span><small>právě teď</small></div>
+                <div class="discord-embed-preview" id="welcomeEmbedPreview">
+                  <strong id="welcomePreviewTitle">Vítej!</strong>
+                  <div id="welcomePreviewMessage"></div>
+                  <dl><div><dt>Uživatel</dt><dd>@NovýČlen</dd></div><div><dt>Server</dt><dd>{{ guild.name }}</dd></div><div><dt>Členů</dt><dd>123</dd></div></dl>
+                  <small>Piticko Bot · Vše, co tvůj server potřebuje</small>
+                </div>
+              </div>
+            </div>
+            <p class="preview-warning" id="welcomePreviewWarning" hidden></p>
+          </div>
           <div class="form-grid compact">
-            <label><span>Barva embedu</span><div class="color-field"><input type="color" name="embed_color" value="{{ settings.welcome.embed_color }}"><code>{{ settings.welcome.embed_color }}</code></div></label>
+            <label><span>Barva embedu</span><div class="color-field"><input id="welcomeEmbedColor" type="color" name="embed_color" value="{{ settings.welcome.embed_color }}"><code>{{ settings.welcome.embed_color }}</code></div></label>
             <label class="toggle-row mini"><span><strong>Soukromá zpráva</strong><small>Poslat uvítání také do DM.</small></span><input type="checkbox" name="dm_enabled" {% if settings.welcome.dm_enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit Welcome</button><button class="button subtle" type="reset">Vrátit změny</button></div>
