@@ -23,6 +23,28 @@ class TrackedMessage:
     content: str
 
 
+def build_message_signature(message: discord.Message) -> str:
+    """Create a stable signature for duplicate text and uploaded files."""
+    parts = []
+    normalized_content = " ".join(message.content.casefold().split())
+
+    if normalized_content:
+        parts.append(f"text:{normalized_content}")
+
+    for attachment in sorted(
+        message.attachments,
+        key=lambda item: (item.filename.casefold(), item.size),
+    ):
+        parts.append(
+            "attachment:"
+            f"{attachment.filename.casefold()}:"
+            f"{attachment.size}:"
+            f"{(attachment.content_type or '').casefold()}"
+        )
+
+    return "|".join(parts)
+
+
 class AntiSpam(commands.GroupCog, name="antispam"):
     """Automatická ochrana serveru proti spamu."""
 
@@ -189,18 +211,23 @@ class AntiSpam(commands.GroupCog, name="antispam"):
                 f"během **{interval} sekund**."
             )
 
-        normalized = " ".join(message.content.lower().split())
+        signature = build_message_signature(message)
 
-        if normalized:
+        if signature:
             duplicates = sum(
                 1
                 for tracked in recent
-                if tracked.content == normalized
+                if tracked.content == signature
             )
 
             if duplicates >= int(settings["duplicate_limit"]):
+                repeated_item = (
+                    "obrázek/soubor"
+                    if message.attachments
+                    else "text zprávy"
+                )
                 return (
-                    f"Opakovaná zpráva byla odeslána "
+                    f"Opakovaný obsah ({repeated_item}) byl odeslán "
                     f"**{duplicates}×**."
                 )
 
@@ -429,13 +456,13 @@ class AntiSpam(commands.GroupCog, name="antispam"):
         history = self.message_history[key]
         now = time.monotonic()
 
-        normalized = " ".join(message.content.lower().split())
+        signature = build_message_signature(message)
 
         history.append(
             TrackedMessage(
                 created_at=now,
                 message_id=message.id,
-                content=normalized,
+                content=signature,
             )
         )
 
@@ -471,7 +498,7 @@ class AntiSpam(commands.GroupCog, name="antispam"):
     @app_commands.describe(
         max_messages="Kolik zpráv smí člen poslat během intervalu",
         interval_seconds="Délka sledovaného intervalu v sekundách",
-        duplicate_limit="Kolikrát se smí opakovat stejná zpráva",
+        duplicate_limit="Kolikrát se smí opakovat stejná zpráva nebo soubor",
         mention_limit="Maximální počet označených lidí v jedné zprávě",
         timeout_minutes="Délka automatického timeoutu",
         delete_messages="Smazat při zásahu poslední spam zprávy",
@@ -554,7 +581,7 @@ class AntiSpam(commands.GroupCog, name="antispam"):
             inline=False,
         )
         embed.add_field(
-            name="Opakované zprávy",
+            name="Opakované zprávy a soubory",
             value=f"Limit: **{duplicate_limit}×**",
             inline=True,
         )
