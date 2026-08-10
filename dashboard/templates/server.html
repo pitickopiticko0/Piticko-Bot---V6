@@ -502,6 +502,19 @@
             <label><span>Délka timeoutu</span><div class="input-suffix"><input type="number" name="timeout_minutes" min="1" max="1440" value="{{ settings.antispam.timeout_minutes }}"><span>minut</span></div></label>
             <label class="toggle-row mini"><span><strong>Mazat spam</strong><small>Při zásahu odstranit poslední spam zprávy.</small></span><input type="checkbox" name="delete_messages" {% if settings.antispam.delete_messages %}checked{% endif %}><i aria-hidden="true"></i></label>
           </div>
+          <label><span>Ignorované kanály</span>
+            {% if discord_resources_available %}
+              <select class="multi-select" name="ignored_channel_ids" multiple size="5">
+                {% for channel in discord_channels %}
+                  <option value="{{ channel.id }}" {% if channel.id in settings.antispam.ignored_channel_ids %}selected{% endif %}># {{ channel.name }}</option>
+                {% endfor %}
+              </select>
+              <small>Ctrl + kliknutí vybere více kanálů. V nich bot antispam vůbec nekontroluje.</small>
+            {% else %}
+              <small>Seznam nelze upravit, dokud dashboard nenačte Discord data. Dosavadní výběr zůstane zachovaný.</small>
+              {% for channel_id in settings.antispam.ignored_channel_ids %}<input type="hidden" name="ignored_channel_ids" value="{{ channel_id }}">{% endfor %}
+            {% endif %}
+          </label>
           <div class="form-actions"><button class="button primary" type="submit">Uložit AntiSpam</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
       </div>

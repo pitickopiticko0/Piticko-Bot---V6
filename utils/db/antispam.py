@@ -1,6 +1,6 @@
 """Databázové operace AntiSpam modulu."""
 
-from typing import Any
+from typing import Any, Optional
 
 
 def get_settings(database: Any, guild_id: int):
@@ -22,16 +22,25 @@ def save_settings(
     mention_limit: int = 5,
     timeout_minutes: int = 10,
     delete_messages: bool = True,
+    ignored_channel_ids: Optional[str] = None,
 ) -> None:
+    if ignored_channel_ids is None:
+        current = get_settings(database, guild_id)
+        ignored_channel_ids = (
+            str(current["ignored_channel_ids"] or "")
+            if current is not None
+            else ""
+        )
+
     excluded = "EXCLUDED" if database.using_postgres else "excluded"
     with database.connect() as conn:
         conn.execute(f"""
             INSERT INTO antispam_settings (
                 guild_id, enabled, max_messages, interval_seconds,
                 duplicate_limit, mention_limit, timeout_minutes,
-                delete_messages, updated_at
+                delete_messages, ignored_channel_ids, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (guild_id) DO UPDATE SET
                 enabled = {excluded}.enabled,
                 max_messages = {excluded}.max_messages,
@@ -40,6 +49,7 @@ def save_settings(
                 mention_limit = {excluded}.mention_limit,
                 timeout_minutes = {excluded}.timeout_minutes,
                 delete_messages = {excluded}.delete_messages,
+                ignored_channel_ids = {excluded}.ignored_channel_ids,
                 updated_at = {excluded}.updated_at
         """, (
             guild_id,
@@ -50,6 +60,7 @@ def save_settings(
             max(2, min(int(mention_limit), 20)),
             max(1, min(int(timeout_minutes), 1440)),
             int(delete_messages),
+            ignored_channel_ids,
             database.now(),
         ))
         conn.commit()

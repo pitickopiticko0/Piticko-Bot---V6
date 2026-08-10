@@ -1092,6 +1092,7 @@ async def save_antispam(
     mention_limit: int = Form(default=5),
     timeout_minutes: int = Form(default=10),
     delete_messages: str | None = Form(default=None),
+    ignored_channel_ids: list[str] = Form(default=[]),
 ):
     redirect = require_login(request)
     if redirect:
@@ -1109,6 +1110,7 @@ async def save_antispam(
             "mention_limit": mention_limit,
             "timeout_minutes": timeout_minutes,
             "delete_messages": delete_messages == "on",
+            "ignored_channel_ids": ignored_channel_ids,
         },
     )
     return RedirectResponse(
