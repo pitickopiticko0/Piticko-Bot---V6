@@ -497,7 +497,7 @@
           <div class="form-grid">
             <label><span>Maximální počet zpráv</span><div class="input-suffix"><input type="number" name="max_messages" min="3" max="20" value="{{ settings.antispam.max_messages }}"><span>zpráv</span></div><small>Počet zpráv povolený během intervalu.</small></label>
             <label><span>Sledovaný interval</span><div class="input-suffix"><input type="number" name="interval_seconds" min="3" max="60" value="{{ settings.antispam.interval_seconds }}"><span>sekund</span></div></label>
-            <label><span>Limit stejné zprávy</span><div class="input-suffix"><input type="number" name="duplicate_limit" min="2" max="10" value="{{ settings.antispam.duplicate_limit }}"><span>krát</span></div></label>
+            <label><span>Limit stejné zprávy nebo souboru</span><div class="input-suffix"><input type="number" name="duplicate_limit" min="2" max="10" value="{{ settings.antispam.duplicate_limit }}"><span>krát</span></div><small>Počítá také opakované obrázky a ostatní přílohy.</small></label>
             <label><span>Limit označených lidí</span><div class="input-suffix"><input type="number" name="mention_limit" min="2" max="20" value="{{ settings.antispam.mention_limit }}"><span>zmínek</span></div></label>
             <label><span>Délka timeoutu</span><div class="input-suffix"><input type="number" name="timeout_minutes" min="1" max="1440" value="{{ settings.antispam.timeout_minutes }}"><span>minut</span></div></label>
             <label class="toggle-row mini"><span><strong>Mazat spam</strong><small>Při zásahu odstranit poslední spam zprávy.</small></span><input type="checkbox" name="delete_messages" {% if settings.antispam.delete_messages %}checked{% endif %}><i aria-hidden="true"></i></label>
