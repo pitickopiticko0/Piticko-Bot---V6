@@ -60,6 +60,11 @@ class General(commands.Cog):
         embed.add_field(name="/youtube list", value="Seznam sledovaných kanálů", inline=False)
         embed.add_field(name="/youtube check", value="Ručně zkontroluje nová videa", inline=False)
         embed.add_field(name="/youtube test", value="Pošle testovací embed", inline=False)
+        embed.add_field(
+            name="/alzadny-kontrola",
+            value="Bezpečně otestuje relevantní AlzaDny nabídky",
+            inline=False,
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
