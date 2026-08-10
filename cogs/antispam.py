@@ -45,6 +45,14 @@ def build_message_signature(message: discord.Message) -> str:
     return "|".join(parts)
 
 
+def parse_ignored_channel_ids(value: object) -> set[int]:
+    return {
+        int(channel_id)
+        for channel_id in str(value or "").split(",")
+        if channel_id.strip().isdigit()
+    }
+
+
 class AntiSpam(commands.GroupCog, name="antispam"):
     """Automatická ochrana serveru proti spamu."""
 
@@ -452,6 +460,16 @@ class AntiSpam(commands.GroupCog, name="antispam"):
         if settings is None or not settings["enabled"]:
             return
 
+        ignored_channel_ids = parse_ignored_channel_ids(
+            settings["ignored_channel_ids"]
+        )
+        if (
+            message.channel.id in ignored_channel_ids
+            or getattr(message.channel, "parent_id", None)
+            in ignored_channel_ids
+        ):
+            return
+
         key = (message.guild.id, message.author.id)
         history = self.message_history[key]
         now = time.monotonic()
@@ -669,6 +687,14 @@ class AntiSpam(commands.GroupCog, name="antispam"):
         embed.add_field(
             name="Mazání zpráv",
             value="✅" if settings["delete_messages"] else "❌",
+            inline=True,
+        )
+        ignored_count = len(
+            parse_ignored_channel_ids(settings["ignored_channel_ids"])
+        )
+        embed.add_field(
+            name="Ignorované kanály",
+            value=str(ignored_count),
             inline=True,
         )
         embed.set_footer(text=EMBED_FOOTER)

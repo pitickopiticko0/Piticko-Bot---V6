@@ -58,6 +58,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "mention_limit": 5,
         "timeout_minutes": 10,
         "delete_messages": True,
+        "ignored_channel_ids": [],
     },
     "tickets": {
         "enabled": False,
@@ -193,6 +194,13 @@ class DashboardStorage:
                 "mention_limit": int(_value(antispam, "mention_limit", 5)),
                 "timeout_minutes": int(_value(antispam, "timeout_minutes", 10)),
                 "delete_messages": bool(_value(antispam, "delete_messages", 1)),
+                "ignored_channel_ids": [
+                    value
+                    for value in str(
+                        _value(antispam, "ignored_channel_ids", "")
+                    ).split(",")
+                    if value.isdigit()
+                ],
             })
 
         tickets = db.get_ticket_settings(guild_id)
@@ -321,6 +329,12 @@ class DashboardStorage:
             db.set_modlog_enabled(guild_id, False)
 
     def _save_antispam_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        ignored_channel_ids = []
+        for raw_id in values.get("ignored_channel_ids") or []:
+            channel_id = str(raw_id).strip()
+            if channel_id.isdigit() and channel_id not in ignored_channel_ids:
+                ignored_channel_ids.append(channel_id)
+
         db.set_antispam_settings(
             guild_id,
             enabled=bool(values.get("enabled")),
@@ -330,6 +344,7 @@ class DashboardStorage:
             mention_limit=int(values.get("mention_limit") or 5),
             timeout_minutes=int(values.get("timeout_minutes") or 10),
             delete_messages=bool(values.get("delete_messages")),
+            ignored_channel_ids=",".join(ignored_channel_ids[:25]),
         )
 
     def _save_tickets_sync(self, guild_id: int, values: dict[str, Any]) -> None:

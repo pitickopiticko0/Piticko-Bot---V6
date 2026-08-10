@@ -86,6 +86,7 @@ POSTGRES_TABLES = (
         mention_limit INTEGER NOT NULL DEFAULT 5,
         timeout_minutes INTEGER NOT NULL DEFAULT 10,
         delete_messages INTEGER NOT NULL DEFAULT 1,
+        ignored_channel_ids TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS ticket_settings (
@@ -233,6 +234,7 @@ SQLITE_TABLES = (
         mention_limit INTEGER NOT NULL DEFAULT 5,
         timeout_minutes INTEGER NOT NULL DEFAULT 10,
         delete_messages INTEGER NOT NULL DEFAULT 1,
+        ignored_channel_ids TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS ticket_settings (
@@ -310,6 +312,7 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'private'",
     "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS forum_channel_id BIGINT",
     "ALTER TABLE abi_rank_settings ADD COLUMN IF NOT EXISTS hero_role_id BIGINT",
+    "ALTER TABLE antispam_settings ADD COLUMN IF NOT EXISTS ignored_channel_ids TEXT NOT NULL DEFAULT ''",
 )
 
 
@@ -332,6 +335,9 @@ SQLITE_MIGRATIONS = {
     },
     "abi_rank_settings": {
         "hero_role_id": "ALTER TABLE abi_rank_settings ADD COLUMN hero_role_id INTEGER",
+    },
+    "antispam_settings": {
+        "ignored_channel_ids": "ALTER TABLE antispam_settings ADD COLUMN ignored_channel_ids TEXT NOT NULL DEFAULT ''",
     },
 }
 
