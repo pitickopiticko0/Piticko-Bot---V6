@@ -14,6 +14,8 @@ from utils.logger import logger
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
+STARTUP_RETRY_INITIAL_SECONDS = 60
+STARTUP_RETRY_MAX_SECONDS = 15 * 60
 
 if not TOKEN:
     raise RuntimeError(
@@ -153,7 +155,26 @@ async def on_app_command_error(
 
 async def main() -> None:
     async with bot:
-        await bot.start(TOKEN)
+        retry_delay = STARTUP_RETRY_INITIAL_SECONDS
+
+        while True:
+            try:
+                await bot.start(TOKEN)
+                return
+            except discord.HTTPException as error:
+                if error.status != 429:
+                    raise
+
+                logger.warning(
+                    "Discord dočasně odmítl přihlášení bota (HTTP 429). "
+                    "Další pokus proběhne za %s sekund; server nerestartuj.",
+                    retry_delay,
+                )
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(
+                    retry_delay * 2,
+                    STARTUP_RETRY_MAX_SECONDS,
+                )
 
 
 if __name__ == "__main__":
