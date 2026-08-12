@@ -26,6 +26,18 @@ class AlzaDeal:
     image_url: str | None = None
 
 
+@dataclass(slots=True, frozen=True)
+class AlzaSourceDiagnostic:
+    category: str
+    status_code: int | None
+    final_url: str
+    response_bytes: int
+    cards_found: int
+    coupons_found: int
+    deals_accepted: int
+    error: str | None = None
+
+
 class AlzaDaysProvider:
     BASE_URL = "https://www.alza.cz"
     SOURCES = (
@@ -77,17 +89,20 @@ class AlzaDaysProvider:
 
     def __init__(self, min_discount: int = 15):
         self.min_discount = max(5, min(int(min_discount), 90))
+        self.last_diagnostics: list[AlzaSourceDiagnostic] = []
 
     async def fetch_deals(self) -> list[AlzaDeal]:
         headers = {
             "User-Agent": (
-                "Mozilla/5.0 (compatible; PitickoBot/2.0; "
-                "+https://github.com/pitickopiticko0/Piticko-Bot---V6)"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/138.0.0.0 Safari/537.36"
             ),
             "Accept-Language": "cs-CZ,cs;q=0.9,en;q=0.6",
             "Accept": "text/html,application/xhtml+xml",
         }
         deals: dict[str, AlzaDeal] = {}
+        self.last_diagnostics = []
 
         async with httpx.AsyncClient(
             headers=headers,
@@ -104,14 +119,44 @@ class AlzaDaysProvider:
                         category,
                         error,
                     )
+                    self.last_diagnostics.append(
+                        AlzaSourceDiagnostic(
+                            category=category,
+                            status_code=getattr(
+                                getattr(error, "response", None),
+                                "status_code",
+                                None,
+                            ),
+                            final_url=str(getattr(error, "request", None).url)
+                            if getattr(error, "request", None)
+                            else url,
+                            response_bytes=0,
+                            cards_found=0,
+                            coupons_found=0,
+                            deals_accepted=0,
+                            error=type(error).__name__,
+                        )
+                    )
                     continue
 
-                for deal in self._parse_page(
+                parsed_deals, cards_found, coupons_found = self._parse_page_with_stats(
                     response.text,
                     category=category,
                     source_url=str(response.url),
                     require_keyword=require_keyword,
-                ):
+                )
+                self.last_diagnostics.append(
+                    AlzaSourceDiagnostic(
+                        category=category,
+                        status_code=response.status_code,
+                        final_url=str(response.url),
+                        response_bytes=len(response.content),
+                        cards_found=cards_found,
+                        coupons_found=coupons_found,
+                        deals_accepted=len(parsed_deals),
+                    )
+                )
+                for deal in parsed_deals:
                     current = deals.get(deal.code)
                     if current is None or deal.discount_percent > current.discount_percent:
                         deals[deal.code] = deal
@@ -129,14 +174,33 @@ class AlzaDaysProvider:
         source_url: str,
         require_keyword: bool,
     ) -> list[AlzaDeal]:
+        deals, _, _ = self._parse_page_with_stats(
+            html,
+            category=category,
+            source_url=source_url,
+            require_keyword=require_keyword,
+        )
+        return deals
+
+    def _parse_page_with_stats(
+        self,
+        html: str,
+        *,
+        category: str,
+        source_url: str,
+        require_keyword: bool,
+    ) -> tuple[list[AlzaDeal], int, int]:
         soup = BeautifulSoup(html, "html.parser")
         cards = soup.select(
             ".box.browsingitem, .browsingitem, "
             "[data-product-id].box, [data-item-id].box"
         )
         deals = []
+        coupons_found = 0
 
         for card in cards:
+            if re.search(r"\bALZADNY\d{1,2}\b", card.get_text(" ", strip=True), re.I):
+                coupons_found += 1
             deal = self._parse_card(
                 card,
                 category=category,
@@ -146,7 +210,7 @@ class AlzaDaysProvider:
             if deal is not None:
                 deals.append(deal)
 
-        return deals
+        return deals, len(cards), coupons_found
 
     def _parse_card(
         self,

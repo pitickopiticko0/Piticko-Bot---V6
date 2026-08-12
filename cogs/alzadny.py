@@ -68,9 +68,20 @@ class AlzaDays(commands.Cog):
             return
 
         if not deals:
+            diagnostic_lines = []
+            for item in self.provider.last_diagnostics:
+                status = str(item.status_code) if item.status_code else "chyba"
+                diagnostic_lines.append(
+                    f"• **{item.category}**: HTTP {status}, "
+                    f"{item.response_bytes // 1024} kB, karty {item.cards_found}, "
+                    f"kupóny {item.coupons_found}, přijato {item.deals_accepted}"
+                    + (f" (`{item.error}`)" if item.error else "")
+                )
+            diagnostics = "\n".join(diagnostic_lines) or "• Žádný zdroj nebyl zpracován."
             await interaction.followup.send(
                 "⚠️ Parser nenašel žádné relevantní AlzaDny nabídky. "
-                "Automatické odesílání proto zatím nezapínej.",
+                "Automatické odesílání proto zatím nezapínej.\n\n"
+                f"**Diagnostika zdrojů**\n{diagnostics}",
                 ephemeral=True,
             )
             return
