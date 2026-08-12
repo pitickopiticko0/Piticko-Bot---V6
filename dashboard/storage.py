@@ -379,7 +379,7 @@ class DashboardStorage:
     def _save_pc_advice_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
         mode = str(values.get("mode") or "private")
-        if mode not in {"private", "forum"}:
+        if mode not in {"private", "forum", "choice"}:
             raise ValueError("Neplatný režim PC poradny.")
         panel_channel_id = _discord_id(
             values.get("panel_channel_id"), field="Kanál panelu PC poradny",
@@ -387,11 +387,11 @@ class DashboardStorage:
         )
         category_id = _discord_id(
             values.get("category_id"), field="Kategorie PC poradny",
-            required=enabled and mode == "private",
+            required=enabled and mode in {"private", "choice"},
         )
         forum_channel_id = _discord_id(
             values.get("forum_channel_id"), field="Fórum PC poradny",
-            required=enabled and mode == "forum",
+            required=enabled and mode in {"forum", "choice"},
         )
         advisor_role_id = _discord_id(
             values.get("advisor_role_id"), field="Role PC poradců",
