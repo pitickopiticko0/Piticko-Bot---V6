@@ -173,6 +173,15 @@ class AdviceControls(discord.ui.View):
         await self.cog.claim_request(interaction)
 
     @discord.ui.button(
+        label="Čeká na uživatele", emoji="⏳", style=discord.ButtonStyle.secondary,
+        custom_id="piticko:pc_advice:waiting_user",
+    )
+    async def waiting_user(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        await self.cog.wait_for_user(interaction)
+
+    @discord.ui.button(
         label="Vyřešeno", emoji="✅", style=discord.ButtonStyle.success,
         custom_id="piticko:pc_advice:resolve",
     )
@@ -221,7 +230,9 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         forum = channel.parent
         if not isinstance(forum, discord.ForumChannel):
             return
-        status_names = {"čeká na poradce", "řeší se", "vyřešeno"}
+        status_names = {
+            "čeká na poradce", "řeší se", "čeká na uživatele", "vyřešeno"
+        }
         kept = [
             tag for tag in channel.applied_tags
             if tag.name.casefold() not in status_names
@@ -430,6 +441,34 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             f"✅ Požadavek označil {interaction.user.mention} jako vyřešený."
         )
 
+    async def wait_for_user(self, interaction: discord.Interaction) -> None:
+        settings, request = await self._context(interaction)
+        if settings is None or request is None or request["status"] == "closed":
+            await interaction.response.send_message(
+                "❌ Toto není aktivní požadavek PC poradny.", ephemeral=True
+            )
+            return
+        if not self.is_advisor(interaction.user, settings):
+            await interaction.response.send_message(
+                "❌ Na odpověď uživatele může čekat pouze poradce.", ephemeral=True
+            )
+            return
+        if request["status"] == "waiting_user":
+            await interaction.response.send_message(
+                "ℹ️ Požadavek už čeká na odpověď uživatele.", ephemeral=True
+            )
+            return
+        await interaction.response.defer()
+        db.wait_for_pc_advice_user(interaction.channel.id)
+        await self.update_forum_status(interaction.channel, "Čeká na uživatele")
+        await interaction.followup.send(
+            f"⏳ <@{request['user_id']}>, poradce {interaction.user.mention} "
+            "čeká na tvoji odpověď nebo doplnění informací.",
+            allowed_mentions=discord.AllowedMentions(
+                users=True, roles=False, everyone=False
+            ),
+        )
+
     async def close_request(self, interaction: discord.Interaction) -> None:
         settings, request = await self._context(interaction)
         if settings is None or request is None or request["status"] == "closed":
@@ -589,10 +628,20 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             )
         else:
             embed.add_field(
-                name="🔐 Soukromě, nebo veřejně?",
+                name="🔒 Soukromá PC poradna",
                 value=(
-                    "Po výběru typu pomoci si sám zvolíš soukromý kanál, "
-                    "nebo veřejný příspěvek v poradenském fóru."
+                    "Bot vytvoří samostatný kanál, který uvidíš pouze ty, "
+                    "PC poradci a správci serveru. Hodí se, pokud nechceš "
+                    "svůj požadavek řešit veřejně."
+                ),
+                inline=False,
+            )
+            embed.add_field(
+                name="👁️ Veřejná PC poradna",
+                value=(
+                    "Bot vytvoří příspěvek ve fóru, který uvidí členové "
+                    "s přístupem do poradny. Komunita tak může sledovat řešení "
+                    "a případně také pomoct. Nevkládej sem osobní údaje."
                 ),
                 inline=False,
             )

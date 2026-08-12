@@ -186,6 +186,9 @@ class Database:
     def resolve_pc_advice(self, channel_id: int) -> None:
         pc_advice_db.set_resolved(self, channel_id)
 
+    def wait_for_pc_advice_user(self, channel_id: int) -> None:
+        pc_advice_db.set_waiting_user(self, channel_id)
+
     def close_pc_advice(self, channel_id: int) -> None:
         pc_advice_db.set_closed(self, channel_id)
 
