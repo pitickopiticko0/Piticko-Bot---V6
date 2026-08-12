@@ -72,6 +72,19 @@ def get_by_channel(database: Any, channel_id: int):
         ).fetchone()
 
 
+def get_active_for_guild(database: Any, guild_id: int):
+    with database.connect() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM pc_advice_requests
+            WHERE guild_id = ?
+              AND status IN ('open', 'waiting_user', 'resolved')
+            ORDER BY id ASC
+            """,
+            (guild_id,),
+        ).fetchall()
+
+
 def create_request(
     database: Any, guild_id: int, channel_id: int, user_id: int,
     request_type: str, answers: dict[str, str],
