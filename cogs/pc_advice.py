@@ -493,29 +493,40 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             )
             return
         embed = discord.Embed(
-            title="🖥️ PC poradna",
+            title="🧭 Provedeme tě PC poradnou",
             description=(
-                "Vyber typ požadavku. Bot ti otevře formulář a následně "
-                + (
-                    "vytvoří veřejný příspěvek v poradenském fóru."
-                    if str(settings["mode"] or "private") == "forum"
-                    else "vytvoří soukromý kanál s našimi poradci."
-                )
+                "Nevíš si rady se sestavou, upgradem nebo problémem s počítačem? "
+                "Vyber dole, s čím potřebuješ pomoct, a odpověz na několik otázek."
             ),
             color=EMBED_COLOR,
         )
         embed.add_field(
-            name="Co umíme řešit",
+            name="1️⃣ Vyber typ pomoci",
             value=(
-                "🖥️ **Nová sestava** podle rozpočtu a využití\n"
-                "🔧 **Upgrade** současného počítače\n"
-                "🩺 **Diagnostika** technického problému"
+                "🖥️ **Nová PC sestava** – návrh podle rozpočtu a využití\n"
+                "🔧 **Upgrade počítače** – doporučení vhodných komponent\n"
+                "🩺 **Diagnostika problému** – pomoc s hledáním příčiny"
             ),
             inline=False,
         )
         embed.add_field(
-            name="Připrav si",
-            value="Přesné modely komponent, rozpočet a co nejpodrobnější popis.",
+            name="2️⃣ Vyplň formulář",
+            value=(
+                "Připrav si rozpočet, přesné modely komponent a podrobný popis. "
+                "Čím více informací uvedeš, tím lépe ti poradíme."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="3️⃣ Počkej na poradce",
+            value=(
+                "Po odeslání "
+                + (
+                    "vytvoříme příspěvek v poradenském fóru."
+                    if str(settings["mode"] or "private") == "forum"
+                    else "vytvoříme soukromý kanál pro tebe a naše poradce."
+                )
+            ),
             inline=False,
         )
         if str(settings["mode"] or "private") == "forum":
