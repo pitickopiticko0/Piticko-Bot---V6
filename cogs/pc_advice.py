@@ -685,6 +685,57 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             f"✅ Panel byl odeslán do {channel.mention}.", ephemeral=True
         )
 
+    @app_commands.command(
+        name="vycistit",
+        description="Uzavře záznamy PC poradny, jejichž kanál už neexistuje.",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def cleanup_command(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Příkaz funguje pouze na serveru.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        active_requests = db.get_active_pc_advice_for_guild(interaction.guild.id)
+        removed = 0
+        preserved = 0
+        unavailable = 0
+
+        for request in active_requests:
+            channel_id = int(request["channel_id"])
+            if interaction.guild.get_channel_or_thread(channel_id) is not None:
+                preserved += 1
+                continue
+
+            try:
+                await interaction.guild.fetch_channel(channel_id)
+            except discord.NotFound:
+                db.close_pc_advice(channel_id)
+                removed += 1
+            except (discord.Forbidden, discord.HTTPException):
+                logger.exception(
+                    "PC poradna: kanál %s se nepodařilo ověřit.", channel_id
+                )
+                unavailable += 1
+            else:
+                preserved += 1
+
+        message = (
+            f"✅ Kontrola dokončena. Uzavřeno osiřelých záznamů: **{removed}**. "
+            f"Aktivních požadavků ponecháno: **{preserved}**."
+        )
+        if unavailable:
+            message += (
+                f"\n⚠️ Kvůli nedostupnému Discord API nebylo možné ověřit: "
+                f"**{unavailable}**. Tyto záznamy zůstaly beze změny."
+            )
+        if not active_requests:
+            message = "ℹ️ Databáze neobsahuje žádné aktivní požadavky PC poradny."
+
+        await interaction.followup.send(message, ephemeral=True)
+
     async def cog_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:

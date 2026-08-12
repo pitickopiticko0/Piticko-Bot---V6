@@ -172,6 +172,9 @@ class Database:
     def get_pc_advice_by_channel(self, channel_id: int):
         return pc_advice_db.get_by_channel(self, channel_id)
 
+    def get_active_pc_advice_for_guild(self, guild_id: int):
+        return pc_advice_db.get_active_for_guild(self, guild_id)
+
     def create_pc_advice_request(
         self, guild_id: int, channel_id: int, user_id: int,
         request_type: str, answers: dict[str, str],
