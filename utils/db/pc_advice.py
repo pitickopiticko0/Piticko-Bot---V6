@@ -59,7 +59,8 @@ def get_active_for_user(database: Any, guild_id: int, user_id: int):
     with database.connect() as conn:
         return conn.execute("""
             SELECT * FROM pc_advice_requests
-            WHERE guild_id = ? AND user_id = ? AND status IN ('open', 'resolved')
+            WHERE guild_id = ? AND user_id = ?
+              AND status IN ('open', 'waiting_user', 'resolved')
             ORDER BY id DESC LIMIT 1
         """, (guild_id, user_id)).fetchone()
 
@@ -102,6 +103,19 @@ def set_resolved(database: Any, channel_id: int) -> None:
             UPDATE pc_advice_requests
             SET status = 'resolved', resolved_at = ? WHERE channel_id = ?
         """, (database.now(), channel_id))
+        conn.commit()
+
+
+def set_waiting_user(database: Any, channel_id: int) -> None:
+    with database.connect() as conn:
+        conn.execute(
+            """
+            UPDATE pc_advice_requests
+            SET status = 'waiting_user', resolved_at = NULL
+            WHERE channel_id = ? AND status != 'closed'
+            """,
+            (channel_id,),
+        )
         conn.commit()
 
 
