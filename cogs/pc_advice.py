@@ -55,11 +55,14 @@ def clean_name(value: str) -> str:
 
 
 class AdviceModal(discord.ui.Modal):
-    def __init__(self, cog: "PCAdvice", request_type: str):
+    def __init__(
+        self, cog: "PCAdvice", request_type: str, selected_mode: str | None = None
+    ):
         definition = REQUEST_TYPES[request_type]
         super().__init__(title=definition["label"], timeout=600)
         self.cog = cog
         self.request_type = request_type
+        self.selected_mode = selected_mode
         self.inputs: list[tuple[str, discord.ui.TextInput]] = []
         for label, placeholder, paragraph in definition["questions"]:
             item = discord.ui.TextInput(
@@ -75,7 +78,28 @@ class AdviceModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         answers = {label: str(item).strip() for label, item in self.inputs}
-        await self.cog.create_request(interaction, self.request_type, answers)
+        await self.cog.create_request(
+            interaction, self.request_type, answers, self.selected_mode
+        )
+
+
+class AdvicePrivacyChoice(discord.ui.View):
+    def __init__(self, cog: "PCAdvice", request_type: str):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.request_type = request_type
+
+    @discord.ui.button(label="Soukromě", emoji="🔒", style=discord.ButtonStyle.primary)
+    async def private(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(
+            AdviceModal(self.cog, self.request_type, "private")
+        )
+
+    @discord.ui.button(label="Veřejně ve fóru", emoji="👁️", style=discord.ButtonStyle.secondary)
+    async def forum(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(
+            AdviceModal(self.cog, self.request_type, "forum")
+        )
 
 
 class AdviceTypeSelect(discord.ui.Select):
@@ -119,6 +143,13 @@ class AdviceTypeSelect(discord.ui.Select):
                 if channel else "❌ Už máš aktivní požadavek."
             )
             await interaction.response.send_message(message, ephemeral=True)
+            return
+        if str(settings["mode"] or "private") == "choice":
+            await interaction.response.send_message(
+                "Vyber, kdo bude moct tvůj požadavek zobrazit:",
+                view=AdvicePrivacyChoice(self.cog, self.values[0]),
+                ephemeral=True,
+            )
             return
         await interaction.response.send_modal(AdviceModal(self.cog, self.values[0]))
 
@@ -202,7 +233,11 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             logger.exception("Aktualizace štítku PC poradny selhala.")
 
     async def create_request(
-        self, interaction: discord.Interaction, request_type: str, answers: dict[str, str],
+        self,
+        interaction: discord.Interaction,
+        request_type: str,
+        answers: dict[str, str],
+        selected_mode: str | None = None,
     ) -> None:
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
             return
@@ -226,7 +261,13 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             return
 
         advisor_role = guild.get_role(int(settings["advisor_role_id"]))
-        mode = str(settings["mode"] or "private")
+        configured_mode = str(settings["mode"] or "private")
+        mode = selected_mode if configured_mode == "choice" else configured_mode
+        if mode not in {"private", "forum"}:
+            await interaction.followup.send(
+                "❌ Nebyl vybrán platný režim poradny.", ephemeral=True
+            )
+            return
         destination_id = (
             settings["forum_channel_id"]
             if mode == "forum"
@@ -524,6 +565,8 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
                 + (
                     "vytvoříme příspěvek v poradenském fóru."
                     if str(settings["mode"] or "private") == "forum"
+                    else "si zvolíš veřejný příspěvek, nebo soukromý kanál."
+                    if str(settings["mode"] or "private") == "choice"
                     else "vytvoříme soukromý kanál pro tebe a naše poradce."
                 )
             ),
@@ -533,6 +576,24 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             embed.add_field(
                 name="👁️ Veřejný režim",
                 value="Požadavek a odpovědi uvidí všichni členové s přístupem do fóra.",
+                inline=False,
+            )
+        elif str(settings["mode"] or "private") == "private":
+            embed.add_field(
+                name="🔒 Soukromý režim",
+                value=(
+                    "Požadavek uvidíš pouze ty, naši PC poradci a správci serveru. "
+                    "Ostatní členové k vytvořenému kanálu nebudou mít přístup."
+                ),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="🔐 Soukromě, nebo veřejně?",
+                value=(
+                    "Po výběru typu pomoci si sám zvolíš soukromý kanál, "
+                    "nebo veřejný příspěvek v poradenském fóru."
+                ),
                 inline=False,
             )
         embed.set_footer(text=EMBED_FOOTER)

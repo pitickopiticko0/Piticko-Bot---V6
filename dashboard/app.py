@@ -1230,9 +1230,13 @@ async def save_pc_advice(
         or not selected_advisor_role_id
         or (selected_mode == "private" and not selected_category_id)
         or (selected_mode == "forum" and not selected_forum_id)
+        or (
+            selected_mode == "choice"
+            and (not selected_category_id or not selected_forum_id)
+        )
     )
     if (
-        selected_mode not in {"private", "forum"}
+        selected_mode not in {"private", "forum", "choice"}
         or any(value and not value.isdigit() for value in all_ids)
         or required_missing
     ):
@@ -1262,11 +1266,11 @@ async def save_pc_advice(
                     and selected_log_channel_id not in allowed_channels
                 )
                 or (
-                    selected_mode == "private"
+                    selected_mode in {"private", "choice"}
                     and selected_category_id not in allowed_categories
                 )
                 or (
-                    selected_mode == "forum"
+                    selected_mode in {"forum", "choice"}
                     and selected_forum_id not in allowed_forums
                 )
             )

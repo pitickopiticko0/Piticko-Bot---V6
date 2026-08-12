@@ -550,6 +550,7 @@
             <select name="mode">
               <option value="private" {% if settings.pc_advice.mode == 'private' %}selected{% endif %}>Soukromé kanály</option>
               <option value="forum" {% if settings.pc_advice.mode == 'forum' %}selected{% endif %}>Veřejné Discord fórum</option>
+              <option value="choice" {% if settings.pc_advice.mode == 'choice' %}selected{% endif %}>Uživatel si vybere</option>
             </select>
             <small>Ve fóru uvidí příspěvky všichni členové s přístupem do daného fóra.</small>
           </label>
@@ -559,11 +560,11 @@
             </label>
             <label><span>Kategorie požadavků</span>
               {% if discord_resources_available %}<select name="category_id"><option value="">Vyber kategorii</option>{% for category in discord_categories %}<option value="{{ category.id }}" {% if category.id == settings.pc_advice.category_id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>{% else %}<input name="category_id" value="{{ settings.pc_advice.category_id }}" inputmode="numeric" placeholder="Discord ID kategorie">{% endif %}
-              <small>Povinné pouze v režimu soukromých kanálů.</small>
+              <small>Povinné pro soukromé kanály a režim uživatelského výběru.</small>
             </label>
             <label><span>Fórum pro veřejné požadavky</span>
               {% if discord_resources_available %}<select name="forum_channel_id"><option value="">Vyber Discord fórum</option>{% for forum in discord_forums %}<option value="{{ forum.id }}" {% if forum.id == settings.pc_advice.forum_channel_id %}selected{% endif %} {% if not forum.can_post and forum.id != settings.pc_advice.forum_channel_id %}disabled{% endif %}>{{ forum.name }}{% if not forum.can_post %} — bot nemůže zakládat příspěvky{% endif %}</option>{% endfor %}</select>{% else %}<input name="forum_channel_id" value="{{ settings.pc_advice.forum_channel_id }}" inputmode="numeric" placeholder="Discord ID fóra">{% endif %}
-              <small>Povinné pouze v režimu veřejného fóra.</small>
+              <small>Povinné pro veřejné fórum a režim uživatelského výběru.</small>
             </label>
             <label><span>Role PC poradců</span>
               {% if discord_resources_available %}<select name="advisor_role_id"><option value="">Vyber roli</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.pc_advice.advisor_role_id %}selected{% endif %}>@{{ role.name }}</option>{% endfor %}</select>{% else %}<input name="advisor_role_id" value="{{ settings.pc_advice.advisor_role_id }}" inputmode="numeric" placeholder="Discord ID role">{% endif %}
