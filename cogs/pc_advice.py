@@ -10,6 +10,7 @@ from discord.ext import commands
 from config import EMBED_COLOR, EMBED_FOOTER
 from utils.database import db
 from utils.logger import logger
+from utils.pc_advice_validation import validate_advice_answers
 
 
 REQUEST_TYPES = {
@@ -47,7 +48,6 @@ REQUEST_TYPES = {
         ),
     },
 }
-
 
 def clean_name(value: str) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -205,6 +205,15 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         self, interaction: discord.Interaction, request_type: str, answers: dict[str, str],
     ) -> None:
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            return
+        validation_errors = validate_advice_answers(request_type, answers)
+        if validation_errors:
+            await interaction.response.send_message(
+                "❌ Požadavek nelze vytvořit. Oprav formulář:\n"
+                + "\n".join(f"• {error}" for error in validation_errors[:5])
+                + "\n\nPotom formulář odešli znovu.",
+                ephemeral=True,
+            )
             return
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
