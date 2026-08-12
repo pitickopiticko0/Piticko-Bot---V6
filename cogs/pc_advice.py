@@ -293,7 +293,7 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         definition = REQUEST_TYPES[request_type]
         embed = discord.Embed(
             title=f"{definition['emoji']} {definition['label']}",
-            description="Poradci mají všechny základní informace níže.",
+            description="Níže najdeš všechny informace, které uživatel vyplnil.",
             color=EMBED_COLOR,
         )
         embed.add_field(name="Autor", value=interaction.user.mention, inline=True)
@@ -398,6 +398,35 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
             db.get_pc_advice_by_channel(interaction.channel.id),
         )
 
+    @staticmethod
+    async def update_request_embed_status(
+        interaction: discord.Interaction, status: str
+    ) -> None:
+        message = interaction.message
+        if message is None or not message.embeds:
+            logger.warning(
+                "PC poradna: původní zpráva pro změnu stavu nebyla nalezena."
+            )
+            return
+
+        embed = message.embeds[0].copy()
+        for index, field in enumerate(embed.fields):
+            if field.name.casefold() == "stav":
+                embed.set_field_at(
+                    index,
+                    name=field.name,
+                    value=status,
+                    inline=field.inline,
+                )
+                break
+        else:
+            embed.add_field(name="Stav", value=status, inline=True)
+
+        try:
+            await message.edit(embed=embed)
+        except discord.HTTPException:
+            logger.exception("Aktualizace stavu v embedu PC poradny selhala.")
+
     async def claim_request(self, interaction: discord.Interaction) -> None:
         settings, request = await self._context(interaction)
         if settings is None or request is None or request["status"] == "closed":
@@ -418,6 +447,7 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         await interaction.response.defer()
         db.claim_pc_advice(interaction.channel.id, interaction.user.id)
         await self.update_forum_status(interaction.channel, "Řeší se")
+        await self.update_request_embed_status(interaction, "🔵 Řeší se")
         await interaction.followup.send(
             f"🙋 Požadavek převzal {interaction.user.mention}."
         )
@@ -437,6 +467,7 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         await interaction.response.defer()
         db.resolve_pc_advice(interaction.channel.id)
         await self.update_forum_status(interaction.channel, "Vyřešeno")
+        await self.update_request_embed_status(interaction, "✅ Vyřešeno")
         await interaction.followup.send(
             f"✅ Požadavek označil {interaction.user.mention} jako vyřešený."
         )
@@ -461,6 +492,9 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
         await interaction.response.defer()
         db.wait_for_pc_advice_user(interaction.channel.id)
         await self.update_forum_status(interaction.channel, "Čeká na uživatele")
+        await self.update_request_embed_status(
+            interaction, "⏳ Čeká na uživatele"
+        )
         await interaction.followup.send(
             f"⏳ <@{request['user_id']}>, poradce {interaction.user.mention} "
             "čeká na tvoji odpověď nebo doplnění informací.",
