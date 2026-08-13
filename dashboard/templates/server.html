@@ -48,6 +48,8 @@
         <span>Barva musí mít formát #RRGGBB.</span>
       {% elif request.query_params.get('webhook_error') == 'invalid' %}
         <span>Vyber kanál a vyplň název i text zprávy.</span>
+      {% elif request.query_params.get('webhook_error') == 'avatar' %}
+        <span>Profilovka musí být platný obrázek PNG, JPG, WebP nebo GIF do 8 MB.</span>
       {% else %}
         <span>Discord odeslání odmítl nebo je dočasně nedostupný.</span>
       {% endif %}
@@ -376,7 +378,7 @@
           <div><p class="eyebrow">WEBHOOK EDITOR</p><h2>Odeslat vlastní zprávu</h2><p>Vytvoř obyčejnou zprávu nebo embed a před odesláním zkontroluj živý náhled.</p></div>
           {% if can_use_webhooks %}<span class="badge on">Připraveno</span>{% else %}<span class="badge off">Chybí oprávnění</span>{% endif %}
         </div>
-        <form method="post" action="/server/{{ guild.id }}/webhook/send" class="settings-form" id="webhookEditorForm">
+        <form method="post" action="/server/{{ guild.id }}/webhook/send" enctype="multipart/form-data" class="settings-form" id="webhookEditorForm">
           <div class="form-grid">
             <label><span>Cílový Discord kanál</span>
               {% if discord_resources_available %}
@@ -389,6 +391,7 @@
               {% endif %}
             </label>
             <label><span>Název webhooku</span><input id="webhookUsername" name="username" value="Piticko Webhook" maxlength="80" required></label>
+            <label><span>Profilovka webhooku</span><input id="webhookAvatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>PNG, JPG, WebP nebo GIF, maximálně 8 MB.</small></label>
             <label><span>Nadpis embedu</span><input id="webhookTitle" name="title" maxlength="256" placeholder="Nech prázdné pro obyčejnou zprávu"><small>Vyplněný nadpis zapne rámeček.</small></label>
             <label><span>Barva embedu</span><div class="color-input"><input id="webhookColor" type="color" name="color" value="#5865F2"><code>#5865F2</code></div></label>
           </div>
@@ -396,7 +399,8 @@
           <div class="message-preview" id="webhookPreview">
             <div class="message-preview-label"><strong>Živý náhled</strong><span>Nic se zatím neposílá</span></div>
             <div class="discord-message-preview">
-              <div class="discord-bot-avatar">WH</div>
+              <div class="discord-bot-avatar" id="webhookAvatarFallback">WH</div>
+              <img class="discord-bot-avatar" id="webhookAvatarPreview" style="object-fit:cover" alt="Náhled profilovky webhooku" hidden>
               <div class="discord-message-body">
                 <div class="discord-message-author"><span id="webhookPreviewUsername">Piticko Webhook</span> <span>BOT</span><small>právě teď</small></div>
                 <div id="webhookPreviewPlain"></div>

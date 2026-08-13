@@ -458,6 +458,7 @@ async def send_dashboard_webhook(
     content: str,
     title: str,
     color: int,
+    avatar: str | None = None,
 ) -> None:
     headers = bot_authorization()
     async with httpx.AsyncClient(timeout=20.0) as client:
@@ -478,14 +479,27 @@ async def send_dashboard_webhook(
             None,
         )
         if webhook is None:
+            create_payload: dict[str, Any] = {"name": "Piticko Bot Dashboard"}
+            if avatar:
+                create_payload["avatar"] = avatar
             create_response = await client.post(
                 f"{DISCORD_API}/channels/{channel_id}/webhooks",
                 headers=headers,
-                json={"name": "Piticko Bot Dashboard"},
+                json=create_payload,
             )
             if create_response.status_code not in (200, 201):
                 raise RuntimeError(f"Discord vytvoření webhooku odmítl (HTTP {create_response.status_code}).")
             webhook = create_response.json()
+        elif avatar:
+            update_response = await client.patch(
+                f"{DISCORD_API}/webhooks/{webhook['id']}",
+                headers=headers,
+                json={"avatar": avatar},
+            )
+            if update_response.status_code != 200:
+                raise RuntimeError(
+                    f"Discord změnu profilovky webhooku odmítl (HTTP {update_response.status_code})."
+                )
 
         payload: dict[str, Any] = {
             "username": username,
@@ -702,6 +716,7 @@ async def send_webhook_message(
     title: str = Form(default=""),
     content: str = Form(default=""),
     color: str = Form(default="#5865F2"),
+    avatar: UploadFile | None = File(default=None),
 ):
     redirect = require_login(request)
     if redirect:
@@ -727,6 +742,24 @@ async def send_webhook_message(
             f"/server/{guild_id}?webhook_error=color#webhook", status_code=303,
         )
 
+    avatar_data: str | None = None
+    if avatar is not None and avatar.filename:
+        avatar_bytes = await avatar.read(MAX_AVATAR_SIZE + 1)
+        content_type = (avatar.content_type or "").lower()
+        if (
+            content_type not in ALLOWED_AVATAR_TYPES
+            or not avatar_bytes
+            or len(avatar_bytes) > MAX_AVATAR_SIZE
+            or not valid_avatar_image(content_type, avatar_bytes)
+        ):
+            return RedirectResponse(
+                f"/server/{guild_id}?webhook_error=avatar#webhook", status_code=303,
+            )
+        avatar_data = (
+            f"data:{content_type};base64,"
+            f"{base64.b64encode(avatar_bytes).decode('ascii')}"
+        )
+
     resources = await get_bot_guild_resources(guild_id)
     allowed_channels = {
         channel["id"] for channel in resources["channels"] if channel["can_send"]
@@ -748,6 +781,7 @@ async def send_webhook_message(
             content=content,
             title=title,
             color=int(color_value, 16),
+            avatar=avatar_data,
         )
     except (httpx.HTTPError, RuntimeError, TypeError, ValueError, json.JSONDecodeError):
         return RedirectResponse(
