@@ -138,9 +138,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-youtube-preview]").forEach((preview) => {
     const source = document.getElementById(preview.dataset.source || "");
     const content = preview.querySelector("[data-preview-content]");
+    const embedContent = preview.querySelector("[data-preview-embed-content]");
     const warning = preview.querySelector("[data-preview-warning]");
     const roleField = preview.closest("form")?.querySelector('[name="mention_role_id"]');
-    if (!(source instanceof HTMLTextAreaElement) || !content || !warning) return;
+    if (!(source instanceof HTMLTextAreaElement) || !content || !embedContent || !warning) return;
 
     const renderYouTubePreview = () => {
       const isLive = preview.dataset.kind === "live";
@@ -154,14 +155,14 @@ document.addEventListener("DOMContentLoaded", () => {
         published: isLive ? "<t:1786273200:F>" : "<t:1786269600:F>",
         role,
       };
-      const containsRole = source.value.includes("{role}");
       let rendered = source.value.trim();
       Object.entries(replacements).forEach(([name, value]) => {
-        rendered = rendered.split(`{${name}}`).join(value);
+        rendered = rendered.split(`{${name}}`).join(name === "role" ? "" : value);
       });
-      if (role && !containsRole) rendered = `${role}\n\n${rendered}`.trim();
 
-      content.textContent = rendered || "Text oznámení se zobrazí zde.";
+      content.textContent = role;
+      content.hidden = !role;
+      embedContent.textContent = rendered || "Text oznámení se zobrazí zde.";
       const unknown = Array.from(new Set(rendered.match(/\{[^{}]+\}/g) || []));
       warning.hidden = unknown.length === 0;
       warning.textContent = unknown.length

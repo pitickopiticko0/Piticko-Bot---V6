@@ -7,7 +7,7 @@ from utils.database import db
 from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import YouTubeAPIError, youtube_api
-from utils.youtube_message import has_custom_template, render_youtube_message
+from utils.youtube_message import render_youtube_message
 
 
 def build_video_embed(
@@ -61,9 +61,17 @@ def build_video_embed(
 def build_video_media_embed(
     url: str,
     thumbnail: str | None,
+    description: str | None = None,
+    *,
+    live: bool = False,
 ) -> discord.Embed:
-    """Kompaktní obrázkový embed k vlastní textové šabloně."""
-    embed = discord.Embed(url=url, color=EMBED_COLOR)
+    """Vlastní textová šablona uvnitř Discord embedu."""
+    embed = discord.Embed(
+        title="🔴 Živý stream" if live else "📺 Nové video",
+        description=(description or "")[:4096] or None,
+        url=url,
+        color=discord.Color.red() if live else EMBED_COLOR,
+    )
     if thumbnail:
         embed.set_image(url=thumbnail)
     embed.set_footer(text=EMBED_FOOTER)
@@ -670,8 +678,24 @@ class YouTube(commands.GroupCog, name="youtube"):
             published_at=latest.published_at,
             live=latest.live,
         )
-        if has_custom_template(sub["custom_message"]):
-            embed = build_video_media_embed(latest.url, latest.thumbnail)
+        if sub["custom_message"]:
+            content = mention
+            embed_description = render_youtube_message(
+                sub["custom_message"],
+                title=latest.title,
+                url=latest.url,
+                channel=sub["youtube_name"],
+                channel_url=sub["youtube_url"],
+                thumbnail=latest.thumbnail,
+                published=format_discord_time(latest.published_at),
+                role=None,
+            )
+            embed = build_video_media_embed(
+                latest.url,
+                latest.thumbnail,
+                embed_description,
+                live=latest.live,
+            )
 
         await discord_channel.send(
             content=content,
@@ -753,10 +777,22 @@ class YouTube(commands.GroupCog, name="youtube"):
                     thumbnail=latest.thumbnail,
                     published_at=latest.published_at,
                 )
-                if has_custom_template(sub["custom_message"]):
+                if sub["custom_message"]:
+                    content = mention
+                    embed_description = render_youtube_message(
+                        sub["custom_message"],
+                        title=latest.title,
+                        url=latest.url,
+                        channel=sub["youtube_name"],
+                        channel_url=sub["youtube_url"],
+                        thumbnail=latest.thumbnail,
+                        published=format_discord_time(latest.published_at),
+                        role=None,
+                    )
                     embed = build_video_media_embed(
                         latest.url,
                         latest.thumbnail,
+                        embed_description,
                     )
 
                 await discord_channel.send(
