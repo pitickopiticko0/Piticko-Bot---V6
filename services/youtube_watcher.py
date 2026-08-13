@@ -10,7 +10,7 @@ from utils.logger import logger
 from utils.time_utils import format_discord_time
 from utils.views import youtube_video_view
 from utils.youtube_api import youtube_api
-from utils.youtube_message import has_custom_template, render_youtube_message
+from utils.youtube_message import render_youtube_message
 from utils.service_health import mark_error, mark_success
 
 
@@ -180,11 +180,27 @@ class YouTubeWatcher:
         )
         if is_live_announcement:
             embed.title = "🔴 YouTube stream právě začal" if broadcast_status == "live" else "🗓️ Plánovaný YouTube stream"
-        if has_custom_template(message_template):
+        if message_template:
+            # Zmínka musí zůstat v obsahu zprávy, protože zmínky uvnitř
+            # embedu Discord neupozorní. Vlastní text ale patří do rámečku.
+            content = mention
+            embed_description = render_youtube_message(
+                message_template,
+                title=latest.title,
+                url=latest.url,
+                channel=sub["youtube_name"],
+                channel_url=sub["youtube_url"],
+                thumbnail=latest.thumbnail,
+                published=format_discord_time(latest.published_at),
+                role=None,
+            )
             embed = self._build_video_media_embed(
                 latest.url,
                 latest.thumbnail,
+                embed_description,
             )
+            if is_live_announcement:
+                embed.title = "🔴 YouTube stream právě začal" if broadcast_status == "live" else "🗓️ Plánovaný YouTube stream"
 
         await discord_channel.send(
             content=content,
@@ -255,8 +271,14 @@ class YouTubeWatcher:
         self,
         url: str,
         thumbnail: str | None,
+        description: str | None = None,
     ) -> discord.Embed:
-        embed = discord.Embed(url=url, color=EMBED_COLOR)
+        embed = discord.Embed(
+            title="📺 Nové video",
+            description=(description or "")[:4096] or None,
+            url=url,
+            color=EMBED_COLOR,
+        )
         if thumbnail:
             embed.set_image(url=thumbnail)
         embed.set_footer(text=EMBED_FOOTER)
