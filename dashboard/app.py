@@ -718,13 +718,9 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_forums": discord_resources["forums"],
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
-            "can_use_webhooks": bool(
-                discord_resources["available"]
-                and any(
-                    channel.get("can_send")
-                    for channel in discord_resources["channels"]
-                )
-            ),
+            # I při dočasně nedostupném seznamu Discord kanálů lze
+            # zadat ID ručně. Cíl i oprávnění ověří POST přímo u Discordu.
+            "can_use_webhooks": True,
             "twitch_subscriptions": twitch_subscriptions,
             "kick_subscriptions": kick_subscriptions,
             "giveaways": giveaways,

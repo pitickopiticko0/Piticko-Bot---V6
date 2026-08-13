@@ -376,7 +376,7 @@
       <div class="tab-panel" id="webhook">
         <div class="section-heading">
           <div><p class="eyebrow">WEBHOOK EDITOR</p><h2>Odeslat vlastní zprávu</h2><p>Vytvoř obyčejnou zprávu nebo embed a před odesláním zkontroluj živý náhled.</p></div>
-          {% if can_use_webhooks %}<span class="badge on">Připraveno</span>{% else %}<span class="badge off">Chybí oprávnění</span>{% endif %}
+          {% if discord_resources_available %}<span class="badge on">Připraveno</span>{% else %}<span class="badge neutral">Ruční ID kanálu</span>{% endif %}
         </div>
         <form method="post" action="/server/{{ guild.id }}/webhook/send" enctype="multipart/form-data" class="settings-form" id="webhookEditorForm">
           <div class="form-grid">
@@ -412,7 +412,7 @@
               </div>
             </div>
           </div>
-          <div class="form-actions"><button class="button primary" type="submit" {% if not can_use_webhooks %}disabled{% endif %}>Odeslat webhook</button><button class="button subtle" type="reset">Vymazat změny</button></div>
+          <div class="form-actions"><button class="button primary" type="submit">Odeslat webhook</button><button class="button subtle" type="reset">Vymazat změny</button></div>
         </form>
       </div>
 
