@@ -118,6 +118,7 @@ VIEW_CHANNEL = 1 << 10
 SEND_MESSAGES = 1 << 11
 ADMINISTRATOR = 1 << 3
 MANAGE_ROLES = 1 << 28
+MANAGE_WEBHOOKS = 1 << 29
 DISCORD_RESOURCE_CACHE_TTL = 20.0
 DISCORD_RESOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 DISCORD_RESOURCE_LOCKS: dict[str, asyncio.Lock] = {}
@@ -291,6 +292,8 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
         "forums": [],
         "roles": [],
         "can_manage_roles": False,
+        "can_manage_webhooks": False,
+        "bot_user_id": None,
         "available": False,
     }
     cached = DISCORD_RESOURCE_CACHE.get(guild_id)
@@ -354,6 +357,9 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
                 base_permissions |= int(role.get("permissions", 0))
         can_manage_roles = bool(
             base_permissions & (ADMINISTRATOR | MANAGE_ROLES)
+        )
+        can_manage_webhooks = bool(
+            base_permissions & (ADMINISTRATOR | MANAGE_WEBHOOKS)
         )
         top_role_position = max(
             (
@@ -422,6 +428,8 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
             "forums": forums,
             "roles": roles,
             "can_manage_roles": can_manage_roles,
+            "can_manage_webhooks": can_manage_webhooks,
+            "bot_user_id": str(member.get("user", {}).get("id") or ""),
             "available": True,
         }
         DISCORD_RESOURCE_CACHE[guild_id] = (time.monotonic(), result)
@@ -440,6 +448,65 @@ async def set_bot_guild_avatar(guild_id: str, image: str | None) -> None:
         raise RuntimeError(
             f"Discord odmítl změnu avataru (HTTP {response.status_code})."
         )
+
+
+async def send_dashboard_webhook(
+    guild_id: str,
+    channel_id: str,
+    *,
+    username: str,
+    content: str,
+    title: str,
+    color: int,
+) -> None:
+    headers = bot_authorization()
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        hooks_response = await client.get(
+            f"{DISCORD_API}/channels/{channel_id}/webhooks", headers=headers,
+        )
+        if hooks_response.status_code != 200:
+            raise RuntimeError(f"Discord webhooky odmítl (HTTP {hooks_response.status_code}).")
+
+        bot_id = (await get_bot_guild_resources(guild_id)).get("bot_user_id")
+        webhook = next(
+            (
+                hook for hook in hooks_response.json()
+                if str(hook.get("user", {}).get("id")) == str(bot_id)
+                and hook.get("name") == "Piticko Bot Dashboard"
+                and hook.get("token")
+            ),
+            None,
+        )
+        if webhook is None:
+            create_response = await client.post(
+                f"{DISCORD_API}/channels/{channel_id}/webhooks",
+                headers=headers,
+                json={"name": "Piticko Bot Dashboard"},
+            )
+            if create_response.status_code not in (200, 201):
+                raise RuntimeError(f"Discord vytvoření webhooku odmítl (HTTP {create_response.status_code}).")
+            webhook = create_response.json()
+
+        payload: dict[str, Any] = {
+            "username": username,
+            "allowed_mentions": {"parse": []},
+        }
+        if title:
+            payload["embeds"] = [{
+                "title": title,
+                "description": content,
+                "color": color,
+                "footer": {"text": "Piticko Bot • Vše, co tvůj server potřebuje"},
+            }]
+        else:
+            payload["content"] = content
+
+        send_response = await client.post(
+            f"{DISCORD_API}/webhooks/{webhook['id']}/{webhook['token']}",
+            json=payload,
+        )
+        if send_response.status_code not in (200, 204):
+            raise RuntimeError(f"Discord odeslání odmítl (HTTP {send_response.status_code}).")
 
 
 @app.on_event("startup")
@@ -611,6 +678,10 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_forums": discord_resources["forums"],
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
+            "can_use_webhooks": bool(
+                guild.get("can_manage_webhooks")
+                and discord_resources["can_manage_webhooks"]
+            ),
             "twitch_subscriptions": twitch_subscriptions,
             "kick_subscriptions": kick_subscriptions,
             "giveaways": giveaways,
@@ -619,6 +690,72 @@ async def server_dashboard(request: Request, guild_id: str):
             "pc_advice_requests": pc_advice_requests,
             "abi_rank_requests": abi_rank_requests,
         },
+    )
+
+
+@app.post("/server/{guild_id}/webhook/send")
+async def send_webhook_message(
+    request: Request,
+    guild_id: str,
+    channel_id: str = Form(default=""),
+    username: str = Form(default="Piticko Webhook"),
+    title: str = Form(default=""),
+    content: str = Form(default=""),
+    color: str = Form(default="#5865F2"),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    guild = get_accessible_guild(request, guild_id)
+    if not guild.get("can_manage_webhooks"):
+        return RedirectResponse(
+            f"/server/{guild_id}?webhook_error=permission#webhook", status_code=303,
+        )
+
+    channel_id = channel_id.strip()
+    username = username.strip()[:80]
+    title = title.strip()[:256]
+    content = content.strip()
+    color_value = color.strip().removeprefix("#")
+    if not channel_id.isdigit() or not username or not content or len(content) > 2000:
+        return RedirectResponse(
+            f"/server/{guild_id}?webhook_error=invalid#webhook", status_code=303,
+        )
+    if not re.fullmatch(r"[0-9A-Fa-f]{6}", color_value):
+        return RedirectResponse(
+            f"/server/{guild_id}?webhook_error=color#webhook", status_code=303,
+        )
+
+    resources = await get_bot_guild_resources(guild_id)
+    allowed_channels = {
+        channel["id"] for channel in resources["channels"] if channel["can_send"]
+    }
+    if (
+        not resources["available"]
+        or not resources["can_manage_webhooks"]
+        or channel_id not in allowed_channels
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?webhook_error=permission#webhook", status_code=303,
+        )
+
+    try:
+        await send_dashboard_webhook(
+            guild_id,
+            channel_id,
+            username=username,
+            content=content,
+            title=title,
+            color=int(color_value, 16),
+        )
+    except (httpx.HTTPError, RuntimeError, TypeError, ValueError, json.JSONDecodeError):
+        return RedirectResponse(
+            f"/server/{guild_id}?webhook_error=discord#webhook", status_code=303,
+        )
+
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=webhook#webhook", status_code=303,
     )
 
 

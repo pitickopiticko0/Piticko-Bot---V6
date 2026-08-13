@@ -30,8 +30,26 @@
         <span>Profilová fotka bota pro tento server byla změněna.</span>
       {% elif request.query_params.get('saved') == 'avatar-reset' %}
         <span>Bot na tomto serveru znovu používá globální profilovou fotku.</span>
+      {% elif request.query_params.get('saved') == 'webhook' %}
+        <span>Webhook zpráva byla úspěšně odeslána.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
+      {% endif %}
+      <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
+    </div>
+  {% endif %}
+
+  {% if request.query_params.get('webhook_error') %}
+    <div class="toast toast-error" role="alert" aria-live="assertive">
+      <strong>Webhook zprávu se nepodařilo odeslat</strong>
+      {% if request.query_params.get('webhook_error') == 'permission' %}
+        <span>Ty i bot potřebujete oprávnění Spravovat webhooky. Po změně oprávnění se odhlas a znovu přihlas.</span>
+      {% elif request.query_params.get('webhook_error') == 'color' %}
+        <span>Barva musí mít formát #RRGGBB.</span>
+      {% elif request.query_params.get('webhook_error') == 'invalid' %}
+        <span>Vyber kanál a vyplň název i text zprávy.</span>
+      {% else %}
+        <span>Discord odeslání odmítl nebo je dočasně nedostupný.</span>
       {% endif %}
       <button type="button" class="toast-close" aria-label="Zavřít oznámení">×</button>
     </div>
@@ -259,6 +277,7 @@
       <div class="module-nav-label">Server</div>
       <button class="tab active" type="button" data-tab="overview"><span>🏠</span>Přehled</button>
       <button class="tab" type="button" data-tab="appearance"><span>🖼️</span>Profil bota</button>
+      <button class="tab" type="button" data-tab="webhook"><span>📣</span>Webhook zpráva</button>
       <div class="module-nav-label">Moduly</div>
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
@@ -350,6 +369,47 @@
             <span class="module-link">Změnit profil →</span>
           </article>
         </div>
+      </div>
+
+      <div class="tab-panel" id="webhook">
+        <div class="section-heading">
+          <div><p class="eyebrow">WEBHOOK EDITOR</p><h2>Odeslat vlastní zprávu</h2><p>Vytvoř obyčejnou zprávu nebo embed a před odesláním zkontroluj živý náhled.</p></div>
+          {% if can_use_webhooks %}<span class="badge on">Připraveno</span>{% else %}<span class="badge off">Chybí oprávnění</span>{% endif %}
+        </div>
+        <form method="post" action="/server/{{ guild.id }}/webhook/send" class="settings-form" id="webhookEditorForm">
+          <div class="form-grid">
+            <label><span>Cílový Discord kanál</span>
+              {% if discord_resources_available %}
+                <select name="channel_id" required>
+                  <option value="">Vyber kanál</option>
+                  {% for channel in discord_channels %}<option value="{{ channel.id }}" {% if not channel.can_send %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}
+                </select>
+              {% else %}
+                <input name="channel_id" required inputmode="numeric" placeholder="Discord ID kanálu">
+              {% endif %}
+            </label>
+            <label><span>Název webhooku</span><input id="webhookUsername" name="username" value="Piticko Webhook" maxlength="80" required></label>
+            <label><span>Nadpis embedu</span><input id="webhookTitle" name="title" maxlength="256" placeholder="Nech prázdné pro obyčejnou zprávu"><small>Vyplněný nadpis zapne rámeček.</small></label>
+            <label><span>Barva embedu</span><div class="color-input"><input id="webhookColor" type="color" name="color" value="#5865F2"><code>#5865F2</code></div></label>
+          </div>
+          <label><span>Text zprávy</span><textarea id="webhookContent" name="content" rows="10" maxlength="2000" required placeholder="Napiš zprávu..."></textarea><small>Zmínky jsou bezpečnostně vypnuté.</small></label>
+          <div class="message-preview" id="webhookPreview">
+            <div class="message-preview-label"><strong>Živý náhled</strong><span>Nic se zatím neposílá</span></div>
+            <div class="discord-message-preview">
+              <div class="discord-bot-avatar">WH</div>
+              <div class="discord-message-body">
+                <div class="discord-message-author"><span id="webhookPreviewUsername">Piticko Webhook</span> <span>BOT</span><small>právě teď</small></div>
+                <div id="webhookPreviewPlain"></div>
+                <div class="discord-embed-preview" id="webhookPreviewEmbed" hidden>
+                  <strong id="webhookPreviewTitle"></strong>
+                  <div id="webhookPreviewContent"></div>
+                  <small>Piticko Bot · Vše, co tvůj server potřebuje</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions"><button class="button primary" type="submit" {% if not can_use_webhooks %}disabled{% endif %}>Odeslat webhook</button><button class="button subtle" type="reset">Vymazat změny</button></div>
+        </form>
       </div>
 
       <div class="tab-panel" id="appearance">
