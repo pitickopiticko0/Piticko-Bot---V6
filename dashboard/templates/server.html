@@ -43,7 +43,7 @@
     <div class="toast toast-error" role="alert" aria-live="assertive">
       <strong>Webhook zprávu se nepodařilo odeslat</strong>
       {% if request.query_params.get('webhook_error') == 'permission' %}
-        <span>Ty i bot potřebujete oprávnění Spravovat webhooky. Po změně oprávnění se odhlas a znovu přihlas.</span>
+        <span>Bot potřebuje v cílovém kanálu oprávnění Zobrazit kanál, Posílat zprávy a Spravovat webhooky.</span>
       {% elif request.query_params.get('webhook_error') == 'color' %}
         <span>Barva musí mít formát #RRGGBB.</span>
       {% elif request.query_params.get('webhook_error') == 'invalid' %}
