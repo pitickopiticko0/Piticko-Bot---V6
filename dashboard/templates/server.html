@@ -384,7 +384,7 @@
               {% if discord_resources_available %}
                 <select name="channel_id" required>
                   <option value="">Vyber kanál</option>
-                  {% for channel in discord_channels %}<option value="{{ channel.id }}" {% if not channel.can_send or not channel.can_manage_webhooks %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% elif not channel.can_manage_webhooks %} — chybí Spravovat webhooky{% endif %}</option>{% endfor %}
+                  {% for channel in discord_channels %}<option value="{{ channel.id }}" {% if not channel.can_send %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}
                 </select>
               {% else %}
                 <input name="channel_id" required inputmode="numeric" placeholder="Discord ID kanálu">

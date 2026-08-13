@@ -709,7 +709,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "can_use_webhooks": bool(
                 discord_resources["available"]
                 and any(
-                    channel.get("can_send") and channel.get("can_manage_webhooks")
+                    channel.get("can_send")
                     for channel in discord_resources["channels"]
                 )
             ),
@@ -776,7 +776,7 @@ async def send_webhook_message(
     allowed_channels = {
         channel["id"]
         for channel in resources["channels"]
-        if channel["can_send"] and channel.get("can_manage_webhooks")
+        if channel["can_send"]
     }
     if (
         not resources["available"]
