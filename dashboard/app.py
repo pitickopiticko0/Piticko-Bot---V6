@@ -707,8 +707,6 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_roles": discord_resources["roles"],
             "discord_resources_available": discord_resources["available"],
             "can_use_webhooks": bool(
-                guild.get("can_manage_webhooks")
-                and
                 discord_resources["available"]
                 and any(
                     channel.get("can_send") and channel.get("can_manage_webhooks")
@@ -742,10 +740,6 @@ async def send_webhook_message(
         return redirect
 
     guild = get_accessible_guild(request, guild_id)
-    if not guild.get("can_manage_webhooks"):
-        return RedirectResponse(
-            f"/server/{guild_id}?webhook_error=permission#webhook", status_code=303,
-        )
     channel_id = channel_id.strip()
     username = username.strip()[:80]
     title = title.strip()[:256]
