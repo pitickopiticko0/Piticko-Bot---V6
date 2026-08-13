@@ -188,6 +188,7 @@ async def auth_callback(
         is_owner = bool(guild.get("owner", False))
         has_manage_guild = bool(permissions & 0x20)
         has_administrator = bool(permissions & 0x8)
+        has_manage_webhooks = bool(permissions & (1 << 29))
 
         if is_owner or has_manage_guild or has_administrator:
             # Do cookie session ukládáme jen nezbytná data.
@@ -195,6 +196,7 @@ async def auth_callback(
                 "id": str(guild["id"]),
                 "name": guild.get("name") or "Discord Server",
                 "icon": guild.get("icon"),
+                "can_manage_webhooks": bool(is_owner or has_administrator or has_manage_webhooks),
             }
             manageable_guilds.append(compact_guild)
 

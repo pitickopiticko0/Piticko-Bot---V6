@@ -175,6 +175,41 @@ document.addEventListener("DOMContentLoaded", () => {
     renderYouTubePreview();
   });
 
+  const webhookUsername = document.getElementById("webhookUsername");
+  const webhookTitle = document.getElementById("webhookTitle");
+  const webhookContent = document.getElementById("webhookContent");
+  const webhookColor = document.getElementById("webhookColor");
+  const webhookPreviewUsername = document.getElementById("webhookPreviewUsername");
+  const webhookPreviewPlain = document.getElementById("webhookPreviewPlain");
+  const webhookPreviewEmbed = document.getElementById("webhookPreviewEmbed");
+  const webhookPreviewTitle = document.getElementById("webhookPreviewTitle");
+  const webhookPreviewContent = document.getElementById("webhookPreviewContent");
+  if (
+    webhookUsername && webhookTitle && webhookContent && webhookColor &&
+    webhookPreviewUsername && webhookPreviewPlain && webhookPreviewEmbed &&
+    webhookPreviewTitle && webhookPreviewContent
+  ) {
+    const renderWebhookPreview = () => {
+      const username = webhookUsername.value.trim() || "Piticko Webhook";
+      const title = webhookTitle.value.trim();
+      const content = webhookContent.value || "Text zprávy se zobrazí zde.";
+      webhookPreviewUsername.textContent = username;
+      webhookPreviewPlain.textContent = title ? "" : content;
+      webhookPreviewPlain.hidden = Boolean(title);
+      webhookPreviewEmbed.hidden = !title;
+      webhookPreviewTitle.textContent = title;
+      webhookPreviewContent.textContent = content;
+      webhookPreviewEmbed.style.borderColor = webhookColor.value;
+    };
+    [webhookUsername, webhookTitle, webhookContent, webhookColor].forEach((field) => {
+      field.addEventListener("input", renderWebhookPreview);
+    });
+    document.getElementById("webhookEditorForm")?.addEventListener("reset", () => {
+      window.setTimeout(renderWebhookPreview, 0);
+    });
+    renderWebhookPreview();
+  }
+
   const avatarInput = document.getElementById("botAvatarInput");
   const avatarPreview = document.getElementById("botAvatarPreview");
   if (avatarInput && avatarPreview) {
