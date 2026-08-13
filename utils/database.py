@@ -195,6 +195,9 @@ class Database:
     def close_pc_advice(self, channel_id: int) -> None:
         pc_advice_db.set_closed(self, channel_id)
 
+    def mark_pc_advice_reminded(self, channel_id: int, message_id: int) -> None:
+        pc_advice_db.mark_reminded(self, channel_id, message_id)
+
     def get_recent_pc_advice(self, guild_id: int, limit: int = 20):
         return pc_advice_db.get_recent(self, guild_id, limit)
 

@@ -107,6 +107,8 @@ POSTGRES_TABLES = (
         category_id BIGINT NOT NULL, advisor_role_id BIGINT NOT NULL,
         log_channel_id BIGINT, mode TEXT NOT NULL DEFAULT 'private',
         forum_channel_id BIGINT, enabled INTEGER NOT NULL DEFAULT 1,
+        reminders_enabled INTEGER NOT NULL DEFAULT 0,
+        reminder_days INTEGER NOT NULL DEFAULT 3,
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS pc_advice_requests (
@@ -114,7 +116,8 @@ POSTGRES_TABLES = (
         channel_id BIGINT UNIQUE NOT NULL, user_id BIGINT NOT NULL,
         request_type TEXT NOT NULL, answers TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'open', claimed_by BIGINT,
-        created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT
+        created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT,
+        last_reminded_message_id BIGINT
     )""",
     """CREATE TABLE IF NOT EXISTS abi_rank_settings (
         guild_id BIGINT PRIMARY KEY, review_channel_id BIGINT NOT NULL,
@@ -255,6 +258,8 @@ SQLITE_TABLES = (
         category_id INTEGER NOT NULL, advisor_role_id INTEGER NOT NULL,
         log_channel_id INTEGER, mode TEXT NOT NULL DEFAULT 'private',
         forum_channel_id INTEGER, enabled INTEGER NOT NULL DEFAULT 1,
+        reminders_enabled INTEGER NOT NULL DEFAULT 0,
+        reminder_days INTEGER NOT NULL DEFAULT 3,
         updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS pc_advice_requests (
@@ -262,7 +267,8 @@ SQLITE_TABLES = (
         channel_id INTEGER UNIQUE NOT NULL, user_id INTEGER NOT NULL,
         request_type TEXT NOT NULL, answers TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'open', claimed_by INTEGER,
-        created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT
+        created_at TEXT NOT NULL, resolved_at TEXT, closed_at TEXT,
+        last_reminded_message_id INTEGER
     )""",
     """CREATE TABLE IF NOT EXISTS abi_rank_settings (
         guild_id INTEGER PRIMARY KEY, review_channel_id INTEGER NOT NULL,
@@ -311,6 +317,9 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS live_custom_message TEXT NOT NULL DEFAULT '🔴 {channel} právě vysílá: {title}\n{url}'",
     "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'private'",
     "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS forum_channel_id BIGINT",
+    "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS reminders_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE pc_advice_settings ADD COLUMN IF NOT EXISTS reminder_days INTEGER NOT NULL DEFAULT 3",
+    "ALTER TABLE pc_advice_requests ADD COLUMN IF NOT EXISTS last_reminded_message_id BIGINT",
     "ALTER TABLE abi_rank_settings ADD COLUMN IF NOT EXISTS hero_role_id BIGINT",
     "ALTER TABLE antispam_settings ADD COLUMN IF NOT EXISTS ignored_channel_ids TEXT NOT NULL DEFAULT ''",
 )
@@ -332,6 +341,11 @@ SQLITE_MIGRATIONS = {
     "pc_advice_settings": {
         "mode": "ALTER TABLE pc_advice_settings ADD COLUMN mode TEXT NOT NULL DEFAULT 'private'",
         "forum_channel_id": "ALTER TABLE pc_advice_settings ADD COLUMN forum_channel_id INTEGER",
+        "reminders_enabled": "ALTER TABLE pc_advice_settings ADD COLUMN reminders_enabled INTEGER NOT NULL DEFAULT 0",
+        "reminder_days": "ALTER TABLE pc_advice_settings ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 3",
+    },
+    "pc_advice_requests": {
+        "last_reminded_message_id": "ALTER TABLE pc_advice_requests ADD COLUMN last_reminded_message_id INTEGER",
     },
     "abi_rank_settings": {
         "hero_role_id": "ALTER TABLE abi_rank_settings ADD COLUMN hero_role_id INTEGER",

@@ -5,7 +5,7 @@ from typing import Optional
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from config import EMBED_COLOR, EMBED_FOOTER
 from utils.database import db
@@ -203,6 +203,10 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
     async def cog_load(self) -> None:
         self.bot.add_view(AdvicePanel(self))
         self.bot.add_view(AdviceControls(self))
+        self.inactivity_reminders.start()
+
+    async def cog_unload(self) -> None:
+        self.inactivity_reminders.cancel()
 
     @staticmethod
     def get_settings(guild_id: int):
@@ -221,6 +225,62 @@ class PCAdvice(commands.GroupCog, group_name="pcporadna"):
     ) -> list[discord.ForumTag]:
         wanted = {name.casefold() for name in names}
         return [tag for tag in forum.available_tags if tag.name.casefold() in wanted][:5]
+
+    @tasks.loop(hours=6)
+    async def inactivity_reminders(self) -> None:
+        now = discord.utils.utcnow()
+        for guild in self.bot.guilds:
+            settings = self.get_settings(guild.id)
+            if (
+                settings is None
+                or not settings["enabled"]
+                or not settings["reminders_enabled"]
+            ):
+                continue
+
+            reminder_days = max(1, min(int(settings["reminder_days"] or 3), 30))
+            for request in db.get_active_pc_advice_for_guild(guild.id):
+                if request["status"] in {"resolved", "closed"}:
+                    continue
+
+                channel_id = int(request["channel_id"])
+                channel = guild.get_channel_or_thread(channel_id)
+                if channel is None:
+                    try:
+                        channel = await guild.fetch_channel(channel_id)
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        continue
+                if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+                    continue
+                if isinstance(channel, discord.Thread) and channel.locked:
+                    continue
+
+                last_message_id = channel.last_message_id or channel.id
+                if request["last_reminded_message_id"] == last_message_id:
+                    continue
+                last_activity = discord.utils.snowflake_time(last_message_id)
+                if (now - last_activity).total_seconds() < reminder_days * 86400:
+                    continue
+
+                try:
+                    reminder = await channel.send(
+                        f"⏰ <@{request['user_id']}>, tento požadavek je už "
+                        f"**{reminder_days} dny** bez aktivity. Napiš prosím, "
+                        "zda stále potřebuješ poradit, nebo požadavek uzavři.",
+                        allowed_mentions=discord.AllowedMentions(
+                            users=True, roles=False, everyone=False
+                        ),
+                    )
+                except discord.HTTPException:
+                    logger.exception(
+                        "Připomínku PC poradny nelze odeslat do %s.", channel_id
+                    )
+                    continue
+                db.mark_pc_advice_reminded(channel_id, reminder.id)
+
+    @inactivity_reminders.before_loop
+    async def before_inactivity_reminders(self) -> None:
+        await self.bot.wait_until_ready()
 
     async def update_forum_status(
         self, channel: discord.abc.GuildChannel | discord.Thread, status: str
