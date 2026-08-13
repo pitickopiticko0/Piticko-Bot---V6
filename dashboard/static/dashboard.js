@@ -179,6 +179,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const webhookTitle = document.getElementById("webhookTitle");
   const webhookContent = document.getElementById("webhookContent");
   const webhookColor = document.getElementById("webhookColor");
+  const webhookAvatar = document.getElementById("webhookAvatar");
+  const webhookAvatarPreview = document.getElementById("webhookAvatarPreview");
+  const webhookAvatarFallback = document.getElementById("webhookAvatarFallback");
   const webhookPreviewUsername = document.getElementById("webhookPreviewUsername");
   const webhookPreviewPlain = document.getElementById("webhookPreviewPlain");
   const webhookPreviewEmbed = document.getElementById("webhookPreviewEmbed");
@@ -208,6 +211,21 @@ document.addEventListener("DOMContentLoaded", () => {
       window.setTimeout(renderWebhookPreview, 0);
     });
     renderWebhookPreview();
+
+    let webhookAvatarUrl = null;
+    webhookAvatar?.addEventListener("change", () => {
+      const file = webhookAvatar.files?.[0];
+      if (webhookAvatarUrl) URL.revokeObjectURL(webhookAvatarUrl);
+      webhookAvatarUrl = file ? URL.createObjectURL(file) : null;
+      if (webhookAvatarPreview) {
+        webhookAvatarPreview.src = webhookAvatarUrl || "";
+        webhookAvatarPreview.hidden = !webhookAvatarUrl;
+      }
+      if (webhookAvatarFallback) webhookAvatarFallback.hidden = Boolean(webhookAvatarUrl);
+    });
+    window.addEventListener("pagehide", () => {
+      if (webhookAvatarUrl) URL.revokeObjectURL(webhookAvatarUrl);
+    });
   }
 
   const avatarInput = document.getElementById("botAvatarInput");
