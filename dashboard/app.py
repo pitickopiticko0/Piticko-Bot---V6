@@ -476,6 +476,17 @@ async def send_dashboard_webhook(
 ) -> None:
     headers = bot_authorization()
     async with httpx.AsyncClient(timeout=20.0) as client:
+        channel_response = await client.get(
+            f"{DISCORD_API}/channels/{channel_id}", headers=headers,
+        )
+        if channel_response.status_code != 200:
+            raise RuntimeError(
+                f"Discord kanál nenačetl (HTTP {channel_response.status_code})."
+            )
+        channel_data = channel_response.json()
+        if str(channel_data.get("guild_id")) != str(guild_id):
+            raise ValueError("Vybraný kanál nepatří ke spravovanému serveru.")
+
         hooks_response = await client.get(
             f"{DISCORD_API}/channels/{channel_id}/webhooks", headers=headers,
         )
@@ -770,20 +781,6 @@ async def send_webhook_message(
         avatar_data = (
             f"data:{content_type};base64,"
             f"{base64.b64encode(avatar_bytes).decode('ascii')}"
-        )
-
-    resources = await get_bot_guild_resources(guild_id)
-    allowed_channels = {
-        channel["id"]
-        for channel in resources["channels"]
-        if channel["can_send"]
-    }
-    if (
-        not resources["available"]
-        or channel_id not in allowed_channels
-    ):
-        return RedirectResponse(
-            f"/server/{guild_id}?webhook_error=permission#webhook", status_code=303,
         )
 
     try:
