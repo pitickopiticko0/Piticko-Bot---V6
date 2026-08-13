@@ -1128,6 +1128,8 @@ async def save_tickets(
     category_id: str = Form(default=""),
     support_role_id: str = Form(default=""),
     log_channel_id: str = Form(default=""),
+    reminders_enabled: str | None = Form(default=None),
+    reminder_days: str = Form(default="3"),
 ):
     redirect = require_login(request)
     if redirect:
@@ -1139,6 +1141,11 @@ async def save_tickets(
     selected_category_id = category_id.strip()
     selected_support_role_id = support_role_id.strip()
     selected_log_channel_id = log_channel_id.strip()
+    reminders_are_enabled = reminders_enabled == "on"
+    try:
+        selected_reminder_days = int(reminder_days)
+    except ValueError:
+        selected_reminder_days = 0
     saved_unverified = False
 
     required_ids = (panel_id, selected_category_id, selected_support_role_id)
@@ -1239,6 +1246,7 @@ async def save_pc_advice(
         selected_mode not in {"private", "forum", "choice"}
         or any(value and not value.isdigit() for value in all_ids)
         or required_missing
+        or not 1 <= selected_reminder_days <= 30
     ):
         return RedirectResponse(
             f"/server/{guild_id}?pc_advice_error=invalid#pc-advice",
@@ -1290,6 +1298,8 @@ async def save_pc_advice(
             "forum_channel_id": selected_forum_id,
             "advisor_role_id": selected_advisor_role_id,
             "log_channel_id": selected_log_channel_id,
+            "reminders_enabled": reminders_are_enabled,
+            "reminder_days": selected_reminder_days,
         },
     )
     query = "saved=pc-advice"

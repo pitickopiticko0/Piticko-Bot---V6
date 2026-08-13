@@ -22,14 +22,17 @@ def save_settings(
     forum_channel_id: Optional[int] = None,
     *,
     enabled: bool = True,
+    reminders_enabled: bool = False,
+    reminder_days: int = 3,
 ) -> None:
     excluded = "EXCLUDED" if database.using_postgres else "excluded"
     with database.connect() as conn:
         conn.execute(f"""
             INSERT INTO pc_advice_settings
                 (guild_id, panel_channel_id, category_id, advisor_role_id,
-                 log_channel_id, mode, forum_channel_id, enabled, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 log_channel_id, mode, forum_channel_id, enabled,
+                 reminders_enabled, reminder_days, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (guild_id) DO UPDATE SET
                 panel_channel_id = {excluded}.panel_channel_id,
                 category_id = {excluded}.category_id,
@@ -38,10 +41,13 @@ def save_settings(
                 mode = {excluded}.mode,
                 forum_channel_id = {excluded}.forum_channel_id,
                 enabled = {excluded}.enabled,
+                reminders_enabled = {excluded}.reminders_enabled,
+                reminder_days = {excluded}.reminder_days,
                 updated_at = {excluded}.updated_at
         """, (
             guild_id, panel_channel_id, category_id, advisor_role_id,
-            log_channel_id, mode, forum_channel_id, int(enabled), database.now(),
+            log_channel_id, mode, forum_channel_id, int(enabled),
+            int(reminders_enabled), reminder_days, database.now(),
         ))
         conn.commit()
 
@@ -138,6 +144,18 @@ def set_closed(database: Any, channel_id: int) -> None:
             UPDATE pc_advice_requests
             SET status = 'closed', closed_at = ? WHERE channel_id = ?
         """, (database.now(), channel_id))
+        conn.commit()
+
+
+def mark_reminded(database: Any, channel_id: int, message_id: int) -> None:
+    with database.connect() as conn:
+        conn.execute(
+            """
+            UPDATE pc_advice_requests
+            SET last_reminded_message_id = ? WHERE channel_id = ?
+            """,
+            (message_id, channel_id),
+        )
         conn.commit()
 
 

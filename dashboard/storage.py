@@ -75,6 +75,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "forum_channel_id": "",
         "advisor_role_id": "",
         "log_channel_id": "",
+        "reminders_enabled": False,
+        "reminder_days": 3,
     },
     "abi_rank": {
         "enabled": False,
@@ -223,6 +225,10 @@ class DashboardStorage:
                 "forum_channel_id": str(_value(pc_advice, "forum_channel_id", "")),
                 "advisor_role_id": str(_value(pc_advice, "advisor_role_id", "")),
                 "log_channel_id": str(_value(pc_advice, "log_channel_id", "")),
+                "reminders_enabled": bool(
+                    _value(pc_advice, "reminders_enabled", 0)
+                ),
+                "reminder_days": int(_value(pc_advice, "reminder_days", 3)),
             })
 
         abi_rank = db.get_abi_rank_settings(guild_id)
@@ -400,12 +406,17 @@ class DashboardStorage:
         log_channel_id = _discord_id(
             values.get("log_channel_id"), field="Log PC poradny",
         )
+        reminders_enabled = bool(values.get("reminders_enabled"))
+        reminder_days = int(values.get("reminder_days") or 3)
+        if not 1 <= reminder_days <= 30:
+            raise ValueError("Připomínka PC poradny musí být mezi 1 a 30 dny.")
         effective_category_id = category_id or forum_channel_id
         if panel_channel_id and effective_category_id and advisor_role_id:
             db.set_pc_advice_settings(
                 guild_id, panel_channel_id, effective_category_id, advisor_role_id,
                 log_channel_id, mode=mode, forum_channel_id=forum_channel_id,
-                enabled=enabled,
+                enabled=enabled, reminders_enabled=reminders_enabled,
+                reminder_days=reminder_days,
             )
         else:
             db.set_pc_advice_enabled(guild_id, False)
