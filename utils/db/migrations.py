@@ -147,6 +147,23 @@ POSTGRES_TABLES = (
         user_id BIGINT NOT NULL, joined_at TEXT NOT NULL,
         UNIQUE(giveaway_id, user_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS pc_build_challenges (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL,
+        message_id BIGINT, host_id BIGINT NOT NULL, budget INTEGER NOT NULL,
+        purpose TEXT NOT NULL, end_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_build_entries (
+        id BIGSERIAL PRIMARY KEY, challenge_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+        cpu TEXT NOT NULL, gpu TEXT NOT NULL, other_parts TEXT NOT NULL,
+        total_price INTEGER NOT NULL, reasoning TEXT NOT NULL, created_at TEXT NOT NULL,
+        UNIQUE(challenge_id, user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_build_votes (
+        challenge_id BIGINT NOT NULL, entry_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL, created_at TEXT NOT NULL,
+        PRIMARY KEY (challenge_id, user_id)
+    )""",
     """CREATE TABLE IF NOT EXISTS moderation_warnings (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_actions (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, duration_minutes INTEGER, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_notes (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)""",
@@ -298,6 +315,24 @@ SQLITE_TABLES = (
         id INTEGER PRIMARY KEY AUTOINCREMENT, giveaway_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL, joined_at TEXT NOT NULL,
         UNIQUE(giveaway_id, user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_build_challenges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL, message_id INTEGER, host_id INTEGER NOT NULL,
+        budget INTEGER NOT NULL, purpose TEXT NOT NULL, end_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_build_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, challenge_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL, cpu TEXT NOT NULL, gpu TEXT NOT NULL,
+        other_parts TEXT NOT NULL, total_price INTEGER NOT NULL,
+        reasoning TEXT NOT NULL, created_at TEXT NOT NULL,
+        UNIQUE(challenge_id, user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_build_votes (
+        challenge_id INTEGER NOT NULL, entry_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL, created_at TEXT NOT NULL,
+        PRIMARY KEY (challenge_id, user_id)
     )""",
     """CREATE TABLE IF NOT EXISTS moderation_warnings (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, duration_minutes INTEGER, created_at TEXT NOT NULL)""",

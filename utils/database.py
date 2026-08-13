@@ -15,6 +15,7 @@ from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
 from utils.db import pc_advice as pc_advice_db
+from utils.db import pc_build_challenge as pc_build_challenge_db
 from utils.db import tickets as tickets_db
 from utils.db import welcome as welcome_db
 from utils.db import youtube as youtube_db
@@ -200,6 +201,33 @@ class Database:
 
     def get_recent_pc_advice(self, guild_id: int, limit: int = 20):
         return pc_advice_db.get_recent(self, guild_id, limit)
+
+    def create_pc_build_challenge(self, *args, **kwargs) -> int:
+        return pc_build_challenge_db.create_challenge(self, *args, **kwargs)
+
+    def get_pc_build_challenge(self, challenge_id: int):
+        return pc_build_challenge_db.get_challenge(self, challenge_id)
+
+    def get_open_pc_build_challenges(self):
+        return pc_build_challenge_db.get_open_challenges(self)
+
+    def set_pc_build_challenge_message(self, challenge_id: int, message_id: int) -> None:
+        pc_build_challenge_db.set_message(self, challenge_id, message_id)
+
+    def set_pc_build_challenge_status(self, challenge_id: int, status: str) -> None:
+        pc_build_challenge_db.set_status(self, challenge_id, status)
+
+    def add_pc_build_entry(self, *args, **kwargs) -> bool:
+        return pc_build_challenge_db.add_entry(self, *args, **kwargs)
+
+    def get_pc_build_entries(self, challenge_id: int):
+        return pc_build_challenge_db.get_entries(self, challenge_id)
+
+    def vote_pc_build_entry(self, challenge_id: int, entry_id: int, user_id: int) -> None:
+        pc_build_challenge_db.vote(self, challenge_id, entry_id, user_id)
+
+    def get_pc_build_results(self, challenge_id: int):
+        return pc_build_challenge_db.results(self, challenge_id)
 
     def get_abi_rank_settings(self, guild_id: int):
         return abi_rank_db.get_settings(self, guild_id)
