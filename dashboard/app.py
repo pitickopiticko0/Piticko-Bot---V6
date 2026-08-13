@@ -189,12 +189,12 @@ def avatar_url(guild_id: str, member: dict[str, Any]) -> str:
     return f"{DISCORD_CDN}/embed/avatars/{default_index}.png"
 
 
-def bot_can_send_to_channel(
+def bot_channel_permissions(
     guild_id: str,
     member: dict[str, Any],
     roles: list[dict[str, Any]],
     channel: dict[str, Any],
-) -> bool:
+) -> int:
     role_permissions = {
         str(role.get("id")): int(role.get("permissions", 0))
         for role in roles
@@ -205,7 +205,7 @@ def bot_can_send_to_channel(
         permissions |= role_permissions.get(role_id, 0)
 
     if permissions & ADMINISTRATOR:
-        return True
+        return (1 << 53) - 1
 
     overwrites = channel.get("permission_overwrites") or []
 
@@ -245,6 +245,16 @@ def bot_can_send_to_channel(
     if member_overwrite:
         apply_overwrite(member_overwrite)
 
+    return permissions
+
+
+def bot_can_send_to_channel(
+    guild_id: str,
+    member: dict[str, Any],
+    roles: list[dict[str, Any]],
+    channel: dict[str, Any],
+) -> bool:
+    permissions = bot_channel_permissions(guild_id, member, roles, channel)
     required = VIEW_CHANNEL | SEND_MESSAGES
     return permissions & required == required
 
@@ -375,6 +385,10 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
                 "name": channel.get("name") or "bez-názvu",
                 "can_send": bot_can_send_to_channel(
                     guild_id, member, raw_roles, channel
+                ),
+                "can_manage_webhooks": bool(
+                    bot_channel_permissions(guild_id, member, raw_roles, channel)
+                    & MANAGE_WEBHOOKS
                 ),
             }
             for channel in raw_channels
@@ -694,7 +708,12 @@ async def server_dashboard(request: Request, guild_id: str):
             "discord_resources_available": discord_resources["available"],
             "can_use_webhooks": bool(
                 guild.get("can_manage_webhooks")
-                and discord_resources["can_manage_webhooks"]
+                and
+                discord_resources["available"]
+                and any(
+                    channel.get("can_send") and channel.get("can_manage_webhooks")
+                    for channel in discord_resources["channels"]
+                )
             ),
             "twitch_subscriptions": twitch_subscriptions,
             "kick_subscriptions": kick_subscriptions,
@@ -727,7 +746,6 @@ async def send_webhook_message(
         return RedirectResponse(
             f"/server/{guild_id}?webhook_error=permission#webhook", status_code=303,
         )
-
     channel_id = channel_id.strip()
     username = username.strip()[:80]
     title = title.strip()[:256]
@@ -762,11 +780,12 @@ async def send_webhook_message(
 
     resources = await get_bot_guild_resources(guild_id)
     allowed_channels = {
-        channel["id"] for channel in resources["channels"] if channel["can_send"]
+        channel["id"]
+        for channel in resources["channels"]
+        if channel["can_send"] and channel.get("can_manage_webhooks")
     }
     if (
         not resources["available"]
-        or not resources["can_manage_webhooks"]
         or channel_id not in allowed_channels
     ):
         return RedirectResponse(
