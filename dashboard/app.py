@@ -28,6 +28,7 @@ from utils.twitch_api import TwitchAPIError, twitch_api
 from utils.twitch_store import twitch_store
 from utils.service_health import get_all as get_service_health
 from utils.support import get_support_url
+from utils.logger import logger
 
 
 load_dotenv()
@@ -793,7 +794,15 @@ async def send_webhook_message(
             color=int(color_value, 16),
             avatar=avatar_data,
         )
-    except (httpx.HTTPError, RuntimeError, TypeError, ValueError, json.JSONDecodeError):
+    except (httpx.HTTPError, RuntimeError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        # Záměrně nelogujeme payload, token ani URL webhooku.
+        logger.error(
+            "Dashboard webhook selhal pro guild=%s channel=%s: %s: %s",
+            guild_id,
+            channel_id,
+            type(exc).__name__,
+            exc,
+        )
         return RedirectResponse(
             f"/server/{guild_id}?webhook_error=discord#webhook", status_code=303,
         )
