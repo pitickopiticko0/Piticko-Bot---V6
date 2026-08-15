@@ -1078,6 +1078,7 @@ async def save_youtube(
     enabled: str | None = Form(default=None),
     channel_id: str = Form(default=""),
     youtube_channel_id: str = Form(default=""),
+    youtube_channel_name: str = Form(default=""),
     custom_message: str = Form(default="📺 Nové video: {title}\\n{url}"),
     mention_role_id: str = Form(default=""),
     check_interval: int = Form(default=300),
@@ -1096,6 +1097,7 @@ async def save_youtube(
     selected_channel_id = channel_id.strip()
     selected_role_id = mention_role_id.strip()
     selected_youtube_id = youtube_channel_id.strip()
+    selected_youtube_name = youtube_channel_name.strip()
     saved_unverified = False
 
     if selected_channel_id and not selected_channel_id.isdigit():
@@ -1111,6 +1113,11 @@ async def save_youtube(
     if is_enabled and not re.fullmatch(r"UC[A-Za-z0-9_-]{22}", selected_youtube_id):
         return RedirectResponse(
             f"/server/{guild_id}?youtube_error=youtube#youtube",
+            status_code=303,
+        )
+    if len(selected_youtube_name) > 100:
+        return RedirectResponse(
+            f"/server/{guild_id}?youtube_error=name#youtube",
             status_code=303,
         )
     if is_enabled:
@@ -1145,6 +1152,7 @@ async def save_youtube(
             "enabled": is_enabled,
             "channel_id": selected_channel_id,
             "youtube_channel_id": selected_youtube_id,
+            "youtube_channel_name": selected_youtube_name,
             "custom_message": custom_message.strip(),
             "mention_role_id": selected_role_id,
             "check_interval": check_interval,
