@@ -29,15 +29,8 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-bot = commands.Bot(
-    command_prefix="!",
-    intents=intents,
-    help_command=None,
-)
-heartbeat = BotHeartbeat(bot)
 
-
-async def load_cogs() -> None:
+async def load_cogs(bot: commands.Bot) -> None:
     loaded = 0
 
     for file in sorted(os.listdir("cogs")):
@@ -56,60 +49,6 @@ async def load_cogs() -> None:
     logger.info("Celkem načteno cogů: %s", loaded)
 
 
-@bot.event
-async def setup_hook() -> None:
-    await load_cogs()
-
-    watcher = YouTubeWatcher(bot)
-    watcher.start()
-    heartbeat.start()
-
-    try:
-        if GUILD_ID:
-            guild = discord.Object(id=GUILD_ID)
-            bot.tree.copy_global_to(guild=guild)
-            synced = await bot.tree.sync(guild=guild)
-
-            logger.info(
-                "Synchronizováno %s slash příkazů pro server %s",
-                len(synced),
-                GUILD_ID,
-            )
-        else:
-            synced = await bot.tree.sync()
-
-            logger.info(
-                "Synchronizováno %s globálních slash příkazů",
-                len(synced),
-            )
-
-    except Exception:
-        logger.exception("Synchronizace slash příkazů selhala")
-
-
-@bot.event
-async def on_ready() -> None:
-    logger.info("----------------------------------------")
-    logger.info("Bot spuštěn jako %s", bot.user)
-    logger.info("ID bota: %s", bot.user.id if bot.user else "neznámé")
-    logger.info("Servery: %s", len(bot.guilds))
-    logger.info("Members intent: %s", bot.intents.members)
-    logger.info("Message content intent: %s", bot.intents.message_content)
-    logger.info("----------------------------------------")
-
-
-@bot.event
-async def on_member_join(member: discord.Member):
-    logger.info(
-        "✅ TEST JOIN -> %s (%s) se připojil na %s (%s)",
-        member.name,
-        member.id,
-        member.guild.name,
-        member.guild.id,
-    )
-
-
-@bot.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction,
     error: discord.app_commands.AppCommandError,
@@ -129,22 +68,14 @@ async def on_app_command_error(
 
     try:
         if interaction.response.is_done():
-            await interaction.followup.send(
-                message,
-                ephemeral=True,
-            )
+            await interaction.followup.send(message, ephemeral=True)
         else:
-            await interaction.response.send_message(
-                message,
-                ephemeral=True,
-            )
-
+            await interaction.response.send_message(message, ephemeral=True)
     except discord.NotFound:
         logger.warning(
             "Na Discord interakci %s už nebylo možné odpovědět.",
             interaction.id,
         )
-
     except discord.HTTPException as response_error:
         logger.warning(
             "Discord odmítl odpověď na interakci %s: %s",
@@ -153,28 +84,90 @@ async def on_app_command_error(
         )
 
 
+class PitickoBot(commands.Bot):
+    def __init__(self) -> None:
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            help_command=None,
+        )
+        self.youtube_watcher = YouTubeWatcher(self)
+        self.heartbeat = BotHeartbeat(self)
+        self.tree.error(on_app_command_error)
+
+    async def setup_hook(self) -> None:
+        await load_cogs(self)
+        self.youtube_watcher.start()
+        self.heartbeat.start()
+
+        try:
+            if GUILD_ID:
+                guild = discord.Object(id=GUILD_ID)
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                logger.info(
+                    "Synchronizováno %s slash příkazů pro server %s",
+                    len(synced),
+                    GUILD_ID,
+                )
+            else:
+                synced = await self.tree.sync()
+                logger.info(
+                    "Synchronizováno %s globálních slash příkazů",
+                    len(synced),
+                )
+        except Exception:
+            logger.exception("Synchronizace slash příkazů selhala")
+
+    async def on_ready(self) -> None:
+        logger.info("----------------------------------------")
+        logger.info("Bot spuštěn jako %s", self.user)
+        logger.info("ID bota: %s", self.user.id if self.user else "neznámé")
+        logger.info("Servery: %s", len(self.guilds))
+        logger.info("Members intent: %s", self.intents.members)
+        logger.info("Message content intent: %s", self.intents.message_content)
+        logger.info("----------------------------------------")
+
+    async def on_member_join(self, member: discord.Member) -> None:
+        logger.info(
+            "✅ TEST JOIN -> %s (%s) se připojil na %s (%s)",
+            member.name,
+            member.id,
+            member.guild.name,
+            member.guild.id,
+        )
+
+
 async def main() -> None:
-    async with bot:
-        retry_delay = STARTUP_RETRY_INITIAL_SECONDS
+    retry_delay = STARTUP_RETRY_INITIAL_SECONDS
 
-        while True:
-            try:
+    while True:
+        bot = PitickoBot()
+
+        try:
+            async with bot:
                 await bot.start(TOKEN)
-                return
-            except discord.HTTPException as error:
-                if error.status != 429:
-                    raise
+            return
+        except discord.HTTPException as error:
+            if error.status != 429:
+                raise
 
-                logger.warning(
-                    "Discord dočasně odmítl přihlášení bota (HTTP 429). "
-                    "Další pokus proběhne za %s sekund; server nerestartuj.",
-                    retry_delay,
-                )
+            logger.warning(
+                "Discord dočasně odmítl přihlášení bota (HTTP 429). "
+                "Další pokus proběhne za %s sekund; server nerestartuj.",
+                retry_delay,
+            )
+
+            try:
                 await asyncio.sleep(retry_delay)
-                retry_delay = min(
-                    retry_delay * 2,
-                    STARTUP_RETRY_MAX_SECONDS,
-                )
+            except asyncio.CancelledError:
+                logger.info("Čekání na další přihlášení bylo ukončeno.")
+                raise
+
+            retry_delay = min(
+                retry_delay * 2,
+                STARTUP_RETRY_MAX_SECONDS,
+            )
 
 
 if __name__ == "__main__":
