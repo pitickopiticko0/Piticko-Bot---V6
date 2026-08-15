@@ -31,6 +31,23 @@ def get_open_challenges(database: Any):
         ).fetchall()
 
 
+def get_recent_challenges(database: Any, guild_id: int, limit: int = 20):
+    safe_limit = max(1, min(int(limit), 100))
+    with database.connect() as conn:
+        return conn.execute(
+            """SELECT c.*,
+                (SELECT COUNT(*) FROM pc_build_entries e
+                 WHERE e.challenge_id = c.id) AS entry_count,
+                (SELECT COUNT(*) FROM pc_build_votes v
+                 WHERE v.challenge_id = c.id) AS vote_count
+            FROM pc_build_challenges c
+            WHERE c.guild_id = ?
+            ORDER BY c.id DESC
+            LIMIT ?""",
+            (guild_id, safe_limit),
+        ).fetchall()
+
+
 def set_message(database: Any, challenge_id: int, message_id: int) -> None:
     with database.connect() as conn:
         conn.execute("UPDATE pc_build_challenges SET message_id = ? WHERE id = ?", (message_id, challenge_id))

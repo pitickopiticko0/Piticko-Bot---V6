@@ -211,6 +211,9 @@ class Database:
     def get_open_pc_build_challenges(self):
         return pc_build_challenge_db.get_open_challenges(self)
 
+    def get_recent_pc_build_challenges(self, guild_id: int, limit: int = 20):
+        return pc_build_challenge_db.get_recent_challenges(self, guild_id, limit)
+
     def set_pc_build_challenge_message(self, challenge_id: int, message_id: int) -> None:
         pc_build_challenge_db.set_message(self, challenge_id, message_id)
 

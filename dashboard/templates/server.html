@@ -288,6 +288,7 @@
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
       <button class="tab" type="button" data-tab="tickets"><span>🎫</span>Tickety</button>
       <button class="tab" type="button" data-tab="pc-advice"><span>🖥️</span>PC poradna</button>
+      <button class="tab" type="button" data-tab="pc-challenge"><span>🏗️</span>PC výzva</button>
       <button class="tab" type="button" data-tab="abi-rank"><span>🎖️</span>ABI Rank</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
@@ -338,6 +339,12 @@
             <div class="module-card-top"><div class="module-icon">🖥️</div><span class="badge {{ 'on' if settings.pc_advice.enabled else 'off' }}">{{ 'Zapnuto' if settings.pc_advice.enabled else 'Vypnuto' }}</span></div>
             <h3>PC poradna</h3>
             <p>Strukturované požadavky na sestavu, upgrade a diagnostiku počítače.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="pc-challenge" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🏗️</div><span class="badge {{ 'on' if pc_build_challenges|selectattr('status', 'in', ['active', 'voting'])|list else 'off' }}">{{ 'Probíhá' if pc_build_challenges|selectattr('status', 'in', ['active', 'voting'])|list else 'Bez aktivní' }}</span></div>
+            <h3>PC výzva</h3>
+            <p>Soutěž o nejlepší počítačovou sestavu pro zadaný rozpočet a využití.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="abi-rank" tabindex="0" role="button">
@@ -841,6 +848,36 @@
             {% endfor %}
           </div>
         {% endif %}
+      </div>
+
+      <div class="tab-panel" id="pc-challenge">
+        <div class="section-heading"><div><p class="eyebrow">VÝZVA PC STAVITELŮ</p><h2>Přehled PC výzev</h2><p>Kontrola průběhu, odevzdaných sestav a hlasů na tomto serveru.</p></div><span class="badge {{ 'on' if pc_build_challenges|selectattr('status', 'in', ['active', 'voting'])|list else 'off' }}">{{ 'Probíhá' if pc_build_challenges|selectattr('status', 'in', ['active', 'voting'])|list else 'Bez aktivní' }}</span></div>
+        {% if pc_build_challenges %}
+          <div class="settings-form">
+            {% for challenge in pc_build_challenges %}
+              <div class="toggle-row">
+                <span>
+                  <strong>#{{ challenge.id }} · {{ challenge.purpose }}</strong>
+                  <small>
+                    Stav:
+                    {% if challenge.status == 'active' %}přijímání sestav
+                    {% elif challenge.status == 'voting' %}hlasování
+                    {% elif challenge.status == 'ended' %}ukončeno
+                    {% elif challenge.status == 'cancelled' %}zrušeno
+                    {% else %}{{ challenge.status }}{% endif %}
+                    · rozpočet: {{ "{:,}".format(challenge.budget)|replace(',', ' ') }} Kč
+                    · sestavy: {{ challenge.entry_count }} · hlasy: {{ challenge.vote_count }}
+                    · kanál: &lt;#{{ challenge.channel_id }}&gt;<br>
+                    Konec přihlašování: {{ challenge.end_at }}
+                  </small>
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state"><h3>Zatím žádná PC výzva</h3><p>Vytvoř ji na Discordu příkazem <code>/pcvyzva vytvorit</code>.</p></div>
+        {% endif %}
+        <small>Vytvoření, uzavření, výsledky a zrušení se provádí na Discordu. Dashboard zde nic nemění, aby zůstaly zprávy a tlačítka správně synchronizované.</small>
       </div>
 
       <div class="tab-panel" id="giveaways">

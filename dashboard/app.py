@@ -703,6 +703,9 @@ async def server_dashboard(request: Request, guild_id: str):
     abi_rank_requests = await asyncio.to_thread(
         db.get_recent_abi_ranks, int(guild_id), 20
     )
+    pc_build_challenges = await asyncio.to_thread(
+        db.get_recent_pc_build_challenges, int(guild_id), 20
+    )
 
     return templates.TemplateResponse(
         request=request,
@@ -728,6 +731,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "moderation_events": moderation_events,
             "pc_advice_requests": pc_advice_requests,
             "abi_rank_requests": abi_rank_requests,
+            "pc_build_challenges": pc_build_challenges,
         },
     )
 
