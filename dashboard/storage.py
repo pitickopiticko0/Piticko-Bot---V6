@@ -30,6 +30,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "enabled": False,
         "channel_id": "",
         "youtube_channel_id": "",
+        "youtube_channel_name": "",
         "custom_message": "📺 Nové video: {title}\n{url}",
         "mention_role_id": "",
         "check_interval": 300,
@@ -159,6 +160,7 @@ class DashboardStorage:
                 "enabled": bool(_value(subscription, "enabled", 0)),
                 "channel_id": str(_value(subscription, "discord_channel_id", "")),
                 "youtube_channel_id": str(_value(subscription, "youtube_channel_id", "")),
+                "youtube_channel_name": str(_value(subscription, "youtube_name", "")),
                 "custom_message": str(_value(subscription, "custom_message", DEFAULT_SETTINGS["youtube"]["custom_message"])),
                 "mention_role_id": str(_value(subscription, "mention_role_id", "")),
                 "check_interval": int(_value(subscription, "check_interval", 300)),
@@ -464,6 +466,7 @@ class DashboardStorage:
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
         youtube_channel_id = str(values.get("youtube_channel_id") or "").strip()
+        youtube_channel_name = str(values.get("youtube_channel_name") or "").strip()
 
         if enabled and not youtube_channel_id:
             raise ValueError("YouTube Channel ID je povinné.")
@@ -492,12 +495,13 @@ class DashboardStorage:
             for row in db.get_guild_subscriptions(guild_id)
         }
 
+        db.add_youtube_channel(
+            youtube_channel_id,
+            youtube_channel_name or youtube_channel_id,
+            f"https://www.youtube.com/channel/{youtube_channel_id}",
+        )
+
         if youtube_channel_id not in existing_ids:
-            db.add_youtube_channel(
-                youtube_channel_id,
-                youtube_channel_id,
-                f"https://www.youtube.com/channel/{youtube_channel_id}",
-            )
             if discord_channel_id is None:
                 raise ValueError("Cílový Discord kanál je povinný pro nový odběr.")
             db.add_subscription(

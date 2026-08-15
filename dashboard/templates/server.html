@@ -118,6 +118,8 @@
         <span>Vyber cílový kanál, který bot vidí a ve kterém může posílat zprávy.</span>
       {% elif request.query_params.get('youtube_error') == 'role' %}
         <span>Vybraná role pro označení na serveru neexistuje.</span>
+      {% elif request.query_params.get('youtube_error') == 'name' %}
+        <span>Název YouTube kanálu může mít maximálně 100 znaků.</span>
       {% else %}
         <span>Zadej platné ID YouTube kanálu. Začíná na UC a má celkem 24 znaků.</span>
       {% endif %}
@@ -718,6 +720,7 @@
               {% endif %}
             </label>
             <label><span>YouTube Channel ID</span><input name="youtube_channel_id" value="{{ settings.youtube.youtube_channel_id }}" placeholder="UC..."></label>
+            <label><span>Název YouTube kanálu</span><input name="youtube_channel_name" value="{{ settings.youtube.youtube_channel_name }}" maxlength="100" placeholder="Např. Mupro"><small>Použije se v proměnné <code>{channel}</code>.</small></label>
             <label><span>Role pro označení</span>
               {% if discord_resources_available %}
                 <select name="mention_role_id">
