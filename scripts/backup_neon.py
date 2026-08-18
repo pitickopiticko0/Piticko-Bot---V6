@@ -2,19 +2,54 @@
 
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timedelta, timezone
+import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
+from urllib.request import Request, urlopen
 
 from dotenv import dotenv_values
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_BACKUP_DIR = PROJECT_DIR / "backups" / "database"
+ALERT_MESSAGE = (
+    "🚨 **Piticko Bot:** automatická záloha Neon databáze selhala.\n"
+    "Zkontroluj na VPS: `sudo journalctl -u piticko-backup.service -n 100 --no-pager`"
+)
+
+
+def _send_discord_alert(webhook_url: str | None, message: str) -> bool:
+    if not webhook_url:
+        return False
+    parsed = urlparse(webhook_url)
+    allowed_hosts = {"discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"}
+    if parsed.scheme != "https" or parsed.hostname not in allowed_hosts:
+        print("VAROVÁNÍ: BACKUP_ALERT_WEBHOOK_URL není platný Discord webhook.", file=sys.stderr)
+        return False
+    if not parsed.path.startswith("/api/webhooks/"):
+        print("VAROVÁNÍ: BACKUP_ALERT_WEBHOOK_URL není platný Discord webhook.", file=sys.stderr)
+        return False
+
+    payload = json.dumps({"content": message[:2000]}).encode("utf-8")
+    request = Request(
+        webhook_url,
+        data=payload,
+        headers={"Content-Type": "application/json", "User-Agent": "PitickoBot-Backup/1.0"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=10) as response:
+            return 200 <= response.status < 300
+    except (HTTPError, URLError, TimeoutError) as error:
+        print(f"VAROVÁNÍ: Discord upozornění se nepodařilo odeslat: {error}", file=sys.stderr)
+        return False
 
 
 def _postgres_environment(database_url: str) -> dict[str, str]:
@@ -71,15 +106,43 @@ def _remove_expired_backups(directory: Path, retention_days: int) -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Záloha Neon PostgreSQL databáze")
+    parser.add_argument(
+        "--test-alert",
+        action="store_true",
+        help="odešle pouze testovací Discord upozornění a nevytvoří zálohu",
+    )
+    args = parser.parse_args()
+
     config = dotenv_values(PROJECT_DIR / ".env")
+    alert_url = config.get("BACKUP_ALERT_WEBHOOK_URL") or os.getenv(
+        "BACKUP_ALERT_WEBHOOK_URL"
+    )
+    if args.test_alert:
+        if not alert_url:
+            print("CHYBA: BACKUP_ALERT_WEBHOOK_URL není nastavený.", file=sys.stderr)
+            return 1
+        try:
+            sent = _send_discord_alert(
+                str(alert_url),
+                "✅ **Piticko Bot:** test upozornění zálohovací služby proběhl úspěšně.",
+            )
+        except RuntimeError as error:
+            print(f"CHYBA: {error}", file=sys.stderr)
+            return 1
+        print("Testovací upozornění bylo odesláno." if sent else "Test selhal.")
+        return 0 if sent else 1
+
     database_url = config.get("DATABASE_URL") or os.getenv("DATABASE_URL")
     if not database_url:
         print("CHYBA: DATABASE_URL není nastavená.", file=sys.stderr)
+        _send_discord_alert(str(alert_url) if alert_url else None, ALERT_MESSAGE)
         return 1
 
     pg_dump = shutil.which("pg_dump")
     if not pg_dump:
         print("CHYBA: pg_dump není nainstalovaný.", file=sys.stderr)
+        _send_discord_alert(str(alert_url) if alert_url else None, ALERT_MESSAGE)
         return 1
 
     retention_days = _positive_days(
@@ -121,6 +184,10 @@ def main() -> int:
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
         temporary.unlink(missing_ok=True)
         print(f"CHYBA: záloha databáze selhala: {error}", file=sys.stderr)
+        try:
+            _send_discord_alert(str(alert_url) if alert_url else None, ALERT_MESSAGE)
+        except RuntimeError as alert_error:
+            print(f"VAROVÁNÍ: {alert_error}", file=sys.stderr)
         return 1
 
     size_mb = output.stat().st_size / 1024 / 1024
