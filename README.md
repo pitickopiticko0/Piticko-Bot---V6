@@ -124,6 +124,15 @@ Volitelně lze v `.env` změnit uchování nebo cílovou složku:
 ```env
 DATABASE_BACKUP_RETENTION_DAYS=14
 DATABASE_BACKUP_DIR=/home/debian/piticko-bot/backups/database
+BACKUP_ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/ID/TAJNY_TOKEN
+```
+
+`BACKUP_ALERT_WEBHOOK_URL` je volitelný Discord webhook. Skript na něj odešle
+zprávu pouze při selhání zálohy. URL je tajná a nesmí se commitnout ani zveřejnit.
+Po nastavení lze upozornění bezpečně ověřit bez poškození zálohy:
+
+```bash
+python scripts/backup_neon.py --test-alert
 ```
 
 ## Použití
