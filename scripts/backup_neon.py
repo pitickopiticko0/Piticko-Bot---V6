@@ -8,12 +8,45 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from urllib.parse import parse_qs, unquote, urlparse
 
 from dotenv import dotenv_values
 
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_BACKUP_DIR = PROJECT_DIR / "backups" / "database"
+
+
+def _postgres_environment(database_url: str) -> dict[str, str]:
+    """Převede PostgreSQL URL na libpq proměnné bez hesla v argumentech procesu."""
+    parsed = urlparse(database_url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise RuntimeError("DATABASE_URL není platná PostgreSQL URL.")
+    if not parsed.hostname or not parsed.username or parsed.password is None:
+        raise RuntimeError("DATABASE_URL neobsahuje úplné přihlašovací údaje.")
+
+    database_name = unquote(parsed.path.lstrip("/"))
+    if not database_name:
+        raise RuntimeError("DATABASE_URL neobsahuje název databáze.")
+
+    values = {
+        "PGHOST": parsed.hostname,
+        "PGPORT": str(parsed.port or 5432),
+        "PGUSER": unquote(parsed.username),
+        "PGPASSWORD": unquote(parsed.password),
+        "PGDATABASE": database_name,
+    }
+    query = parse_qs(parsed.query)
+    query_environment = {
+        "sslmode": "PGSSLMODE",
+        "channel_binding": "PGCHANNELBINDING",
+        "options": "PGOPTIONS",
+        "application_name": "PGAPPNAME",
+    }
+    for query_name, environment_name in query_environment.items():
+        if query.get(query_name):
+            values[environment_name] = query[query_name][-1]
+    return values
 
 
 def _positive_days(raw_value: str | None) -> int:
@@ -62,11 +95,9 @@ def main() -> int:
     output = backup_dir / f"piticko-db-{timestamp}.dump"
     temporary = output.with_suffix(".dump.tmp")
 
-    environment = os.environ.copy()
-    # Připojovací řetězec předáváme pg_dump přes prostředí, ne přes argumenty procesu.
-    environment["PGDATABASE"] = str(database_url)
-
     try:
+        environment = os.environ.copy()
+        environment.update(_postgres_environment(str(database_url)))
         subprocess.run(
             [
                 pg_dump,
