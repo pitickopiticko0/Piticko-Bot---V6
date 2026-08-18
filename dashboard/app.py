@@ -573,6 +573,16 @@ def summarize_service_health(rows: list[Any]) -> tuple[dict[str, Any], list[dict
         "uptime_seconds": 0,
         "guild_count": None,
         "user": None,
+        "version": None,
+        "revision": None,
+        "cpu_percent": None,
+        "memory_percent": None,
+        "memory_used_mb": None,
+        "memory_total_mb": None,
+        "process_memory_mb": None,
+        "disk_percent": None,
+        "disk_free_gb": None,
+        "disk_total_gb": None,
     }
     watcher_services = []
     for service in services:
@@ -596,6 +606,19 @@ def summarize_service_health(rows: list[Any]) -> tuple[dict[str, Any], list[dict
             bot_health["uptime_seconds"] = max(0, int(details.get("uptime_seconds", 0)))
             bot_health["guild_count"] = details.get("guild_count")
             bot_health["user"] = details.get("user")
+            for key in (
+                "version",
+                "revision",
+                "cpu_percent",
+                "memory_percent",
+                "memory_used_mb",
+                "memory_total_mb",
+                "process_memory_mb",
+                "disk_percent",
+                "disk_free_gb",
+                "disk_total_gb",
+            ):
+                bot_health[key] = details.get(key)
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
 
