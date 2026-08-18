@@ -21,6 +21,17 @@
   </section>
 
   <section class="module-content">
+    <div class="section-heading"><div><p class="eyebrow">VPS</p><h2>Využití serveru</h2><p>Údaje posílá bot společně s heartbeatem. Dashboard nemá přístup k příkazům ani tajným proměnným VPS.</p></div></div>
+    <div class="stats-grid">
+      <article class="stat-card"><span class="stat-icon">⚙️</span><div><small>CPU</small><strong>{{ bot_health.cpu_percent ~ ' %' if bot_health.cpu_percent is not none else '—' }}</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">🧠</span><div><small>RAM serveru</small><strong>{% if bot_health.memory_percent is not none %}{{ bot_health.memory_percent }} % · {{ bot_health.memory_used_mb }} / {{ bot_health.memory_total_mb }} MB{% else %}—{% endif %}</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">🤖</span><div><small>RAM bota</small><strong>{{ bot_health.process_memory_mb ~ ' MB' if bot_health.process_memory_mb is not none else '—' }}</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">💽</span><div><small>Disk</small><strong>{% if bot_health.disk_percent is not none %}{{ bot_health.disk_percent }} % · {{ bot_health.disk_free_gb }} GB volných{% else %}—{% endif %}</strong></div></article>
+    </div>
+    <p class="form-hint">Verze bota: {{ bot_health.version or '—' }}{% if bot_health.revision %} · Git revize: {{ bot_health.revision }}{% endif %}</p>
+  </section>
+
+  <section class="module-content">
     <div class="section-heading"><div><p class="eyebrow">KONFIGURACE</p><h2>Externí služby</h2><p>Zobrazuje se pouze přítomnost údajů, nikdy jejich hodnota.</p></div></div>
     <div class="module-grid">{% for name, configured in api_configuration.items() %}<article class="module-card"><div class="module-card-top"><div class="module-icon">🔑</div><span class="badge {{ 'on' if configured else 'off' }}">{{ 'Nastaveno' if configured else 'Chybí' }}</span></div><h3>{{ name }}</h3></article>{% endfor %}</div>
   </section>
