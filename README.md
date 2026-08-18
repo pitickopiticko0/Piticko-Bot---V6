@@ -125,6 +125,7 @@ Volitelně lze v `.env` změnit uchování nebo cílovou složku:
 DATABASE_BACKUP_RETENTION_DAYS=14
 DATABASE_BACKUP_DIR=/home/debian/piticko-bot/backups/database
 BACKUP_ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/ID/TAJNY_TOKEN
+BACKUP_RCLONE_REMOTE=gdrive:Piticko-Bot-Backups/database
 ```
 
 `BACKUP_ALERT_WEBHOOK_URL` je volitelný Discord webhook. Skript na něj odešle
@@ -134,6 +135,12 @@ Po nastavení lze upozornění bezpečně ověřit bez poškození zálohy:
 ```bash
 python scripts/backup_neon.py --test-alert
 ```
+
+`BACKUP_RCLONE_REMOTE` je volitelný rclone cíl pro druhou kopii zálohy. Skript
+po vytvoření lokální zálohy nahraje nový soubor na Google Drive. Na vzdáleném
+úložišti maže pouze soubory `piticko-db-*.dump` starší než nastavená doba
+uchování. Systemd služba běží jako uživatel `debian`, proto musí být remote
+uložený v jeho `~/.config/rclone/rclone.conf`.
 
 ## Použití
 
