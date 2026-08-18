@@ -189,6 +189,7 @@ cython_debug/
 
 # Database
 data/
+backups/
 *.db
 *.sqlite
 *.sqlite3

@@ -88,6 +88,44 @@ GET /health/bot
 Endpoint nezobrazuje tokeny, logy ani údaje o VPS. Je určený například pro
 UptimeRobot nebo jinou službu, která upozorní správce na nedostupnost.
 
+## Automatická záloha Neon databáze na VPS
+
+Skript `scripts/backup_neon.py` načte `DATABASE_URL` ze souboru `.env`, vytvoří
+komprimovanou PostgreSQL zálohu a standardně uchovává posledních 14 dní.
+Připojovací údaje nevypisuje do logu.
+
+Ruční kontrola:
+
+```bash
+cd ~/piticko-bot
+source .venv/bin/activate
+python scripts/backup_neon.py
+```
+
+Instalace každodenního timeru na VPS:
+
+```bash
+sudo cp deploy/systemd/piticko-backup.service /etc/systemd/system/
+sudo cp deploy/systemd/piticko-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now piticko-backup.timer
+```
+
+Kontrola timeru a poslední zálohy:
+
+```bash
+systemctl list-timers piticko-backup.timer --no-pager
+sudo systemctl status piticko-backup.service --no-pager
+ls -lh backups/database
+```
+
+Volitelně lze v `.env` změnit uchování nebo cílovou složku:
+
+```env
+DATABASE_BACKUP_RETENTION_DAYS=14
+DATABASE_BACKUP_DIR=/home/debian/piticko-bot/backups/database
+```
+
 ## Použití
 
 Přidání YouTube kanálu:
