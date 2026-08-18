@@ -105,6 +105,38 @@ def _remove_expired_backups(directory: Path, retention_days: int) -> int:
     return removed
 
 
+def _upload_offsite_backup(backup: Path, remote: str, retention_days: int) -> None:
+    """Nahraje zálohu přes rclone a odstraní jen staré zálohy tohoto projektu."""
+    remote = remote.strip().rstrip("/")
+    if not remote or remote.startswith("-") or ":" not in remote:
+        raise RuntimeError("BACKUP_RCLONE_REMOTE není platný rclone cíl.")
+
+    rclone = shutil.which("rclone")
+    if not rclone:
+        raise RuntimeError("rclone není nainstalovaný nebo není v PATH.")
+
+    subprocess.run(
+        [rclone, "copyto", str(backup), f"{remote}/{backup.name}"],
+        cwd=PROJECT_DIR,
+        check=True,
+        timeout=1800,
+    )
+    subprocess.run(
+        [
+            rclone,
+            "delete",
+            remote,
+            "--include",
+            "piticko-db-*.dump",
+            "--min-age",
+            f"{retention_days}d",
+        ],
+        cwd=PROJECT_DIR,
+        check=True,
+        timeout=1800,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Záloha Neon PostgreSQL databáze")
     parser.add_argument(
@@ -151,6 +183,9 @@ def main() -> int:
     )
     configured_dir = config.get("DATABASE_BACKUP_DIR") or os.getenv("DATABASE_BACKUP_DIR")
     backup_dir = Path(configured_dir).expanduser() if configured_dir else DEFAULT_BACKUP_DIR
+    rclone_remote = config.get("BACKUP_RCLONE_REMOTE") or os.getenv(
+        "BACKUP_RCLONE_REMOTE"
+    )
     backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     backup_dir.chmod(0o700)
 
@@ -181,6 +216,8 @@ def main() -> int:
         temporary.chmod(0o600)
         temporary.replace(output)
         removed = _remove_expired_backups(backup_dir, retention_days)
+        if rclone_remote:
+            _upload_offsite_backup(output, str(rclone_remote), retention_days)
     except (OSError, subprocess.SubprocessError, RuntimeError) as error:
         temporary.unlink(missing_ok=True)
         print(f"CHYBA: záloha databáze selhala: {error}", file=sys.stderr)
@@ -191,7 +228,11 @@ def main() -> int:
         return 1
 
     size_mb = output.stat().st_size / 1024 / 1024
-    print(f"Záloha vytvořena: {output.name} ({size_mb:.1f} MB), odstraněno starých: {removed}")
+    offsite = f", nahrána na {rclone_remote}" if rclone_remote else ""
+    print(
+        f"Záloha vytvořena: {output.name} ({size_mb:.1f} MB), "
+        f"odstraněno starých: {removed}{offsite}"
+    )
     return 0
 
 
