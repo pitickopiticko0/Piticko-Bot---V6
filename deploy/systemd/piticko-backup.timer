@@ -1,0 +1,12 @@
+[Unit]
+Description=Piticko Bot - kazdodenni zaloha databaze
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=5m
+Unit=piticko-backup.service
+
+[Install]
+WantedBy=timers.target
+
