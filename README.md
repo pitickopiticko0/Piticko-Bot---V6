@@ -74,6 +74,20 @@ GUILD_ID = 0
 
 příkazy budou globální, ale mohou se objevit později.
 
+## Monitoring dostupnosti bota
+
+Dashboard poskytuje minimalistický endpoint pro externí monitoring:
+
+```text
+GET /health/bot
+```
+
+- HTTP `200` znamená, že bot odeslal čerstvý heartbeat.
+- HTTP `503` znamená, že heartbeat chybí, je starší než 150 sekund nebo není dostupná databáze.
+
+Endpoint nezobrazuje tokeny, logy ani údaje o VPS. Je určený například pro
+UptimeRobot nebo jinou službu, která upozorní správce na nedostupnost.
+
 ## Použití
 
 Přidání YouTube kanálu:

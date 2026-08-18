@@ -625,6 +625,27 @@ def summarize_service_health(rows: list[Any]) -> tuple[dict[str, Any], list[dict
     return bot_health, watcher_services
 
 
+@app.get("/health/bot", response_class=JSONResponse)
+async def bot_healthcheck() -> JSONResponse:
+    """Veřejná minimalistická kontrola pro externí uptime monitoring."""
+    try:
+        rows = await asyncio.to_thread(get_service_health)
+    except Exception:
+        return JSONResponse(
+            {"status": "offline", "reason": "health_data_unavailable"},
+            status_code=503,
+        )
+
+    bot_health, _ = summarize_service_health(rows)
+    if not bot_health["online"]:
+        return JSONResponse(
+            {"status": "offline", "reason": "heartbeat_stale"},
+            status_code=503,
+        )
+
+    return JSONResponse({"status": "online"}, status_code=200)
+
+
 @app.get("/diagnostics", response_class=HTMLResponse)
 async def diagnostics(request: Request):
     redirect = require_login(request)
