@@ -927,7 +927,7 @@
           <article class="stat-card"><span class="stat-icon">🐑</span><div><small>Správných čísel celkem</small><strong>{{ sheep_game.total_valid_counts }}</strong></div></article>
         </div>
         <form method="post" action="/server/{{ guild.id }}/sheep-game" class="settings-form">
-          <label class="toggle-row"><span><strong>Zapnout počítání oveček</strong><small>Bot bude sledovat zprávy pouze ve vybraném kanálu.</small></span><input type="checkbox" name="enabled" {% if settings.sheep_game.enabled %}checked{% endif %}></label>
+          <label class="toggle-row"><span><strong>Zapnout počítání oveček</strong><small>Bot bude sledovat zprávy pouze ve vybraném kanálu.</small></span><input type="checkbox" name="enabled" {% if settings.sheep_game.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           <label><span>Kanál hry</span>
             {% if discord_resources_available %}
               <select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.sheep_game.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.sheep_game.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>
@@ -954,8 +954,8 @@
           <article class="stat-card"><span class="stat-icon">✅</span><div><small>Evidovaných nabídek</small><strong>{{ settings.game_deals.seen_count }}</strong></div></article>
         </div>
         <form method="post" action="/server/{{ guild.id }}/game-deals" class="settings-form">
-          <label class="toggle-row"><span><strong>Oznamovat hry zdarma</strong><small>Steam, Epic Games Store, GOG, itch.io a další PC platformy.</small></span><input type="checkbox" name="enabled_free" {% if settings.game_deals.enabled_free %}checked{% endif %}></label>
-          <label class="toggle-row"><span><strong>Oznamovat zlevněné hry</strong><small>Nabídky oficiálních digitálních obchodů sledovaných službou CheapShark.</small></span><input type="checkbox" name="enabled_deals" {% if settings.game_deals.enabled_deals %}checked{% endif %}></label>
+          <label class="toggle-row"><span><strong>Oznamovat hry zdarma</strong><small>Steam, Epic Games Store, GOG, itch.io a další PC platformy.</small></span><input type="checkbox" name="enabled_free" {% if settings.game_deals.enabled_free %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <label class="toggle-row"><span><strong>Oznamovat zlevněné hry</strong><small>Nabídky oficiálních digitálních obchodů sledovaných službou CheapShark.</small></span><input type="checkbox" name="enabled_deals" {% if settings.game_deals.enabled_deals %}checked{% endif %}><i aria-hidden="true"></i></label>
           <div class="form-grid">
             <label><span>Cílový kanál</span>
               {% if discord_resources_available %}
