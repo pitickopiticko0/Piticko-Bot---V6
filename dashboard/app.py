@@ -1703,6 +1703,70 @@ async def save_sheep_game(
     )
 
 
+@app.post("/server/{guild_id}/game-deals")
+async def save_game_deals(
+    request: Request,
+    guild_id: str,
+    enabled_free: str | None = Form(default=None),
+    enabled_deals: str | None = Form(default=None),
+    channel_id: str = Form(default=""),
+    mention_role_id: str = Form(default=""),
+    min_discount: str = Form(default="60"),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    free_enabled = enabled_free == "on"
+    deals_enabled = enabled_deals == "on"
+    selected_channel_id = channel_id.strip()
+    selected_role_id = mention_role_id.strip()
+    if (
+        (selected_channel_id and not selected_channel_id.isdigit())
+        or (selected_role_id and not selected_role_id.isdigit())
+        or ((free_enabled or deals_enabled) and not selected_channel_id)
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?game_deals_error=invalid#game-deals",
+            status_code=303,
+        )
+    try:
+        discount_value = int(min_discount)
+    except ValueError:
+        discount_value = 0
+    if not 10 <= discount_value <= 95:
+        return RedirectResponse(
+            f"/server/{guild_id}?game_deals_error=discount#game-deals",
+            status_code=303,
+        )
+    if free_enabled or deals_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if resources["available"]:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"]
+                if channel["can_send"]
+            }
+            if selected_channel_id not in allowed_channels:
+                return RedirectResponse(
+                    f"/server/{guild_id}?game_deals_error=permission#game-deals",
+                    status_code=303,
+                )
+    await storage.update_module(
+        guild_id,
+        "game_deals",
+        {
+            "enabled_free": free_enabled,
+            "enabled_deals": deals_enabled,
+            "channel_id": selected_channel_id,
+            "mention_role_id": selected_role_id,
+            "min_discount": discount_value,
+        },
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=game-deals#game-deals", status_code=303
+    )
+
+
 @app.post("/server/{guild_id}/general")
 async def save_general(
     request: Request,
