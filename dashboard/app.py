@@ -750,6 +750,7 @@ async def server_dashboard(request: Request, guild_id: str):
     pc_build_challenges = await asyncio.to_thread(
         db.get_recent_pc_build_challenges, int(guild_id), 20
     )
+    sheep_game = await storage.get_sheep_game(guild_id)
 
     return templates.TemplateResponse(
         request=request,
@@ -776,6 +777,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "pc_advice_requests": pc_advice_requests,
             "abi_rank_requests": abi_rank_requests,
             "pc_build_challenges": pc_build_challenges,
+            "sheep_game": sheep_game,
         },
     )
 
@@ -1656,6 +1658,48 @@ async def save_moderation(
     )
     return RedirectResponse(
         f"/server/{guild_id}?saved=moderation#moderation", status_code=303
+    )
+
+
+@app.post("/server/{guild_id}/sheep-game")
+async def save_sheep_game(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    channel_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    is_enabled = enabled == "on"
+    selected_channel_id = channel_id.strip()
+    if (selected_channel_id and not selected_channel_id.isdigit()) or (
+        is_enabled and not selected_channel_id
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?sheep_game_error=invalid#sheep-game",
+            status_code=303,
+        )
+    if is_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if resources["available"]:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"]
+                if channel["can_send"]
+            }
+            if selected_channel_id not in allowed_channels:
+                return RedirectResponse(
+                    f"/server/{guild_id}?sheep_game_error=permission#sheep-game",
+                    status_code=303,
+                )
+    await storage.update_module(
+        guild_id,
+        "sheep_game",
+        {"enabled": is_enabled, "channel_id": selected_channel_id},
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=sheep-game#sheep-game", status_code=303
     )
 
 

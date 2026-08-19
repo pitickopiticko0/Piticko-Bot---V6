@@ -92,6 +92,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "hero_role_id": "",
         "legend_role_id": "",
     },
+    "sheep_game": {
+        "enabled": False,
+        "channel_id": "",
+    },
     "moderation": {"auto_punishments": False},
 }
 
@@ -244,6 +248,13 @@ class DashboardStorage:
                 for key in settings["abi_rank"]
             })
 
+        sheep_game = db.get_sheep_game_settings(guild_id)
+        if sheep_game is not None:
+            settings["sheep_game"].update({
+                "enabled": bool(_value(sheep_game, "enabled", 0)),
+                "channel_id": str(_value(sheep_game, "channel_id", "")),
+            })
+
         with db.connect() as conn:
             moderation = conn.execute(
                 "SELECT auto_punishments FROM moderation_settings WHERE guild_id = ?",
@@ -267,6 +278,7 @@ class DashboardStorage:
             "tickets": self._save_tickets_sync,
             "pc_advice": self._save_pc_advice_sync,
             "abi_rank": self._save_abi_rank_sync,
+            "sheep_game": self._save_sheep_game_sync,
             "moderation": self._save_moderation_sync,
         }
         handler = handlers.get(module)
@@ -462,6 +474,34 @@ class DashboardStorage:
                     updated_at = {excluded}.updated_at
             """, (guild_id, enabled, db.now()))
             conn.commit()
+
+    def _save_sheep_game_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        channel_id = _discord_id(
+            values.get("channel_id"), field="Kanál počítání oveček", required=enabled
+        )
+        previous = db.get_sheep_game_settings(guild_id)
+        db.set_sheep_game_settings(guild_id, channel_id, enabled)
+        if (
+            previous is not None
+            and _value(previous, "channel_id") != channel_id
+        ):
+            db.reset_sheep_chain(guild_id)
+
+    async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:
+        return await asyncio.to_thread(self._get_sheep_game_sync, int(guild_id))
+
+    def _get_sheep_game_sync(self, guild_id: int) -> dict[str, Any]:
+        settings = db.get_sheep_game_settings(guild_id)
+        leaderboard = db.get_sheep_leaderboard(guild_id, 10)
+        return {
+            "current_count": int(_value(settings, "current_count", 0)),
+            "record_count": int(_value(settings, "record_count", 0)),
+            "total_valid_counts": int(_value(settings, "total_valid_counts", 0)),
+            "leaderboard": [
+                {key: row[key] for key in row.keys()} for row in leaderboard
+            ],
+        }
 
     def _save_youtube_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))

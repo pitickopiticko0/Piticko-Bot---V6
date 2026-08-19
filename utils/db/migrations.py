@@ -168,6 +168,21 @@ POSTGRES_TABLES = (
     """CREATE TABLE IF NOT EXISTS moderation_actions (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, duration_minutes INTEGER, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_notes (id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, moderator_id BIGINT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_settings (guild_id BIGINT PRIMARY KEY, auto_punishments INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS sheep_game_settings (
+        guild_id BIGINT PRIMARY KEY, channel_id BIGINT,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        current_count INTEGER NOT NULL DEFAULT 0,
+        record_count INTEGER NOT NULL DEFAULT 0,
+        last_user_id BIGINT, total_valid_counts BIGINT NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS sheep_game_players (
+        guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+        valid_counts BIGINT NOT NULL DEFAULT 0,
+        chains_broken INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, user_id)
+    )""",
 )
 
 
@@ -338,6 +353,21 @@ SQLITE_TABLES = (
     """CREATE TABLE IF NOT EXISTS moderation_actions (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, action TEXT NOT NULL, reason TEXT NOT NULL, duration_minutes INTEGER, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS moderation_settings (guild_id INTEGER PRIMARY KEY, auto_punishments INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS sheep_game_settings (
+        guild_id INTEGER PRIMARY KEY, channel_id INTEGER,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        current_count INTEGER NOT NULL DEFAULT 0,
+        record_count INTEGER NOT NULL DEFAULT 0,
+        last_user_id INTEGER, total_valid_counts INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS sheep_game_players (
+        guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+        valid_counts INTEGER NOT NULL DEFAULT 0,
+        chains_broken INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, user_id)
+    )""",
 )
 
 

@@ -32,6 +32,8 @@
         <span>Bot na tomto serveru znovu používá globální profilovou fotku.</span>
       {% elif request.query_params.get('saved') == 'webhook' %}
         <span>Webhook zpráva byla úspěšně odeslána.</span>
+      {% elif request.query_params.get('saved') == 'sheep-game' %}
+        <span>Nastavení počítání oveček bylo úspěšně uloženo.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
       {% endif %}
@@ -292,6 +294,7 @@
       <button class="tab" type="button" data-tab="pc-advice"><span>🖥️</span>PC poradna</button>
       <button class="tab" type="button" data-tab="pc-challenge"><span>🏗️</span>PC výzva</button>
       <button class="tab" type="button" data-tab="abi-rank"><span>🎖️</span>ABI Rank</button>
+      <button class="tab" type="button" data-tab="sheep-game"><span>🐑</span>Ovečky</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
       <button class="tab" type="button" data-tab="kick"><span>🟢</span>Kick</button>
@@ -353,6 +356,12 @@
             <div class="module-card-top"><div class="module-icon">🎖️</div><span class="badge {{ 'on' if settings.abi_rank.enabled else 'off' }}">{{ 'Zapnuto' if settings.abi_rank.enabled else 'Vypnuto' }}</span></div>
             <h3>ABI Rank</h3>
             <p>Ruční ověření Arena Breakout: Infinite ranku, role a serverový žebříček.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="sheep-game" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🐑</div><span class="badge {{ 'on' if settings.sheep_game.enabled else 'off' }}">{{ 'Zapnuto' if settings.sheep_game.enabled else 'Vypnuto' }}</span></div>
+            <h3>Počítání oveček</h3>
+            <p>Společný číselný řetězec, serverový rekord a žebříček počtářů.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="youtube" tabindex="0" role="button">
@@ -897,6 +906,32 @@
           <div class="empty-state"><h3>Zatím žádná giveaway</h3><p>Vytvoř ji na Discordu příkazem <code>/giveaway create</code>.</p></div>
         {% endif %}
         <small>Vytváření a ukončování zatím zůstává v Discordu, protože tyto akce musí provést běžící bot.</small>
+      </div>
+
+      <div class="tab-panel" id="sheep-game">
+        <div class="section-heading"><div><p class="eyebrow">KOMUNITNÍ HRA</p><h2>🐑 Počítání oveček</h2><p>Členové postupně píší 1, 2, 3… Jeden člen nesmí přidat dvě čísla za sebou.</p></div><span class="badge {{ 'on' if settings.sheep_game.enabled else 'off' }}">{{ 'Aktivní' if settings.sheep_game.enabled else 'Neaktivní' }}</span></div>
+        {% if request.query_params.get('sheep_game_error') == 'invalid' %}<div class="alert error">Vyber platný Discord kanál.</div>{% endif %}
+        {% if request.query_params.get('sheep_game_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže psát.</div>{% endif %}
+        <div class="stats-grid">
+          <article class="stat-card"><span class="stat-icon">🔢</span><div><small>Aktuální řetězec</small><strong>{{ sheep_game.current_count }}</strong></div></article>
+          <article class="stat-card"><span class="stat-icon">🏆</span><div><small>Serverový rekord</small><strong>{{ sheep_game.record_count }}</strong></div></article>
+          <article class="stat-card"><span class="stat-icon">🐑</span><div><small>Správných čísel celkem</small><strong>{{ sheep_game.total_valid_counts }}</strong></div></article>
+        </div>
+        <form method="post" action="/server/{{ guild.id }}/sheep-game" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout počítání oveček</strong><small>Bot bude sledovat zprávy pouze ve vybraném kanálu.</small></span><input type="checkbox" name="enabled" {% if settings.sheep_game.enabled %}checked{% endif %}></label>
+          <label><span>Kanál hry</span>
+            {% if discord_resources_available %}
+              <select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.sheep_game.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.sheep_game.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>
+            {% else %}
+              <input name="channel_id" value="{{ settings.sheep_game.channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">
+            {% endif %}
+          </label>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit počítání oveček</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+        <div class="settings-form"><h3>Nejlepší počtáři</h3>
+          {% if sheep_game.leaderboard %}{% for player in sheep_game.leaderboard %}<div class="toggle-row"><span><strong>{{ loop.index }}. Uživatel {{ player.user_id }}</strong><small>Správně: {{ player.valid_counts }} · přerušené řetězce: {{ player.chains_broken }}</small></span></div>{% endfor %}{% else %}<div class="empty-state"><p>Zatím nebyla správně započítána žádná ovečka.</p></div>{% endif %}
+        </div>
+        <small>Stejné nastavení lze provést příkazem <code>/ovecky nastavit</code>. Správci mohou řetězec vynulovat přes <code>/ovecky reset</code>. Pokud používáš AntiSpam, přidej herní kanál mezi ignorované kanály.</small>
       </div>
 
       <div class="tab-panel" id="makejpc">

@@ -75,6 +75,11 @@ class General(commands.Cog):
             value="Administrátorům ukáže oprávnění bota ve vybraném kanálu",
             inline=False,
         )
+        embed.add_field(
+            name="/ovecky stav · /ovecky zebricek",
+            value="Stav a žebříček komunitního počítání oveček",
+            inline=False,
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
