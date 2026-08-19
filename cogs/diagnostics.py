@@ -50,6 +50,13 @@ PERMISSION_LABELS = {
     "moderate_members": "Moderovat členy",
     "create_public_threads": "Vytvářet veřejná vlákna",
     "send_messages_in_threads": "Posílat zprávy ve vláknech",
+    "attach_files": "Přikládat soubory",
+    "read_message_history": "Číst historii zpráv",
+    "add_reactions": "Přidávat reakce",
+    "manage_webhooks": "Spravovat webhooky",
+    "mention_everyone": "Zmiňovat @everyone a všechny role",
+    "create_private_threads": "Vytvářet soukromá vlákna",
+    "manage_threads": "Spravovat vlákna",
 }
 
 
@@ -62,6 +69,119 @@ class Diagnostics(commands.GroupCog, name="diagnostika"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @app_commands.command(
+        name="kanal",
+        description="Zkontroluje oprávnění bota v konkrétním kanálu.",
+    )
+    @app_commands.describe(kanal="Kanál, jehož oprávnění chceš zkontrolovat")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def channel(
+        self,
+        interaction: discord.Interaction,
+        kanal: discord.TextChannel | discord.ForumChannel | discord.CategoryChannel,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Tento příkaz lze použít pouze na serveru.", ephemeral=True
+            )
+            return
+
+        bot_member = interaction.guild.me
+        if bot_member is None:
+            await interaction.response.send_message(
+                "❌ Discord neposkytl členský záznam bota pro tento server.",
+                ephemeral=True,
+            )
+            return
+
+        permissions = kanal.permissions_for(bot_member)
+
+        def permission_lines(names: tuple[str, ...]) -> str:
+            return "\n".join(
+                ("✅" if getattr(permissions, name, False) else "❌")
+                + f" {PERMISSION_LABELS[name]}"
+                for name in names
+            )
+
+        channel_type = {
+            discord.TextChannel: "textový kanál",
+            discord.ForumChannel: "fórum",
+            discord.CategoryChannel: "kategorie",
+        }.get(type(kanal), kanal.__class__.__name__)
+
+        if isinstance(kanal, discord.CategoryChannel):
+            inheritance = "Kategorie určuje výchozí oprávnění svých kanálů."
+        elif kanal.category is None:
+            inheritance = "Kanál není zařazený v kategorii."
+        elif kanal.permissions_synced:
+            inheritance = f"Oprávnění jsou synchronizovaná s {kanal.category.mention}."
+        else:
+            inheritance = (
+                f"⚠️ Oprávnění nejsou synchronizovaná s {kanal.category.mention}; "
+                "kanál používá vlastní přepsání."
+            )
+
+        embed = discord.Embed(
+            title="🔐 Diagnostika oprávnění kanálu",
+            description=(
+                f"**Kanál:** {kanal.mention}\n"
+                f"**ID:** `{kanal.id}`\n"
+                f"**Typ:** {channel_type}\n"
+                f"{inheritance}"
+            ),
+            color=EMBED_COLOR,
+        )
+        embed.add_field(
+            name="Běžné používání",
+            value=permission_lines(
+                (
+                    "view_channel",
+                    "send_messages",
+                    "embed_links",
+                    "attach_files",
+                    "read_message_history",
+                    "add_reactions",
+                )
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Moderace a webhooky",
+            value=permission_lines(
+                (
+                    "manage_messages",
+                    "moderate_members",
+                    "manage_webhooks",
+                    "mention_everyone",
+                    "manage_channels",
+                )
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Vlákna a fórum",
+            value=permission_lines(
+                (
+                    "create_public_threads",
+                    "create_private_threads",
+                    "send_messages_in_threads",
+                    "manage_threads",
+                )
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Jak výsledek číst",
+            value=(
+                "Červené oprávnění není vždy chyba. Například YouTube potřebuje "
+                "hlavně zobrazit kanál, posílat zprávy a vkládat odkazy; webhook "
+                "navíc potřebuje spravovat webhooky."
+            ),
+            inline=False,
+        )
+        embed.set_footer(text=f"{EMBED_FOOTER} • Výsledek vidíš pouze ty")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
         name="server",

@@ -70,6 +70,11 @@ class General(commands.Cog):
             value="Administrátorům zkontroluje nastavení a oprávnění modulů",
             inline=False,
         )
+        embed.add_field(
+            name="/diagnostika kanal",
+            value="Administrátorům ukáže oprávnění bota ve vybraném kanálu",
+            inline=False,
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
