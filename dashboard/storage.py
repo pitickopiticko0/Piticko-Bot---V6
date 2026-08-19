@@ -96,6 +96,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "enabled": False,
         "channel_id": "",
     },
+    "game_deals": {
+        "enabled_free": False,
+        "enabled_deals": False,
+        "channel_id": "",
+        "mention_role_id": "",
+        "min_discount": 60,
+        "seen_count": 0,
+    },
     "moderation": {"auto_punishments": False},
 }
 
@@ -255,6 +263,17 @@ class DashboardStorage:
                 "channel_id": str(_value(sheep_game, "channel_id", "")),
             })
 
+        game_deals = db.get_game_deal_settings(guild_id)
+        if game_deals is not None:
+            settings["game_deals"].update({
+                "enabled_free": bool(_value(game_deals, "enabled_free", 0)),
+                "enabled_deals": bool(_value(game_deals, "enabled_deals", 0)),
+                "channel_id": str(_value(game_deals, "channel_id", "")),
+                "mention_role_id": str(_value(game_deals, "mention_role_id", "")),
+                "min_discount": int(_value(game_deals, "min_discount", 60)),
+                "seen_count": db.count_seen_game_deals(guild_id),
+            })
+
         with db.connect() as conn:
             moderation = conn.execute(
                 "SELECT auto_punishments FROM moderation_settings WHERE guild_id = ?",
@@ -279,6 +298,7 @@ class DashboardStorage:
             "pc_advice": self._save_pc_advice_sync,
             "abi_rank": self._save_abi_rank_sync,
             "sheep_game": self._save_sheep_game_sync,
+            "game_deals": self._save_game_deals_sync,
             "moderation": self._save_moderation_sync,
         }
         handler = handlers.get(module)
@@ -487,6 +507,27 @@ class DashboardStorage:
             and _value(previous, "channel_id") != channel_id
         ):
             db.reset_sheep_chain(guild_id)
+
+    def _save_game_deals_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled_free = bool(values.get("enabled_free"))
+        enabled_deals = bool(values.get("enabled_deals"))
+        enabled = enabled_free or enabled_deals
+        channel_id = _discord_id(
+            values.get("channel_id"), field="Kanál herních nabídek", required=enabled
+        )
+        mention_role_id = _discord_id(
+            values.get("mention_role_id"), field="Role herních nabídek"
+        )
+        try:
+            min_discount = int(values.get("min_discount") or 60)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Minimální sleva musí být číslo.") from exc
+        if not 10 <= min_discount <= 95:
+            raise ValueError("Minimální sleva musí být mezi 10 a 95 %.")
+        db.set_game_deal_settings(
+            guild_id, channel_id, mention_role_id,
+            enabled_free, enabled_deals, min_discount,
+        )
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:
         return await asyncio.to_thread(self._get_sheep_game_sync, int(guild_id))

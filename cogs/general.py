@@ -80,6 +80,11 @@ class General(commands.Cog):
             value="Stav a žebříček komunitního počítání oveček",
             inline=False,
         )
+        embed.add_field(
+            name="/hry stav · /hry kontrola",
+            value="Nastavení a kontrola PC her zdarma a ve slevě",
+            inline=False,
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

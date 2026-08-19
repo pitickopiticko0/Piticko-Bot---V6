@@ -11,6 +11,7 @@ from utils.db import antispam as antispam_db
 from utils.db import abi_rank as abi_rank_db
 from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
+from utils.db import game_deals as game_deals_db
 from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
@@ -252,6 +253,36 @@ class Database:
 
     def get_sheep_leaderboard(self, guild_id: int, limit: int = 10):
         return sheep_game_db.get_leaderboard(self, guild_id, limit)
+
+    def get_game_deal_settings(self, guild_id: int):
+        return game_deals_db.get_settings(self, guild_id)
+
+    def get_enabled_game_deal_settings(self):
+        return game_deals_db.get_enabled(self)
+
+    def set_game_deal_settings(
+        self, guild_id: int, channel_id: Optional[int], mention_role_id: Optional[int],
+        enabled_free: bool, enabled_deals: bool, min_discount: int,
+    ) -> None:
+        game_deals_db.save_settings(
+            self, guild_id, channel_id, mention_role_id,
+            enabled_free, enabled_deals, min_discount,
+        )
+
+    def game_deal_seen(self, guild_id: int, source: str, offer_id: str) -> bool:
+        return game_deals_db.is_seen(self, guild_id, source, offer_id)
+
+    def mark_game_deal_seen(self, guild_id: int, source: str, offer_id: str) -> None:
+        game_deals_db.mark_seen(self, guild_id, source, offer_id)
+
+    def game_deals_initialized(self, guild_id: int, kind: str) -> bool:
+        return game_deals_db.is_initialized(self, guild_id, kind)
+
+    def set_game_deals_initialized(self, guild_id: int, kind: str) -> None:
+        game_deals_db.set_initialized(self, guild_id, kind)
+
+    def count_seen_game_deals(self, guild_id: int) -> int:
+        return game_deals_db.count_seen(self, guild_id)
 
     def get_abi_rank_settings(self, guild_id: int):
         return abi_rank_db.get_settings(self, guild_id)

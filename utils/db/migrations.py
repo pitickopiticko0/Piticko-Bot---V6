@@ -183,6 +183,20 @@ POSTGRES_TABLES = (
         updated_at TEXT NOT NULL,
         PRIMARY KEY (guild_id, user_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_settings (
+        guild_id BIGINT PRIMARY KEY, channel_id BIGINT, mention_role_id BIGINT,
+        enabled_free INTEGER NOT NULL DEFAULT 1,
+        enabled_deals INTEGER NOT NULL DEFAULT 0,
+        min_discount INTEGER NOT NULL DEFAULT 60,
+        initialized_free INTEGER NOT NULL DEFAULT 0,
+        initialized_deals INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_seen (
+        guild_id BIGINT NOT NULL, source TEXT NOT NULL, offer_id TEXT NOT NULL,
+        seen_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, source, offer_id)
+    )""",
 )
 
 
@@ -367,6 +381,20 @@ SQLITE_TABLES = (
         chains_broken INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL,
         PRIMARY KEY (guild_id, user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_settings (
+        guild_id INTEGER PRIMARY KEY, channel_id INTEGER, mention_role_id INTEGER,
+        enabled_free INTEGER NOT NULL DEFAULT 1,
+        enabled_deals INTEGER NOT NULL DEFAULT 0,
+        min_discount INTEGER NOT NULL DEFAULT 60,
+        initialized_free INTEGER NOT NULL DEFAULT 0,
+        initialized_deals INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_seen (
+        guild_id INTEGER NOT NULL, source TEXT NOT NULL, offer_id TEXT NOT NULL,
+        seen_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, source, offer_id)
     )""",
 )
 

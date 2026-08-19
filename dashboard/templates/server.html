@@ -34,6 +34,8 @@
         <span>Webhook zpráva byla úspěšně odeslána.</span>
       {% elif request.query_params.get('saved') == 'sheep-game' %}
         <span>Nastavení počítání oveček bylo úspěšně uloženo.</span>
+      {% elif request.query_params.get('saved') == 'game-deals' %}
+        <span>Nastavení her zdarma a slev bylo úspěšně uloženo.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
       {% endif %}
@@ -295,6 +297,7 @@
       <button class="tab" type="button" data-tab="pc-challenge"><span>🏗️</span>PC výzva</button>
       <button class="tab" type="button" data-tab="abi-rank"><span>🎖️</span>ABI Rank</button>
       <button class="tab" type="button" data-tab="sheep-game"><span>🐑</span>Ovečky</button>
+      <button class="tab" type="button" data-tab="game-deals"><span>🎮</span>Hry zdarma a slevy</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
       <button class="tab" type="button" data-tab="kick"><span>🟢</span>Kick</button>
@@ -362,6 +365,12 @@
             <div class="module-card-top"><div class="module-icon">🐑</div><span class="badge {{ 'on' if settings.sheep_game.enabled else 'off' }}">{{ 'Zapnuto' if settings.sheep_game.enabled else 'Vypnuto' }}</span></div>
             <h3>Počítání oveček</h3>
             <p>Společný číselný řetězec, serverový rekord a žebříček počtářů.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="game-deals" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🎮</div><span class="badge {{ 'on' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'off' }}">{{ 'Zapnuto' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'Vypnuto' }}</span></div>
+            <h3>Hry zdarma a slevy</h3>
+            <p>Automatické nabídky ze Steamu, Epic Games, GOG a dalších obchodů.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="youtube" tabindex="0" role="button">
@@ -932,6 +941,41 @@
           {% if sheep_game.leaderboard %}{% for player in sheep_game.leaderboard %}<div class="toggle-row"><span><strong>{{ loop.index }}. Uživatel {{ player.user_id }}</strong><small>Správně: {{ player.valid_counts }} · přerušené řetězce: {{ player.chains_broken }}</small></span></div>{% endfor %}{% else %}<div class="empty-state"><p>Zatím nebyla správně započítána žádná ovečka.</p></div>{% endif %}
         </div>
         <small>Stejné nastavení lze provést příkazem <code>/ovecky nastavit</code>. Správci mohou řetězec vynulovat přes <code>/ovecky reset</code>. Pokud používáš AntiSpam, přidej herní kanál mezi ignorované kanály.</small>
+      </div>
+
+      <div class="tab-panel" id="game-deals">
+        <div class="section-heading"><div><p class="eyebrow">HERNÍ NABÍDKY</p><h2>🎮 Hry zdarma a ve slevě</h2><p>Bot sleduje časově omezené PC hry zdarma a výrazné slevy z ověřených obchodů.</p></div><span class="badge {{ 'on' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'off' }}">{{ 'Aktivní' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'Neaktivní' }}</span></div>
+        {% if request.query_params.get('game_deals_error') == 'invalid' %}<div class="alert error">Vyber platný kanál a zkontroluj ID role.</div>{% endif %}
+        {% if request.query_params.get('game_deals_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže psát.</div>{% endif %}
+        {% if request.query_params.get('game_deals_error') == 'discount' %}<div class="alert error">Minimální sleva musí být mezi 10 a 95 %.</div>{% endif %}
+        <div class="stats-grid">
+          <article class="stat-card"><span class="stat-icon">🎁</span><div><small>Hry zdarma</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_free else 'Vypnuto' }}</strong></div></article>
+          <article class="stat-card"><span class="stat-icon">🔥</span><div><small>Slevy</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_deals else 'Vypnuto' }}</strong></div></article>
+          <article class="stat-card"><span class="stat-icon">✅</span><div><small>Evidovaných nabídek</small><strong>{{ settings.game_deals.seen_count }}</strong></div></article>
+        </div>
+        <form method="post" action="/server/{{ guild.id }}/game-deals" class="settings-form">
+          <label class="toggle-row"><span><strong>Oznamovat hry zdarma</strong><small>Steam, Epic Games Store, GOG, itch.io a další PC platformy.</small></span><input type="checkbox" name="enabled_free" {% if settings.game_deals.enabled_free %}checked{% endif %}></label>
+          <label class="toggle-row"><span><strong>Oznamovat zlevněné hry</strong><small>Nabídky oficiálních digitálních obchodů sledovaných službou CheapShark.</small></span><input type="checkbox" name="enabled_deals" {% if settings.game_deals.enabled_deals %}checked{% endif %}></label>
+          <div class="form-grid">
+            <label><span>Cílový kanál</span>
+              {% if discord_resources_available %}
+                <select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.game_deals.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.game_deals.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>
+              {% else %}
+                <input name="channel_id" value="{{ settings.game_deals.channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">
+              {% endif %}
+            </label>
+            <label><span>Role k označení</span>
+              {% if discord_resources_available %}
+                <select name="mention_role_id"><option value="">Bez označení role</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.game_deals.mention_role_id %}selected{% endif %}>@{{ role.name }}</option>{% endfor %}</select>
+              {% else %}
+                <input name="mention_role_id" value="{{ settings.game_deals.mention_role_id }}" inputmode="numeric" placeholder="Volitelné Discord ID role">
+              {% endif %}
+            </label>
+          </div>
+          <label><span>Minimální sleva</span><input type="number" name="min_discount" min="10" max="95" value="{{ settings.game_deals.min_discount }}"><small>Platí pouze pro zlevněné hry. Doporučeno alespoň 60 %.</small></label>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit herní nabídky</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+        <small>Kontrola probíhá každých 30 minut. První kontrola pouze uloží současný stav, takže kanál nezaplaví staré nabídky. Data zdarma poskytuje GamerPower; data o slevách CheapShark a ceny jsou v USD. Stejné nastavení nabízí příkaz <code>/hry nastavit</code>.</small>
       </div>
 
       <div class="tab-panel" id="makejpc">

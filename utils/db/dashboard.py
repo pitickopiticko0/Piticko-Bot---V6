@@ -170,6 +170,9 @@ def count_configured_guilds(database: Any, guild_ids: list[int]) -> int:
         if database.get_sheep_game_settings(guild_id) is not None:
             total += 1
             continue
+        if database.get_game_deal_settings(guild_id) is not None:
+            total += 1
+            continue
         if get_guild_settings(database, guild_id) is not None:
             total += 1
     return total
