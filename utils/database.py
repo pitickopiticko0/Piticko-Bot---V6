@@ -16,6 +16,7 @@ from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
 from utils.db import pc_advice as pc_advice_db
 from utils.db import pc_build_challenge as pc_build_challenge_db
+from utils.db import sheep_game as sheep_game_db
 from utils.db import tickets as tickets_db
 from utils.db import welcome as welcome_db
 from utils.db import youtube as youtube_db
@@ -231,6 +232,26 @@ class Database:
 
     def get_pc_build_results(self, challenge_id: int):
         return pc_build_challenge_db.results(self, challenge_id)
+
+    def get_sheep_game_settings(self, guild_id: int):
+        return sheep_game_db.get_settings(self, guild_id)
+
+    def set_sheep_game_settings(
+        self, guild_id: int, channel_id: Optional[int], enabled: bool
+    ) -> None:
+        sheep_game_db.save_settings(self, guild_id, channel_id, enabled)
+
+    def record_sheep_count(self, guild_id: int, user_id: int, number: int) -> None:
+        sheep_game_db.record_valid_count(self, guild_id, user_id, number)
+
+    def break_sheep_chain(self, guild_id: int, user_id: int) -> int:
+        return sheep_game_db.break_chain(self, guild_id, user_id)
+
+    def reset_sheep_chain(self, guild_id: int) -> None:
+        sheep_game_db.reset_chain(self, guild_id)
+
+    def get_sheep_leaderboard(self, guild_id: int, limit: int = 10):
+        return sheep_game_db.get_leaderboard(self, guild_id, limit)
 
     def get_abi_rank_settings(self, guild_id: int):
         return abi_rank_db.get_settings(self, guild_id)
