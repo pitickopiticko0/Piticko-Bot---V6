@@ -49,7 +49,7 @@ class General(commands.Cog):
     async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📖 Nápověda",
-            description="Brokes Bot v2 používá pouze slash příkazy.",
+            description="Piticko Bot používá slash příkazy.",
             color=EMBED_COLOR,
         )
         embed.add_field(name="/ping", value="Odezva bota", inline=False)
@@ -63,6 +63,11 @@ class General(commands.Cog):
         embed.add_field(
             name="/alzadny-kontrola",
             value="Bezpečně otestuje relevantní AlzaDny nabídky",
+            inline=False,
+        )
+        embed.add_field(
+            name="/diagnostika server",
+            value="Administrátorům zkontroluje nastavení a oprávnění modulů",
             inline=False,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
