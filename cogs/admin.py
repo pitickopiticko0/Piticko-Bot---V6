@@ -6,6 +6,7 @@ from discord.ext import commands
 
 from config import EMBED_COLOR, EMBED_FOOTER, VERSION
 from utils.database import db
+from utils.logger import logger
 
 
 START_TIME = time.time()
@@ -99,6 +100,38 @@ class Admin(commands.Cog):
 
         await interaction.followup.send(
             f"✅ Synchronizováno **{len(synced)}** slash příkazů.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="vycistit-prikazy",
+        description="Smaže staré serverové kopie slash příkazů.",
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def cleanup_guild_commands(self, interaction: discord.Interaction):
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Tento příkaz lze použít pouze na serveru.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        guild = discord.Object(id=interaction.guild.id)
+
+        # Discord vede globální a serverové příkazy odděleně. Vymazání
+        # serverového stromu ponechá globální příkazy beze změny.
+        self.bot.tree.clear_commands(guild=guild)
+        removed = await self.bot.tree.sync(guild=guild)
+
+        logger.info(
+            "Vyčištěny serverové slash příkazy pro guild %s; po synchronizaci jich zbývá %s.",
+            interaction.guild.id,
+            len(removed),
+        )
+        await interaction.followup.send(
+            "✅ Staré serverové kopie příkazů byly odstraněny. "
+            "Globální příkazy zůstaly zachované. Discord může seznam obnovovat několik minut.",
             ephemeral=True,
         )
 
