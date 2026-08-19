@@ -21,6 +21,94 @@ RANKS = {
 RANK_CHOICES = [
     app_commands.Choice(name=name, value=key) for key, name in RANKS.items()
 ]
+RANK_RADIO_OPTIONS = [
+    discord.RadioGroupOption(label=name, value=key) for key, name in RANKS.items()
+]
+
+
+class RankRequestModal(discord.ui.Modal, title="Ověření ABI ranku"):
+    game_name = discord.ui.Label(
+        text="Herní jméno",
+        component=discord.ui.TextInput(
+            placeholder="Přesné jméno ve hře",
+            min_length=2,
+            max_length=32,
+        ),
+    )
+    uid = discord.ui.Label(
+        text="UID / GID",
+        component=discord.ui.TextInput(
+            placeholder="Tvoje Arena Breakout: Infinite UID/GID",
+            min_length=3,
+            max_length=64,
+        ),
+    )
+    rank = discord.ui.Label(
+        text="Aktuální hodnost",
+        component=discord.ui.RadioGroup(options=RANK_RADIO_OPTIONS),
+    )
+    division = discord.ui.Label(
+        text="Divize (volitelné)",
+        description="Například I, II, III, IV nebo V.",
+        component=discord.ui.TextInput(
+            placeholder="Např. III",
+            required=False,
+            max_length=16,
+        ),
+    )
+    screenshot = discord.ui.Label(
+        text="Screenshot profilu",
+        description="Nahraj celý a čitelný obrázek s UID i rankem (max. 8 MB).",
+        component=discord.ui.FileUpload(min_values=1, max_values=1),
+    )
+
+    def __init__(self, cog: "ABIRank"):
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        division = str(self.division.component.value).strip() or None
+        await self.cog.submit_request(
+            interaction,
+            game_name=str(self.game_name.component.value).strip(),
+            uid=str(self.uid.component.value).strip(),
+            rank_key=str(self.rank.component.value),
+            screenshot=self.screenshot.component.values[0],
+            division=division,
+        )
+
+
+class RankRequestPanel(discord.ui.View):
+    def __init__(self, cog: "ABIRank"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(
+        label="Požádat o ověření",
+        emoji="🎖️",
+        style=discord.ButtonStyle.primary,
+        custom_id="piticko:abi_rank:request",
+    )
+    async def request_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Panel funguje pouze na serveru.", ephemeral=True
+            )
+            return
+        settings = db.get_abi_rank_settings(interaction.guild.id)
+        if settings is None or not settings["enabled"]:
+            await interaction.response.send_message(
+                "❌ ABI Rank není na tomto serveru nastavený.", ephemeral=True
+            )
+            return
+        if db.get_pending_abi_rank(interaction.guild.id, interaction.user.id):
+            await interaction.response.send_message(
+                "❌ Už máš jednu žádost čekající na kontrolu.", ephemeral=True
+            )
+            return
+        await interaction.response.send_modal(RankRequestModal(self.cog))
 
 
 class RejectModal(discord.ui.Modal, title="Zamítnutí ABI ranku"):
@@ -72,6 +160,7 @@ class ABIRank(commands.GroupCog, group_name="abirank"):
 
     async def cog_load(self) -> None:
         self.bot.add_view(ReviewControls(self))
+        self.bot.add_view(RankRequestPanel(self))
 
     def can_review(self, interaction: discord.Interaction) -> bool:
         if interaction.guild is None or not isinstance(interaction.user, discord.Member):
@@ -114,6 +203,25 @@ class ABIRank(commands.GroupCog, group_name="abirank"):
         screenshot: discord.Attachment,
         divize: app_commands.Range[str, 1, 16] | None = None,
     ) -> None:
+        await self.submit_request(
+            interaction,
+            game_name=str(herni_jmeno).strip(),
+            uid=str(uid).strip(),
+            rank_key=rank.value,
+            screenshot=screenshot,
+            division=str(divize).strip() if divize else None,
+        )
+
+    async def submit_request(
+        self,
+        interaction: discord.Interaction,
+        *,
+        game_name: str,
+        uid: str,
+        rank_key: str,
+        screenshot: discord.Attachment,
+        division: str | None,
+    ) -> None:
         if interaction.guild is None:
             await interaction.response.send_message(
                 "❌ Příkaz funguje pouze na serveru.", ephemeral=True
@@ -128,6 +236,11 @@ class ABIRank(commands.GroupCog, group_name="abirank"):
         if db.get_pending_abi_rank(interaction.guild.id, interaction.user.id):
             await interaction.response.send_message(
                 "❌ Už máš jednu žádost čekající na kontrolu.", ephemeral=True
+            )
+            return
+        if rank_key not in RANKS:
+            await interaction.response.send_message(
+                "❌ Vybraný ABI rank není platný.", ephemeral=True
             )
             return
         content_type = (screenshot.content_type or "").lower()
@@ -150,17 +263,17 @@ class ABIRank(commands.GroupCog, group_name="abirank"):
 
         await interaction.response.defer(ephemeral=True)
         request_id = db.create_abi_rank_request(
-            interaction.guild.id, interaction.user.id, str(herni_jmeno).strip(),
-            str(uid).strip(), rank.value,
-            str(divize).strip().upper() if divize else None, screenshot.url,
+            interaction.guild.id, interaction.user.id, game_name,
+            uid, rank_key,
+            division.upper() if division else None, screenshot.url,
         )
-        rank_name = RANKS[rank.value] + (f" {divize}" if divize else "")
+        rank_name = RANKS[rank_key] + (f" {division.upper()}" if division else "")
         embed = discord.Embed(
             title=f"ABI Rank žádost #{request_id}",
             description=f"Žadatel: {interaction.user.mention}",
             color=discord.Color.orange(),
         )
-        embed.add_field(name="Herní jméno", value=herni_jmeno, inline=True)
+        embed.add_field(name="Herní jméno", value=game_name, inline=True)
         embed.add_field(name="UID/GID", value=uid, inline=True)
         embed.add_field(name="Požadovaný rank", value=rank_name, inline=True)
         embed.set_image(url=screenshot.url)
@@ -184,6 +297,57 @@ class ABIRank(commands.GroupCog, group_name="abirank"):
         db.set_abi_rank_review_message(request_id, message.id)
         await interaction.followup.send(
             f"✅ Žádost #{request_id} byla odeslána ke kontrole.", ephemeral=True
+        )
+
+    @app_commands.command(
+        name="panel", description="Odešle panel pro žádosti o ověření ABI ranku."
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
+    async def panel(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Příkaz funguje pouze na serveru.", ephemeral=True
+            )
+            return
+        settings = db.get_abi_rank_settings(interaction.guild.id)
+        if settings is None or not settings["enabled"]:
+            await interaction.response.send_message(
+                "❌ Nejprve zapni a nastav ABI Rank ve webovém dashboardu.",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="🎖️ Ověření Arena Breakout: Infinite ranku",
+            description=(
+                "Klikni na tlačítko níže a odešli svůj aktuální rank ke kontrole. "
+                "Ověřovatel žádost ručně porovná se screenshotem."
+            ),
+            color=discord.Color.orange(),
+        )
+        embed.add_field(
+            name="Co budeš potřebovat",
+            value=(
+                "• herní jméno a UID/GID\n"
+                "• aktuální rank a případně divizi\n"
+                "• celý a čitelný screenshot profilu"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Pravidla",
+            value=(
+                "Můžeš mít pouze jednu nevyřízenou žádost. Falešné nebo "
+                "nečitelné důkazy budou zamítnuty."
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Piticko Bot • Ruční ověření ABI ranku")
+        await interaction.response.defer(ephemeral=True)
+        await interaction.channel.send(embed=embed, view=RankRequestPanel(self))
+        await interaction.followup.send(
+            "✅ ABI Rank panel byl odeslán do tohoto kanálu.", ephemeral=True
         )
 
     async def approve(self, interaction: discord.Interaction) -> None:
