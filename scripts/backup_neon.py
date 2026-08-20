@@ -20,7 +20,7 @@ from dotenv import dotenv_values
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_BACKUP_DIR = PROJECT_DIR / "backups" / "database"
 ALERT_MESSAGE = (
-    "🚨 **Piticko Bot:** automatická záloha Neon databáze selhala.\n"
+    "🚨 **Piticko Bot:** automatická záloha PostgreSQL databáze selhala.\n"
     "Zkontroluj na VPS: `sudo journalctl -u piticko-backup.service -n 100 --no-pager`"
 )
 
@@ -57,20 +57,22 @@ def _postgres_environment(database_url: str) -> dict[str, str]:
     parsed = urlparse(database_url)
     if parsed.scheme not in {"postgres", "postgresql"}:
         raise RuntimeError("DATABASE_URL není platná PostgreSQL URL.")
-    if not parsed.hostname or not parsed.username or parsed.password is None:
-        raise RuntimeError("DATABASE_URL neobsahuje úplné přihlašovací údaje.")
 
     database_name = unquote(parsed.path.lstrip("/"))
     if not database_name:
         raise RuntimeError("DATABASE_URL neobsahuje název databáze.")
 
-    values = {
-        "PGHOST": parsed.hostname,
-        "PGPORT": str(parsed.port or 5432),
-        "PGUSER": unquote(parsed.username),
-        "PGPASSWORD": unquote(parsed.password),
-        "PGDATABASE": database_name,
-    }
+    # URL bez hostitele (např. postgresql:///piticko_bot) používá lokální
+    # Unix socket a peer autentizaci. Vzdálené URL mohou dodat hostitele,
+    # port, uživatele i heslo; chybějící údaje případně vyřeší libpq.
+    values = {"PGDATABASE": database_name}
+    if parsed.hostname:
+        values["PGHOST"] = parsed.hostname
+        values["PGPORT"] = str(parsed.port or 5432)
+    if parsed.username:
+        values["PGUSER"] = unquote(parsed.username)
+    if parsed.password is not None:
+        values["PGPASSWORD"] = unquote(parsed.password)
     query = parse_qs(parsed.query)
     query_environment = {
         "sslmode": "PGSSLMODE",
@@ -138,7 +140,7 @@ def _upload_offsite_backup(backup: Path, remote: str, retention_days: int) -> No
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Záloha Neon PostgreSQL databáze")
+    parser = argparse.ArgumentParser(description="Záloha PostgreSQL databáze")
     parser.add_argument(
         "--test-alert",
         action="store_true",
