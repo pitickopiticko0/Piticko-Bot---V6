@@ -15,6 +15,7 @@ Discord YouTube notifier připravený pro Wispbytehosting.
 - Kick stream oznámení přes oficiální Kick API a správu v dashboardu
 - PC poradna pro sestavy, upgrady a diagnostiku v soukromých kanálech nebo veřejném fóru
 - Dobrovolná podpora provozu přes `/podpora` a externí platební stránku
+- Herní nabídky: hry zdarma, DLC, víkendy zdarma a výrazné slevy s filtry obchodů
 
 ## Instalace lokálně
 
@@ -143,6 +144,16 @@ uchování. Systemd služba běží jako uživatel `debian`, proto musí být re
 uložený v jeho `~/.config/rclone/rclone.conf`.
 
 ## Použití
+
+Herní nabídky se nastavují v dashboardu nebo příkazem:
+
+```text
+/hry nastavit kanal:#herni-nabidky hry_zdarma:ano vikendy:ano dlc:ano slevy:ano minimalni_sleva:60
+/hry seznam
+```
+
+`/hry seznam` ukáže aktuální nabídky podle filtrů serveru. Zdroje jsou
+GamerPower pro hry zdarma a CheapShark pro slevy; ceny ze CheapShark jsou v USD.
 
 Přidání YouTube kanálu:
 

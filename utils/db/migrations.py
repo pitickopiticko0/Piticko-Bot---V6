@@ -186,7 +186,10 @@ POSTGRES_TABLES = (
     """CREATE TABLE IF NOT EXISTS game_deal_settings (
         guild_id BIGINT PRIMARY KEY, channel_id BIGINT, mention_role_id BIGINT,
         enabled_free INTEGER NOT NULL DEFAULT 1,
+        enabled_weekend INTEGER NOT NULL DEFAULT 0,
+        enabled_dlc INTEGER NOT NULL DEFAULT 0,
         enabled_deals INTEGER NOT NULL DEFAULT 0,
+        store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other',
         min_discount INTEGER NOT NULL DEFAULT 60,
         initialized_free INTEGER NOT NULL DEFAULT 0,
         initialized_deals INTEGER NOT NULL DEFAULT 0,
@@ -385,7 +388,10 @@ SQLITE_TABLES = (
     """CREATE TABLE IF NOT EXISTS game_deal_settings (
         guild_id INTEGER PRIMARY KEY, channel_id INTEGER, mention_role_id INTEGER,
         enabled_free INTEGER NOT NULL DEFAULT 1,
+        enabled_weekend INTEGER NOT NULL DEFAULT 0,
+        enabled_dlc INTEGER NOT NULL DEFAULT 0,
         enabled_deals INTEGER NOT NULL DEFAULT 0,
+        store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other',
         min_discount INTEGER NOT NULL DEFAULT 60,
         initialized_free INTEGER NOT NULL DEFAULT 0,
         initialized_deals INTEGER NOT NULL DEFAULT 0,
@@ -415,6 +421,9 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE pc_advice_requests ADD COLUMN IF NOT EXISTS last_reminded_message_id BIGINT",
     "ALTER TABLE abi_rank_settings ADD COLUMN IF NOT EXISTS hero_role_id BIGINT",
     "ALTER TABLE antispam_settings ADD COLUMN IF NOT EXISTS ignored_channel_ids TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS enabled_weekend INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS enabled_dlc INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other'",
 )
 
 
@@ -445,6 +454,11 @@ SQLITE_MIGRATIONS = {
     },
     "antispam_settings": {
         "ignored_channel_ids": "ALTER TABLE antispam_settings ADD COLUMN ignored_channel_ids TEXT NOT NULL DEFAULT ''",
+    },
+    "game_deal_settings": {
+        "enabled_weekend": "ALTER TABLE game_deal_settings ADD COLUMN enabled_weekend INTEGER NOT NULL DEFAULT 0",
+        "enabled_dlc": "ALTER TABLE game_deal_settings ADD COLUMN enabled_dlc INTEGER NOT NULL DEFAULT 0",
+        "store_filters": "ALTER TABLE game_deal_settings ADD COLUMN store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other'",
     },
 }
 

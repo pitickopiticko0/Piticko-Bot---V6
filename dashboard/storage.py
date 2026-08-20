@@ -98,10 +98,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     },
     "game_deals": {
         "enabled_free": False,
+        "enabled_weekend": False,
+        "enabled_dlc": False,
         "enabled_deals": False,
         "channel_id": "",
         "mention_role_id": "",
         "min_discount": 60,
+        "store_filters": ["steam", "epic", "gog", "itch", "ea", "ubisoft", "microsoft", "humble", "other"],
         "seen_count": 0,
     },
     "moderation": {"auto_punishments": False},
@@ -267,10 +270,19 @@ class DashboardStorage:
         if game_deals is not None:
             settings["game_deals"].update({
                 "enabled_free": bool(_value(game_deals, "enabled_free", 0)),
+                "enabled_weekend": bool(_value(game_deals, "enabled_weekend", 0)),
+                "enabled_dlc": bool(_value(game_deals, "enabled_dlc", 0)),
                 "enabled_deals": bool(_value(game_deals, "enabled_deals", 0)),
                 "channel_id": str(_value(game_deals, "channel_id", "")),
                 "mention_role_id": str(_value(game_deals, "mention_role_id", "")),
                 "min_discount": int(_value(game_deals, "min_discount", 60)),
+                "store_filters": [
+                    item for item in str(_value(
+                        game_deals,
+                        "store_filters",
+                        "steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other",
+                    )).split(",") if item
+                ],
                 "seen_count": db.count_seen_game_deals(guild_id),
             })
 
@@ -510,8 +522,10 @@ class DashboardStorage:
 
     def _save_game_deals_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled_free = bool(values.get("enabled_free"))
+        enabled_weekend = bool(values.get("enabled_weekend"))
+        enabled_dlc = bool(values.get("enabled_dlc"))
         enabled_deals = bool(values.get("enabled_deals"))
-        enabled = enabled_free or enabled_deals
+        enabled = enabled_free or enabled_weekend or enabled_dlc or enabled_deals
         channel_id = _discord_id(
             values.get("channel_id"), field="Kanál herních nabídek", required=enabled
         )
@@ -524,9 +538,15 @@ class DashboardStorage:
             raise ValueError("Minimální sleva musí být číslo.") from exc
         if not 10 <= min_discount <= 95:
             raise ValueError("Minimální sleva musí být mezi 10 a 95 %.")
+        valid_stores = {"steam", "epic", "gog", "itch", "ea", "ubisoft", "microsoft", "humble", "other"}
+        stores = [str(item).lower() for item in values.get("store_filters", [])]
+        stores = [item for item in stores if item in valid_stores]
+        if enabled and not stores:
+            raise ValueError("Vyber alespoň jeden obchod pro herní nabídky.")
         db.set_game_deal_settings(
             guild_id, channel_id, mention_role_id,
             enabled_free, enabled_deals, min_discount,
+            enabled_weekend, enabled_dlc, ",".join(dict.fromkeys(stores)),
         )
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:

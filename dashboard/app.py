@@ -1708,7 +1708,10 @@ async def save_game_deals(
     request: Request,
     guild_id: str,
     enabled_free: str | None = Form(default=None),
+    enabled_weekend: str | None = Form(default=None),
+    enabled_dlc: str | None = Form(default=None),
     enabled_deals: str | None = Form(default=None),
+    store_filters: list[str] = Form(default=[]),
     channel_id: str = Form(default=""),
     mention_role_id: str = Form(default=""),
     min_discount: str = Form(default="60"),
@@ -1718,13 +1721,18 @@ async def save_game_deals(
         return redirect
     get_accessible_guild(request, guild_id)
     free_enabled = enabled_free == "on"
+    weekend_enabled = enabled_weekend == "on"
+    dlc_enabled = enabled_dlc == "on"
     deals_enabled = enabled_deals == "on"
+    valid_stores = {"steam", "epic", "gog", "itch", "ea", "ubisoft", "microsoft", "humble", "other"}
+    selected_stores = [store for store in store_filters if store in valid_stores]
     selected_channel_id = channel_id.strip()
     selected_role_id = mention_role_id.strip()
     if (
         (selected_channel_id and not selected_channel_id.isdigit())
         or (selected_role_id and not selected_role_id.isdigit())
-        or ((free_enabled or deals_enabled) and not selected_channel_id)
+        or ((free_enabled or weekend_enabled or dlc_enabled or deals_enabled) and not selected_channel_id)
+        or ((free_enabled or weekend_enabled or dlc_enabled or deals_enabled) and not selected_stores)
     ):
         return RedirectResponse(
             f"/server/{guild_id}?game_deals_error=invalid#game-deals",
@@ -1739,7 +1747,7 @@ async def save_game_deals(
             f"/server/{guild_id}?game_deals_error=discount#game-deals",
             status_code=303,
         )
-    if free_enabled or deals_enabled:
+    if free_enabled or weekend_enabled or dlc_enabled or deals_enabled:
         resources = await get_bot_guild_resources(guild_id)
         if resources["available"]:
             allowed_channels = {
@@ -1756,7 +1764,10 @@ async def save_game_deals(
         "game_deals",
         {
             "enabled_free": free_enabled,
+            "enabled_weekend": weekend_enabled,
+            "enabled_dlc": dlc_enabled,
             "enabled_deals": deals_enabled,
+            "store_filters": selected_stores,
             "channel_id": selected_channel_id,
             "mention_role_id": selected_role_id,
             "min_discount": discount_value,

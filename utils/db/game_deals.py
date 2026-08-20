@@ -3,6 +3,9 @@
 from typing import Any
 
 
+DEFAULT_STORE_FILTERS = "steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other"
+
+
 def get_settings(database: Any, guild_id: int):
     with database.connect() as conn:
         return conn.execute(
@@ -15,7 +18,7 @@ def get_enabled(database: Any):
         return conn.execute(
             """SELECT * FROM game_deal_settings
                WHERE channel_id IS NOT NULL
-                 AND (enabled_free = 1 OR enabled_deals = 1)
+                 AND (enabled_free = 1 OR enabled_weekend = 1 OR enabled_dlc = 1 OR enabled_deals = 1)
                ORDER BY guild_id"""
         ).fetchall()
 
@@ -28,20 +31,29 @@ def save_settings(
     enabled_free: bool,
     enabled_deals: bool,
     min_discount: int,
+    enabled_weekend: bool | None = None,
+    enabled_dlc: bool | None = None,
+    store_filters: str | None = None,
 ) -> None:
     minimum = max(10, min(int(min_discount), 95))
+    enabled_weekend = enabled_free if enabled_weekend is None else enabled_weekend
+    enabled_dlc = enabled_free if enabled_dlc is None else enabled_dlc
+    filters = store_filters or DEFAULT_STORE_FILTERS
     with database.connect() as conn:
         excluded = "EXCLUDED" if database.using_postgres else "excluded"
         conn.execute(
             f"""INSERT INTO game_deal_settings
-                (guild_id, channel_id, mention_role_id, enabled_free,
-                 enabled_deals, min_discount, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (guild_id, channel_id, mention_role_id, enabled_free, enabled_weekend,
+                 enabled_dlc, enabled_deals, store_filters, min_discount, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET
                     channel_id = {excluded}.channel_id,
                     mention_role_id = {excluded}.mention_role_id,
                     enabled_free = {excluded}.enabled_free,
+                    enabled_weekend = {excluded}.enabled_weekend,
+                    enabled_dlc = {excluded}.enabled_dlc,
                     enabled_deals = {excluded}.enabled_deals,
+                    store_filters = {excluded}.store_filters,
                     min_discount = {excluded}.min_discount,
                     updated_at = {excluded}.updated_at""",
             (
@@ -49,7 +61,10 @@ def save_settings(
                 channel_id,
                 mention_role_id,
                 int(enabled_free),
+                int(enabled_weekend),
+                int(enabled_dlc),
                 int(enabled_deals),
+                filters,
                 minimum,
                 database.now(),
             ),

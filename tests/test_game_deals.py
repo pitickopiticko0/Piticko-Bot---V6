@@ -25,7 +25,10 @@ class MemoryDatabase:
             CREATE TABLE game_deal_settings (
                 guild_id INTEGER PRIMARY KEY, channel_id INTEGER,
                 mention_role_id INTEGER, enabled_free INTEGER DEFAULT 1,
+                enabled_weekend INTEGER DEFAULT 1,
+                enabled_dlc INTEGER DEFAULT 1,
                 enabled_deals INTEGER DEFAULT 0, min_discount INTEGER DEFAULT 60,
+                store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other',
                 initialized_free INTEGER DEFAULT 0,
                 initialized_deals INTEGER DEFAULT 0, updated_at TEXT NOT NULL
             );
@@ -78,6 +81,16 @@ class GameDealsDatabaseTests(unittest.TestCase):
         game_deals.save_settings(self.db, 1, 123, None, False, True, 500)
         self.assertEqual(game_deals.get_settings(self.db, 1)["min_discount"], 95)
 
+    def test_new_offer_filters_are_saved(self):
+        game_deals.save_settings(
+            self.db, 1, 123, None, True, False, 60,
+            enabled_weekend=False, enabled_dlc=True, store_filters="steam,gog",
+        )
+        row = game_deals.get_settings(self.db, 1)
+        self.assertFalse(row["enabled_weekend"])
+        self.assertTrue(row["enabled_dlc"])
+        self.assertEqual(row["store_filters"], "steam,gog")
+
 
 class GameDealsParserTests(unittest.TestCase):
     def test_parsers_ignore_invalid_items(self):
@@ -92,6 +105,14 @@ class GameDealsParserTests(unittest.TestCase):
                         "platforms": "PC, Steam",
                         "open_giveaway_url": "https://example.test/free",
                         "worth": "$10",
+                    },
+                    {
+                        "id": 12,
+                        "title": "Free DLC",
+                        "status": "Active",
+                        "type": "DLC",
+                        "platforms": "PC, Epic Games Store",
+                        "open_giveaway_url": "https://example.test/dlc",
                     },
                     {"id": 11, "title": "Console", "platforms": "PS5"},
                 ],
@@ -121,7 +142,9 @@ class GameDealsParserTests(unittest.TestCase):
             return free, deals
 
         free, deals = asyncio.run(run())
-        self.assertEqual([offer.title for offer in free], ["Free Game"])
+        self.assertEqual([offer.title for offer in free], ["Free Game", "Free DLC"])
+        self.assertEqual(free[1].category, "dlc")
+        self.assertEqual(free[1].store_keys, ("epic",))
         self.assertEqual([offer.title for offer in deals], ["Sale Game"])
         self.assertEqual(deals[0].discount, 75)
         self.assertIn("abc%3D", deals[0].url)
