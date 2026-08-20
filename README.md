@@ -88,7 +88,7 @@ GET /health/bot
 Endpoint nezobrazuje tokeny, logy ani údaje o VPS. Je určený například pro
 UptimeRobot nebo jinou službu, která upozorní správce na nedostupnost.
 
-## Automatická záloha Neon databáze na VPS
+## Automatická záloha PostgreSQL databáze na VPS
 
 Skript `scripts/backup_neon.py` načte `DATABASE_URL` ze souboru `.env`, vytvoří
 komprimovanou PostgreSQL zálohu a standardně uchovává posledních 14 dní.

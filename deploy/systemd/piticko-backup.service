@@ -1,5 +1,5 @@
 [Unit]
-Description=Piticko Bot - zaloha Neon PostgreSQL databaze
+Description=Piticko Bot - zaloha PostgreSQL databaze
 After=network-online.target
 Wants=network-online.target
 
@@ -13,4 +13,3 @@ UMask=0077
 Nice=10
 NoNewPrivileges=true
 PrivateTmp=true
-
