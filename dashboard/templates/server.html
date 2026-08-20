@@ -368,7 +368,7 @@
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="game-deals" tabindex="0" role="button">
-            <div class="module-card-top"><div class="module-icon">🎮</div><span class="badge {{ 'on' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'off' }}">{{ 'Zapnuto' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'Vypnuto' }}</span></div>
+            <div class="module-card-top"><div class="module-icon">🎮</div><span class="badge {{ 'on' if settings.game_deals.enabled_free or settings.game_deals.enabled_weekend or settings.game_deals.enabled_dlc or settings.game_deals.enabled_deals else 'off' }}">{{ 'Zapnuto' if settings.game_deals.enabled_free or settings.game_deals.enabled_weekend or settings.game_deals.enabled_dlc or settings.game_deals.enabled_deals else 'Vypnuto' }}</span></div>
             <h3>Hry zdarma a slevy</h3>
             <p>Automatické nabídky ze Steamu, Epic Games, GOG a dalších obchodů.</p>
             <span class="module-link">Otevřít modul →</span>
@@ -944,18 +944,22 @@
       </div>
 
       <div class="tab-panel" id="game-deals">
-        <div class="section-heading"><div><p class="eyebrow">HERNÍ NABÍDKY</p><h2>🎮 Hry zdarma a ve slevě</h2><p>Bot sleduje časově omezené PC hry zdarma a výrazné slevy z ověřených obchodů.</p></div><span class="badge {{ 'on' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'off' }}">{{ 'Aktivní' if settings.game_deals.enabled_free or settings.game_deals.enabled_deals else 'Neaktivní' }}</span></div>
+        <div class="section-heading"><div><p class="eyebrow">HERNÍ NABÍDKY</p><h2>🎮 Hry zdarma a ve slevě</h2><p>Bot sleduje hry zdarma, víkendy zdarma, DLC a výrazné slevy z ověřených obchodů.</p></div><span class="badge {{ 'on' if settings.game_deals.enabled_free or settings.game_deals.enabled_weekend or settings.game_deals.enabled_dlc or settings.game_deals.enabled_deals else 'off' }}">{{ 'Aktivní' if settings.game_deals.enabled_free or settings.game_deals.enabled_weekend or settings.game_deals.enabled_dlc or settings.game_deals.enabled_deals else 'Neaktivní' }}</span></div>
         {% if request.query_params.get('game_deals_error') == 'invalid' %}<div class="alert error">Vyber platný kanál a zkontroluj ID role.</div>{% endif %}
         {% if request.query_params.get('game_deals_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže psát.</div>{% endif %}
         {% if request.query_params.get('game_deals_error') == 'discount' %}<div class="alert error">Minimální sleva musí být mezi 10 a 95 %.</div>{% endif %}
         <div class="stats-grid">
           <article class="stat-card"><span class="stat-icon">🎁</span><div><small>Hry zdarma</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_free else 'Vypnuto' }}</strong></div></article>
+          <article class="stat-card"><span class="stat-icon">🧩</span><div><small>Víkendy a DLC</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_weekend or settings.game_deals.enabled_dlc else 'Vypnuto' }}</strong></div></article>
           <article class="stat-card"><span class="stat-icon">🔥</span><div><small>Slevy</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_deals else 'Vypnuto' }}</strong></div></article>
           <article class="stat-card"><span class="stat-icon">✅</span><div><small>Evidovaných nabídek</small><strong>{{ settings.game_deals.seen_count }}</strong></div></article>
         </div>
         <form method="post" action="/server/{{ guild.id }}/game-deals" class="settings-form">
           <label class="toggle-row"><span><strong>Oznamovat hry zdarma</strong><small>Steam, Epic Games Store, GOG, itch.io a další PC platformy.</small></span><input type="checkbox" name="enabled_free" {% if settings.game_deals.enabled_free %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <label class="toggle-row"><span><strong>Oznamovat víkendy zdarma</strong><small>Časově omezené možnosti zahrát si hru zdarma.</small></span><input type="checkbox" name="enabled_weekend" {% if settings.game_deals.enabled_weekend %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <label class="toggle-row"><span><strong>Oznamovat DLC zdarma</strong><small>Doplňky, rozšíření a herní obsah nabízený zdarma.</small></span><input type="checkbox" name="enabled_dlc" {% if settings.game_deals.enabled_dlc %}checked{% endif %}><i aria-hidden="true"></i></label>
           <label class="toggle-row"><span><strong>Oznamovat zlevněné hry</strong><small>Nabídky oficiálních digitálních obchodů sledovaných službou CheapShark.</small></span><input type="checkbox" name="enabled_deals" {% if settings.game_deals.enabled_deals %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <div class="form-grid"><label><span>Obchody</span><small>Vyber, ze kterých obchodů mají nabídky chodit.</small></label><div class="toggle-row"><span>{% for key, label in [('steam', 'Steam'), ('epic', 'Epic Games Store'), ('gog', 'GOG'), ('itch', 'itch.io'), ('ea', 'EA app'), ('ubisoft', 'Ubisoft Connect'), ('microsoft', 'Microsoft Store'), ('humble', 'Humble Bundle'), ('other', 'Ostatní')] %}<label><input type="checkbox" name="store_filters" value="{{ key }}" {% if key in settings.game_deals.store_filters %}checked{% endif %}> {{ label }}</label>{% if not loop.last %}<br>{% endif %}{% endfor %}</span></div></div>
           <div class="form-grid">
             <label><span>Cílový kanál</span>
               {% if discord_resources_available %}

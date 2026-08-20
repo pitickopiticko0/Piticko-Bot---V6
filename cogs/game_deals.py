@@ -9,7 +9,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from services.game_deals import GameDealsAPIError, GameOffer, game_deals_api
+from services.game_deals import (
+    ALL_STORE_KEYS,
+    STORE_LABELS,
+    GameDealsAPIError,
+    GameOffer,
+    game_deals_api,
+)
+from utils.db.game_deals import DEFAULT_STORE_FILTERS
 from utils.database import db
 from utils.logger import logger
 from utils.service_health import mark_error, mark_success
@@ -18,11 +25,60 @@ from utils.service_health import mark_error, mark_success
 CHECK_MINUTES = max(15, int(os.getenv("GAME_DEALS_CHECK_INTERVAL_MINUTES", "30")))
 MAX_SEND_PER_KIND = 5
 
+CATEGORY_LABELS = {
+    "free": "🎁 Hra zdarma",
+    "weekend": "🗓️ Víkend zdarma",
+    "dlc": "🧩 DLC zdarma",
+    "deal": "🔥 Herní sleva",
+}
+
+
+def _row_value(row, key: str, default=None):
+    try:
+        value = row[key]
+    except (KeyError, IndexError, TypeError):
+        return default
+    return default if value is None else value
+
+
+def parse_store_filters(value: str | None) -> tuple[str, ...]:
+    requested = {
+        item.strip().lower()
+        for item in (value or "").split(",")
+        if item.strip()
+    }
+    return tuple(key for key in ALL_STORE_KEYS if key in requested)
+
+
+def offer_matches_settings(row, offer: GameOffer) -> bool:
+    enabled_key = {
+        "free": "enabled_free",
+        "weekend": "enabled_weekend",
+        "dlc": "enabled_dlc",
+        "deal": "enabled_deals",
+    }[offer.category]
+    if not bool(_row_value(row, enabled_key, 0)):
+        return False
+    if offer.category == "deal" and (offer.discount or 0) < int(
+        _row_value(row, "min_discount", 60)
+    ):
+        return False
+    filters = parse_store_filters(
+        str(_row_value(row, "store_filters", DEFAULT_STORE_FILTERS))
+    )
+    return bool(filters and set(offer.store_keys).intersection(filters))
+
+
+class OfferView(discord.ui.View):
+    def __init__(self, url: str) -> None:
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(label="Otevřít nabídku", emoji="🔗", url=url))
+
 
 def build_offer_embed(offer: GameOffer) -> discord.Embed:
-    free = offer.source == "gamerpower"
+    free = offer.category != "deal"
     embed = discord.Embed(
-        title=("🎁 Hra zdarma: " if free else "🔥 Herní sleva: ") + offer.title,
+        title=f"{CATEGORY_LABELS[offer.category]}: {offer.title}",
         url=offer.url,
         description=offer.description,
         color=discord.Color.green() if free else discord.Color.orange(),
@@ -32,11 +88,10 @@ def build_offer_embed(offer: GameOffer) -> discord.Embed:
         embed.add_field(name="💰 Aktuální cena", value=offer.sale_price, inline=True)
     if offer.normal_price:
         embed.add_field(name="Původní cena", value=offer.normal_price, inline=True)
-    if offer.discount:
+    if offer.discount and offer.category == "deal":
         embed.add_field(name="📉 Sleva", value=f"{offer.discount} %", inline=True)
     if offer.ends_at and offer.ends_at.lower() not in {"n/a", ""}:
         embed.add_field(name="⏳ Konec nabídky", value=offer.ends_at, inline=False)
-    embed.add_field(name="🔗 Otevřít nabídku", value=f"[Přejít do obchodu]({offer.url})", inline=False)
     if free:
         embed.add_field(
             name="Zdroj",
@@ -74,8 +129,12 @@ class GameDeals(commands.GroupCog, group_name="hry"):
         logger.exception("Watcher herních nabídek selhal: %s", error)
 
     async def _fetch(self, rows) -> tuple[list[GameOffer], list[GameOffer]]:
-        need_free = any(bool(row["enabled_free"]) for row in rows)
-        need_deals = any(bool(row["enabled_deals"]) for row in rows)
+        need_free = any(
+            bool(_row_value(row, key, 0))
+            for row in rows
+            for key in ("enabled_free", "enabled_weekend", "enabled_dlc")
+        )
+        need_deals = any(bool(_row_value(row, "enabled_deals", 0)) for row in rows)
         free: list[GameOffer] = []
         deals: list[GameOffer] = []
         if need_free:
@@ -105,11 +164,15 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             for row in rows:
                 guild_id = int(row["guild_id"])
                 batches: list[tuple[str, list[GameOffer]]] = []
-                if row["enabled_free"]:
-                    batches.append(("free", free))
-                if row["enabled_deals"]:
-                    minimum = int(row["min_discount"] or 60)
-                    batches.append(("deals", [o for o in deals if (o.discount or 0) >= minimum]))
+                free_offers = [offer for offer in free if offer_matches_settings(row, offer)]
+                deal_offers = [offer for offer in deals if offer_matches_settings(row, offer)]
+                if any(
+                    bool(_row_value(row, key, 0))
+                    for key in ("enabled_free", "enabled_weekend", "enabled_dlc")
+                ):
+                    batches.append(("free", free_offers))
+                if bool(_row_value(row, "enabled_deals", 0)):
+                    batches.append(("deals", deal_offers))
 
                 for kind, offers in batches:
                     initialized = await asyncio.to_thread(
@@ -164,6 +227,7 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             await channel.send(
                 content=f"<@&{role_id}>" if role_id else None,
                 embed=build_offer_embed(offer),
+                view=OfferView(offer.url),
                 allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
             )
             return True
@@ -175,8 +239,11 @@ class GameDeals(commands.GroupCog, group_name="hry"):
     @app_commands.describe(
         kanal="Kanál pro oznámení",
         hry_zdarma="Oznamovat časově omezené hry zdarma",
+        vikendy="Oznamovat víkendy zdarma",
+        dlc="Oznamovat DLC zdarma",
         slevy="Oznamovat výrazné slevy",
         minimalni_sleva="Minimální sleva v procentech (10–95)",
+        obchody="Obchody oddělené čárkou, například steam,epic,gog",
         role="Volitelná role k označení",
     )
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -185,8 +252,11 @@ class GameDeals(commands.GroupCog, group_name="hry"):
         interaction: discord.Interaction,
         kanal: discord.TextChannel,
         hry_zdarma: bool = True,
+        vikendy: bool = True,
+        dlc: bool = True,
         slevy: bool = True,
         minimalni_sleva: app_commands.Range[int, 10, 95] = 60,
+        obchody: str = DEFAULT_STORE_FILTERS,
         role: discord.Role | None = None,
     ) -> None:
         if interaction.guild is None:
@@ -200,6 +270,13 @@ class GameDeals(commands.GroupCog, group_name="hry"):
                 ephemeral=True,
             )
             return
+        stores = ",".join(parse_store_filters(obchody))
+        if not stores:
+            await interaction.response.send_message(
+                "❌ Vyber alespoň jeden obchod: steam, epic, gog, itch, ea, ubisoft, microsoft, humble nebo other.",
+                ephemeral=True,
+            )
+            return
         await asyncio.to_thread(
             db.set_game_deal_settings,
             interaction.guild.id,
@@ -208,6 +285,9 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             hry_zdarma,
             slevy,
             int(minimalni_sleva),
+            vikendy,
+            dlc,
+            stores,
         )
         await interaction.response.send_message(
             f"✅ Herní nabídky budou chodit do {kanal.mention}. První kontrola pouze "
@@ -221,17 +301,69 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
             return
         row = await asyncio.to_thread(db.get_game_deal_settings, interaction.guild.id)
-        if row is None or not (row["enabled_free"] or row["enabled_deals"]):
+        if row is None or not any(
+            bool(_row_value(row, key, 0))
+            for key in ("enabled_free", "enabled_weekend", "enabled_dlc", "enabled_deals")
+        ):
             await interaction.response.send_message("🎮 Herní nabídky nejsou zapnuté.", ephemeral=True)
             return
         seen = await asyncio.to_thread(db.count_seen_game_deals, interaction.guild.id)
         embed = discord.Embed(title="🎮 Herní nabídky", color=discord.Color.blurple())
         embed.add_field(name="Kanál", value=f"<#{row['channel_id']}>", inline=False)
         embed.add_field(name="Hry zdarma", value="Ano" if row["enabled_free"] else "Ne", inline=True)
+        embed.add_field(name="Víkendy zdarma", value="Ano" if _row_value(row, "enabled_weekend", 0) else "Ne", inline=True)
+        embed.add_field(name="DLC zdarma", value="Ano" if _row_value(row, "enabled_dlc", 0) else "Ne", inline=True)
         embed.add_field(name="Slevy", value="Ano" if row["enabled_deals"] else "Ne", inline=True)
         embed.add_field(name="Minimální sleva", value=f"{row['min_discount']} %", inline=True)
         embed.add_field(name="Evidovaných nabídek", value=str(seen), inline=True)
+        selected_stores = parse_store_filters(str(_row_value(row, "store_filters", DEFAULT_STORE_FILTERS)))
+        embed.add_field(
+            name="Obchody",
+            value=", ".join(STORE_LABELS[key] for key in selected_stores) or "Žádné",
+            inline=False,
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="seznam", description="Ukáže aktuální hry zdarma, DLC, víkendy a slevy.")
+    async def listing(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        row = await asyncio.to_thread(db.get_game_deal_settings, interaction.guild.id)
+        if row is None:
+            row = {
+                "enabled_free": 1,
+                "enabled_weekend": 1,
+                "enabled_dlc": 1,
+                "enabled_deals": 1,
+                "min_discount": 60,
+                "store_filters": DEFAULT_STORE_FILTERS,
+            }
+        try:
+            free, deals = await self._fetch([row])
+        except GameDealsAPIError as exc:
+            await interaction.followup.send(f"❌ Aktuální nabídky se nepodařilo načíst: {exc}", ephemeral=True)
+            return
+        offers = [offer for offer in [*free, *deals] if offer_matches_settings(row, offer)]
+        if not offers:
+            await interaction.followup.send("🎮 Pro aktuální filtry nejsou žádné nabídky.", ephemeral=True)
+            return
+        embed = discord.Embed(
+            title="🎮 Aktuální herní nabídky",
+            description="Výpis respektuje nastavení tohoto serveru.",
+            color=discord.Color.blurple(),
+        )
+        for offer in offers[:10]:
+            price = offer.sale_price or "—"
+            discount = f" · {offer.discount} %" if offer.category == "deal" and offer.discount else ""
+            embed.add_field(
+                name=f"{CATEGORY_LABELS[offer.category]} · {offer.title}"[:256],
+                value=f"{offer.store} · **{price}{discount}**\n[Přejít na nabídku]({offer.url})",
+                inline=False,
+            )
+        embed.set_footer(text=f"Zobrazeno {min(len(offers), 10)} z {len(offers)} nabídek · GamerPower / CheapShark")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="kontrola", description="Ručně zkontroluje nové herní nabídky.")
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -261,6 +393,9 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             False,
             False,
             int(row["min_discount"] if row else 60),
+            False,
+            False,
+            str(_row_value(row, "store_filters", DEFAULT_STORE_FILTERS)),
         )
         await interaction.response.send_message("✅ Herní nabídky byly vypnuté.", ephemeral=True)
 

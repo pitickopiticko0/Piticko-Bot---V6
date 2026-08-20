@@ -24,10 +24,57 @@ class GameOffer:
     image_url: str | None
     store: str
     description: str
+    category: str
+    store_keys: tuple[str, ...]
     sale_price: str | None = None
     normal_price: str | None = None
     discount: int | None = None
     ends_at: str | None = None
+
+
+STORE_LABELS = {
+    "steam": "Steam",
+    "epic": "Epic Games Store",
+    "gog": "GOG",
+    "itch": "itch.io",
+    "ea": "EA app",
+    "ubisoft": "Ubisoft Connect",
+    "microsoft": "Microsoft Store",
+    "humble": "Humble Bundle",
+    "other": "Ostatní obchody",
+}
+ALL_STORE_KEYS = tuple(STORE_LABELS)
+
+
+def normalize_store_keys(value: str) -> tuple[str, ...]:
+    """Vrátí jednotné filtry obchodů z názvu obchodu nebo seznamu platforem."""
+    text = value.lower()
+    checks = (
+        ("steam", "steam"),
+        ("epic", "epic"),
+        ("gog", "gog"),
+        ("itch", "itch"),
+        ("origin", "ea"),
+        ("ea app", "ea"),
+        ("electronic arts", "ea"),
+        ("ubisoft", "ubisoft"),
+        ("microsoft", "microsoft"),
+        ("xbox", "microsoft"),
+        ("humble", "humble"),
+    )
+    keys = tuple(key for needle, key in checks if needle in text)
+    return keys or ("other",)
+
+
+def classify_free_offer(item: dict, title: str, description: str) -> str:
+    """GamerPower nemá vždy spolehlivý typ, proto kontrolujeme i text nabídky."""
+    kind = str(item.get("type") or "").lower()
+    text = f"{title} {description} {kind}".lower()
+    if any(word in text for word in ("dlc", "add-on", "add on", "expansion", "loot")):
+        return "dlc"
+    if any(word in text for word in ("free weekend", "weekend free", "play for free")):
+        return "weekend"
+    return "free"
 
 
 class GameDealsAPI:
@@ -53,7 +100,7 @@ class GameDealsAPI:
     async def fetch_free_games(self) -> list[GameOffer]:
         data = await self._json(
             self.GAMERPOWER_URL,
-            params={"type": "game", "sort-by": "date"},
+            params={"sort-by": "date"},
         )
         if not isinstance(data, list):
             raise GameDealsAPIError("GamerPower vrátil neplatná data.")
@@ -78,6 +125,7 @@ class GameDealsAPI:
             if not offer_id or not title or not url:
                 continue
             description = str(item.get("description") or "Hra je dočasně zdarma.").strip()
+            category = classify_free_offer(item, title, description)
             offers.append(
                 GameOffer(
                     source="gamerpower",
@@ -87,6 +135,8 @@ class GameDealsAPI:
                     image_url=str(item.get("image") or item.get("thumbnail") or "") or None,
                     store=platforms,
                     description=description[:700],
+                    category=category,
+                    store_keys=normalize_store_keys(platforms),
                     normal_price=str(item.get("worth") or "") or None,
                     sale_price="Zdarma",
                     discount=100,
@@ -139,6 +189,10 @@ class GameDealsAPI:
                     image_url=str(item.get("thumb") or "") or None,
                     store=stores.get(str(item.get("storeID")), "Digitální obchod"),
                     description="Aktuální sleva z nabídky ověřeného digitálního obchodu.",
+                    category="deal",
+                    store_keys=normalize_store_keys(
+                        stores.get(str(item.get("storeID")), "Digitální obchod")
+                    ),
                     sale_price=f"${sale_price:.2f}",
                     normal_price=f"${normal_price:.2f}",
                     discount=discount,

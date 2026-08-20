@@ -263,10 +263,13 @@ class Database:
     def set_game_deal_settings(
         self, guild_id: int, channel_id: Optional[int], mention_role_id: Optional[int],
         enabled_free: bool, enabled_deals: bool, min_discount: int,
+        enabled_weekend: bool | None = None, enabled_dlc: bool | None = None,
+        store_filters: str | None = None,
     ) -> None:
         game_deals_db.save_settings(
             self, guild_id, channel_id, mention_role_id,
             enabled_free, enabled_deals, min_discount,
+            enabled_weekend, enabled_dlc, store_filters,
         )
 
     def game_deal_seen(self, guild_id: int, source: str, offer_id: str) -> bool:
