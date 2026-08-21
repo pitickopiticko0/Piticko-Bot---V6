@@ -161,10 +161,17 @@ Herní nabídky se nastavují v dashboardu nebo příkazem:
 ```text
 /hry nastavit kanal:#herni-nabidky hry_zdarma:ano vikendy:ano dlc:ano slevy:ano minimalni_sleva:60
 /hry seznam
+/hry role typ:Hry zdarma role:@Hry zdarma
+/hry panel kanal:#role
 ```
 
 `/hry seznam` ukáže aktuální nabídky podle filtrů serveru. Zdroje jsou
 GamerPower pro hry zdarma a CheapShark pro slevy; ceny ze CheapShark jsou v USD.
+
+Správce může v dashboardu nebo přes `/hry role` nastavit dobrovolné odběrové
+role pro hry zdarma, víkendy, DLC a slevy. Příkaz `/hry panel` odešle tlačítka,
+kterými si členové roli sami přidají či odeberou. Bot odmítá role nad sebou a
+role s administrativními či moderačními oprávněními.
 
 Přidání YouTube kanálu:
 

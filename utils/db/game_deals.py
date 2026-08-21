@@ -7,6 +7,13 @@ from typing import Any
 DEFAULT_STORE_FILTERS = "steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other"
 MAX_WATCHES_PER_USER = 20
 
+SUBSCRIPTION_ROLE_COLUMNS = {
+    "free": "subscription_role_free_id",
+    "weekend": "subscription_role_weekend_id",
+    "dlc": "subscription_role_dlc_id",
+    "deal": "subscription_role_deal_id",
+}
+
 
 def normalize_watch_query(value: str) -> str:
     """Připraví název hry pro porovnávání bez rozdílu velikosti písmen a mezer."""
@@ -77,6 +84,22 @@ def save_settings(
             ),
         )
         conn.commit()
+
+
+def set_subscription_role(
+    database: Any, guild_id: int, category: str, role_id: int | None
+) -> bool:
+    """Uloží jednu dobrovolnou odběrovou roli bez změny ostatního nastavení."""
+    column = SUBSCRIPTION_ROLE_COLUMNS.get(category)
+    if column is None:
+        raise ValueError("Neplatný typ herního odběru.")
+    with database.connect() as conn:
+        cursor = conn.execute(
+            f"UPDATE game_deal_settings SET {column} = ?, updated_at = ? WHERE guild_id = ?",
+            (role_id, database.now(), guild_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def is_seen(database: Any, guild_id: int, source: str, offer_id: str) -> bool:

@@ -16,7 +16,12 @@ from services.game_deals import (
     GameOffer,
     game_deals_api,
 )
-from utils.db.game_deals import DEFAULT_STORE_FILTERS, MAX_WATCHES_PER_USER, normalize_watch_query
+from utils.db.game_deals import (
+    DEFAULT_STORE_FILTERS,
+    MAX_WATCHES_PER_USER,
+    SUBSCRIPTION_ROLE_COLUMNS,
+    normalize_watch_query,
+)
 from utils.database import db
 from utils.logger import logger
 from utils.service_health import mark_error, mark_success
@@ -31,6 +36,23 @@ CATEGORY_LABELS = {
     "dlc": "🧩 DLC zdarma",
     "deal": "🔥 Herní sleva",
 }
+
+SUBSCRIPTION_CATEGORIES = {
+    "free": ("Hry zdarma", "🎁", discord.ButtonStyle.success),
+    "weekend": ("Víkendy zdarma", "🗓️", discord.ButtonStyle.primary),
+    "dlc": ("DLC zdarma", "🧩", discord.ButtonStyle.primary),
+    "deal": ("Herní slevy", "🔥", discord.ButtonStyle.secondary),
+}
+SELF_ASSIGN_FORBIDDEN_PERMISSIONS = (
+    "administrator",
+    "manage_guild",
+    "manage_channels",
+    "manage_roles",
+    "manage_webhooks",
+    "kick_members",
+    "ban_members",
+    "moderate_members",
+)
 
 
 def _row_value(row, key: str, default=None):
@@ -88,6 +110,29 @@ class OfferView(discord.ui.View):
         self.add_item(discord.ui.Button(label="Otevřít nabídku", emoji="🔗", url=url))
 
 
+class GameDealsSubscriptionView(discord.ui.View):
+    """Tlačítka mají stabilní ID, takže fungují i po restartu bota."""
+
+    def __init__(self, cog: "GameDeals", categories: tuple[str, ...] | None = None) -> None:
+        super().__init__(timeout=None)
+        for category in categories or tuple(SUBSCRIPTION_CATEGORIES):
+            label, emoji, style = SUBSCRIPTION_CATEGORIES[category]
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=style,
+                custom_id=f"piticko:game-deals:subscription:{category}",
+            )
+
+            async def callback(
+                interaction: discord.Interaction, selected_category: str = category
+            ) -> None:
+                await cog.toggle_subscription_role(interaction, selected_category)
+
+            button.callback = callback
+            self.add_item(button)
+
+
 def build_offer_embed(offer: GameOffer) -> discord.Embed:
     free = offer.category != "deal"
     embed = discord.Embed(
@@ -125,8 +170,77 @@ class GameDeals(commands.GroupCog, group_name="hry"):
         self.watcher.change_interval(minutes=CHECK_MINUTES)
         self.watcher.start()
 
+    async def cog_load(self) -> None:
+        # Zachytí kliknutí na všechny dříve odeslané panely.
+        self.bot.add_view(GameDealsSubscriptionView(self))
+
     def cog_unload(self) -> None:
         self.watcher.cancel()
+
+    @staticmethod
+    def subscription_role_problem(
+        guild: discord.Guild, role: discord.Role
+    ) -> str | None:
+        """Zabrání, aby panel rozdával role umožňující převzetí serveru."""
+        me = guild.me
+        if role.is_default() or role.managed:
+            return "Tato role není vhodná pro dobrovolný odběr."
+        if me is None or not me.guild_permissions.manage_roles:
+            return "Bot potřebuje oprávnění **Spravovat role**."
+        if role >= me.top_role:
+            return "Tato role musí být v seznamu rolí pod nejvyšší rolí bota."
+        dangerous = [
+            permission
+            for permission in SELF_ASSIGN_FORBIDDEN_PERMISSIONS
+            if getattr(role.permissions, permission, False)
+        ]
+        if dangerous:
+            return "Role obsahuje citlivé oprávnění a nelze ji dávat přes odběrový panel."
+        return None
+
+    async def toggle_subscription_role(
+        self, interaction: discord.Interaction, category: str) -> None:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(
+                "❌ Tento panel funguje pouze na serveru.", ephemeral=True
+            )
+            return
+        settings = await asyncio.to_thread(
+            db.get_game_deal_settings, interaction.guild.id
+        )
+        column = SUBSCRIPTION_ROLE_COLUMNS[category]
+        role_id = _row_value(settings, column)
+        if not role_id:
+            await interaction.response.send_message(
+                "ℹ️ Tento typ odběru správce tohoto serveru zatím nenastavil.",
+                ephemeral=True,
+            )
+            return
+        role = interaction.guild.get_role(int(role_id))
+        if role is None:
+            await interaction.response.send_message(
+                "❌ Nastavená role už na serveru neexistuje. Požádej správce o opravu.",
+                ephemeral=True,
+            )
+            return
+        problem = self.subscription_role_problem(interaction.guild, role)
+        if problem:
+            await interaction.response.send_message(f"❌ {problem}", ephemeral=True)
+            return
+        try:
+            if role in interaction.user.roles:
+                await interaction.user.remove_roles(role, reason="Dobrovolný odběr herních nabídek")
+                message = f"✅ Odběr **{role.name}** byl vypnut."
+            else:
+                await interaction.user.add_roles(role, reason="Dobrovolný odběr herních nabídek")
+                message = f"✅ Odběr **{role.name}** byl zapnut."
+        except discord.Forbidden:
+            logger.warning("Bot nemohl upravit odběrovou roli %s na serveru %s.", role.id, interaction.guild.id)
+            message = "❌ Discord odmítl změnu role. Zkontroluj hierarchii rolí a oprávnění bota."
+        except discord.HTTPException:
+            logger.exception("Změna odběrové role %s selhala.", role.id)
+            message = "❌ Změna role se teď nepodařila. Zkus to prosím za chvíli."
+        await interaction.response.send_message(message, ephemeral=True)
 
     @tasks.loop(minutes=30)
     async def watcher(self) -> None:
@@ -359,6 +473,109 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             ephemeral=True,
         )
 
+    @app_commands.command(name="role", description="Nastaví roli pro dobrovolný odběr herních nabídek.")
+    @app_commands.describe(
+        typ="Typ nabídek, pro které si členové budou moci zapnout roli",
+        role="Role pro odběr; nech prázdné pro zrušení tohoto odběru",
+    )
+    @app_commands.choices(
+        typ=[
+            app_commands.Choice(name="🎁 Hry zdarma", value="free"),
+            app_commands.Choice(name="🗓️ Víkendy zdarma", value="weekend"),
+            app_commands.Choice(name="🧩 DLC zdarma", value="dlc"),
+            app_commands.Choice(name="🔥 Herní slevy", value="deal"),
+        ]
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def subscription_role(
+        self,
+        interaction: discord.Interaction,
+        typ: app_commands.Choice[str],
+        role: discord.Role | None = None,
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
+            return
+        settings = await asyncio.to_thread(db.get_game_deal_settings, interaction.guild.id)
+        if settings is None:
+            await interaction.response.send_message(
+                "❌ Nejdřív nastav herní nabídky přes `/hry nastavit` nebo dashboard.",
+                ephemeral=True,
+            )
+            return
+        if role is not None:
+            problem = self.subscription_role_problem(interaction.guild, role)
+            if problem:
+                await interaction.response.send_message(f"❌ {problem}", ephemeral=True)
+                return
+        await asyncio.to_thread(
+            db.set_game_deal_subscription_role,
+            interaction.guild.id,
+            typ.value,
+            role.id if role else None,
+        )
+        label = SUBSCRIPTION_CATEGORIES[typ.value][0]
+        if role is None:
+            message = f"✅ Odběrová role pro **{label}** byla zrušena."
+        else:
+            message = (
+                f"✅ Pro **{label}** je nastavena role {role.mention}. "
+                "Potom pošli panel přes `/hry panel`."
+            )
+        await interaction.response.send_message(message, ephemeral=True)
+
+    @app_commands.command(name="panel", description="Odešle panel pro výběr odběrů herních nabídek.")
+    @app_commands.describe(kanal="Kanál, do kterého se má odeslat panel")
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def subscription_panel(
+        self, interaction: discord.Interaction, kanal: discord.TextChannel
+    ) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
+            return
+        me = interaction.guild.me
+        permissions = kanal.permissions_for(me) if me else None
+        if not permissions or not permissions.view_channel or not permissions.send_messages:
+            await interaction.response.send_message(
+                "❌ Bot v cílovém kanálu potřebuje Zobrazit kanál a Posílat zprávy.",
+                ephemeral=True,
+            )
+            return
+        settings = await asyncio.to_thread(db.get_game_deal_settings, interaction.guild.id)
+        configured: list[str] = []
+        for category, column in SUBSCRIPTION_ROLE_COLUMNS.items():
+            role_id = _row_value(settings, column)
+            role = interaction.guild.get_role(int(role_id)) if role_id else None
+            if role is not None and self.subscription_role_problem(interaction.guild, role) is None:
+                configured.append(category)
+        if not configured:
+            await interaction.response.send_message(
+                "❌ Nejdřív nastav alespoň jednu bezpečnou odběrovou roli v dashboardu nebo přes `/hry role`.",
+                ephemeral=True,
+            )
+            return
+        embed = discord.Embed(
+            title="🎮 Odběr herních nabídek",
+            description=(
+                "Klikni na typ nabídek, které chceš dostávat. Dalším kliknutím "
+                "si stejný odběr zase vypneš."
+            ),
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(
+            name="Dostupné odběry",
+            value="\n".join(
+                f"{SUBSCRIPTION_CATEGORIES[category][1]} {SUBSCRIPTION_CATEGORIES[category][0]}"
+                for category in configured
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Piticko Bot • odběr upravíš kdykoliv dalším kliknutím")
+        await kanal.send(embed=embed, view=GameDealsSubscriptionView(self, tuple(configured)))
+        await interaction.response.send_message(
+            f"✅ Odběrový panel byl odeslán do {kanal.mention}.", ephemeral=True
+        )
+
     @app_commands.command(name="stav", description="Ukáže nastavení herních nabídek.")
     async def status(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
@@ -384,6 +601,18 @@ class GameDeals(commands.GroupCog, group_name="hry"):
         embed.add_field(
             name="Obchody",
             value=", ".join(STORE_LABELS[key] for key in selected_stores) or "Žádné",
+            inline=False,
+        )
+        subscriptions = []
+        for category, column in SUBSCRIPTION_ROLE_COLUMNS.items():
+            role_id = _row_value(row, column)
+            if role_id:
+                subscriptions.append(
+                    f"{SUBSCRIPTION_CATEGORIES[category][1]} <@&{role_id}>"
+                )
+        embed.add_field(
+            name="Dobrovolné odběry",
+            value="\n".join(subscriptions) or "Nejsou nastavené",
             inline=False,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)

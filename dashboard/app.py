@@ -121,6 +121,16 @@ SEND_MESSAGES = 1 << 11
 ADMINISTRATOR = 1 << 3
 MANAGE_ROLES = 1 << 28
 MANAGE_WEBHOOKS = 1 << 29
+SELF_ASSIGN_FORBIDDEN_PERMISSIONS = (
+    (1 << 1)  # kick_members
+    | (1 << 2)  # ban_members
+    | (1 << 3)  # administrator
+    | (1 << 4)  # manage_channels
+    | (1 << 5)  # manage_guild
+    | (1 << 28)  # manage_roles
+    | (1 << 29)  # manage_webhooks
+    | (1 << 40)  # moderate_members
+)
 DISCORD_RESOURCE_CACHE_TTL = 20.0
 DISCORD_RESOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 DISCORD_RESOURCE_LOCKS: dict[str, asyncio.Lock] = {}
@@ -426,6 +436,10 @@ async def get_bot_guild_resources(guild_id: str) -> dict[str, Any]:
                 "assignable": (
                     can_manage_roles
                     and int(role.get("position", 0)) < top_role_position
+                ),
+                "safe_for_self_assign": not bool(
+                    int(role.get("permissions", 0))
+                    & SELF_ASSIGN_FORBIDDEN_PERMISSIONS
                 ),
             }
             for role in raw_roles
@@ -1715,6 +1729,10 @@ async def save_game_deals(
     store_filters: list[str] = Form(default=[]),
     channel_id: str = Form(default=""),
     mention_role_id: str = Form(default=""),
+    subscription_role_free_id: str = Form(default=""),
+    subscription_role_weekend_id: str = Form(default=""),
+    subscription_role_dlc_id: str = Form(default=""),
+    subscription_role_deal_id: str = Form(default=""),
     min_discount: str = Form(default="60"),
 ):
     redirect = require_login(request)
@@ -1729,9 +1747,16 @@ async def save_game_deals(
     selected_stores = [store for store in store_filters if store in valid_stores]
     selected_channel_id = channel_id.strip()
     selected_role_id = mention_role_id.strip()
+    subscription_roles = {
+        "free": subscription_role_free_id.strip(),
+        "weekend": subscription_role_weekend_id.strip(),
+        "dlc": subscription_role_dlc_id.strip(),
+        "deal": subscription_role_deal_id.strip(),
+    }
     if (
         (selected_channel_id and not selected_channel_id.isdigit())
         or (selected_role_id and not selected_role_id.isdigit())
+        or any(role_id and not role_id.isdigit() for role_id in subscription_roles.values())
         or ((free_enabled or weekend_enabled or dlc_enabled or deals_enabled) and not selected_channel_id)
         or ((free_enabled or weekend_enabled or dlc_enabled or deals_enabled) and not selected_stores)
     ):
@@ -1748,16 +1773,30 @@ async def save_game_deals(
             f"/server/{guild_id}?game_deals_error=discount#game-deals",
             status_code=303,
         )
-    if free_enabled or weekend_enabled or dlc_enabled or deals_enabled:
+    selected_subscription_roles = {
+        role_id for role_id in subscription_roles.values() if role_id
+    }
+    if free_enabled or weekend_enabled or dlc_enabled or deals_enabled or selected_subscription_roles:
         resources = await get_bot_guild_resources(guild_id)
         if resources["available"]:
-            allowed_channels = {
-                channel["id"] for channel in resources["channels"]
-                if channel["can_send"]
+            if free_enabled or weekend_enabled or dlc_enabled or deals_enabled:
+                allowed_channels = {
+                    channel["id"] for channel in resources["channels"]
+                    if channel["can_send"]
+                }
+                if selected_channel_id not in allowed_channels:
+                    return RedirectResponse(
+                        f"/server/{guild_id}?game_deals_error=permission#game-deals",
+                        status_code=303,
+                    )
+            safe_assignable_roles = {
+                role["id"]
+                for role in resources["roles"]
+                if role["assignable"] and role["safe_for_self_assign"]
             }
-            if selected_channel_id not in allowed_channels:
+            if not selected_subscription_roles.issubset(safe_assignable_roles):
                 return RedirectResponse(
-                    f"/server/{guild_id}?game_deals_error=permission#game-deals",
+                    f"/server/{guild_id}?game_deals_error=role#game-deals",
                     status_code=303,
                 )
     await storage.update_module(
@@ -1771,6 +1810,10 @@ async def save_game_deals(
             "store_filters": selected_stores,
             "channel_id": selected_channel_id,
             "mention_role_id": selected_role_id,
+            **{
+                f"subscription_role_{category}_id": role_id
+                for category, role_id in subscription_roles.items()
+            },
             "min_discount": discount_value,
         },
     )

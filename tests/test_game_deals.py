@@ -25,6 +25,8 @@ class MemoryDatabase:
             CREATE TABLE game_deal_settings (
                 guild_id INTEGER PRIMARY KEY, channel_id INTEGER,
                 mention_role_id INTEGER, enabled_free INTEGER DEFAULT 1,
+                subscription_role_free_id INTEGER, subscription_role_weekend_id INTEGER,
+                subscription_role_dlc_id INTEGER, subscription_role_deal_id INTEGER,
                 enabled_weekend INTEGER DEFAULT 1,
                 enabled_dlc INTEGER DEFAULT 1,
                 enabled_deals INTEGER DEFAULT 0, min_discount INTEGER DEFAULT 60,
@@ -100,6 +102,14 @@ class GameDealsDatabaseTests(unittest.TestCase):
         self.assertFalse(row["enabled_weekend"])
         self.assertTrue(row["enabled_dlc"])
         self.assertEqual(row["store_filters"], "steam,gog")
+
+    def test_subscription_role_is_saved_without_changing_game_settings(self):
+        game_deals.save_settings(self.db, 1, 123, None, True, False, 60)
+        self.assertTrue(game_deals.set_subscription_role(self.db, 1, "free", 789))
+        row = game_deals.get_settings(self.db, 1)
+        self.assertEqual(row["subscription_role_free_id"], 789)
+        self.assertEqual(row["channel_id"], 123)
+        self.assertFalse(game_deals.set_subscription_role(self.db, 2, "deal", 789))
 
     def test_personal_game_watches_are_unique_and_track_notifications(self):
         self.assertTrue(game_deals.add_watch(self.db, 1, 11, "  Baldur's   Gate  "))
