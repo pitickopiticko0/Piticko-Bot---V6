@@ -6,6 +6,9 @@
   <h1>Ovládej bota jednoduše.</h1>
   <p class="muted">Přihlas se přes Discord, vyber server a nastav Welcome i YouTube modul z jednoho místa.</p>
   <a class="button primary large" href="/login">Přihlásit přes Discord</a>
+  {% if bot_invite_url %}
+  <a class="button subtle large" href="{{ bot_invite_url }}" target="_blank" rel="noopener noreferrer">➕ Přidat Piticko Bota</a>
+  {% endif %}
   <p class="tiny">Dashboard zobrazí pouze servery, které můžeš spravovat.</p>
 </section>
 

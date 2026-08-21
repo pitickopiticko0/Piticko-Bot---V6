@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from dashboard.auth import router as auth_router
+from dashboard.auth import build_bot_invite_url, router as auth_router
 from dashboard.storage import DashboardStorage
 from utils import kick_store
 from utils.database import db
@@ -36,6 +36,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["support_url"] = get_support_url()
+templates.env.globals["bot_invite_url"] = build_bot_invite_url()
 storage = DashboardStorage()
 
 SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY")

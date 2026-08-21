@@ -49,6 +49,9 @@
     </nav>
 
     <div class="account">
+      {% if bot_invite_url %}
+      <a class="button subtle" href="{{ bot_invite_url }}" target="_blank" rel="noopener noreferrer">➕ Přidat bota</a>
+      {% endif %}
       {% if support_url %}
       <a class="button primary" href="{{ support_url }}" target="_blank" rel="noopener noreferrer">❤️ Podpořit bota</a>
       {% endif %}

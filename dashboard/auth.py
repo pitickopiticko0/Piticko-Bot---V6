@@ -22,6 +22,12 @@ REDIRECT_URI = os.getenv(
     "DASHBOARD_REDIRECT_URI",
     "http://127.0.0.1:8000/auth/callback",
 )
+# Nevyžaduje Administrátora. Obsahuje jen oprávnění používaná moduly bota
+# (moderace, tickety, role, fóra/vlákna, webhooky a odesílání embedů).
+DEFAULT_BOT_INVITE_PERMISSIONS = 1495454051414
+BOT_INVITE_PERMISSIONS = os.getenv(
+    "BOT_INVITE_PERMISSIONS", str(DEFAULT_BOT_INVITE_PERMISSIONS)
+)
 
 router = APIRouter(tags=["auth"])
 
@@ -43,6 +49,19 @@ def build_login_url(state: str) -> str:
     url = f"{DISCORD_AUTH_URL}?{urlencode(params)}"
 
     return url
+
+
+def build_bot_invite_url() -> str | None:
+    """Vrátí oficiální Discord OAuth2 odkaz pro přidání bota na server."""
+    if not CLIENT_ID:
+        return None
+    params = {
+        "client_id": CLIENT_ID,
+        "scope": "bot applications.commands",
+        "permissions": BOT_INVITE_PERMISSIONS,
+        "disable_guild_select": "false",
+    }
+    return f"{DISCORD_AUTH_URL}?{urlencode(params)}"
 
 
 def get_user(request: Request):
