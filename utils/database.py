@@ -272,6 +272,11 @@ class Database:
             enabled_weekend, enabled_dlc, store_filters,
         )
 
+    def set_game_deal_subscription_role(
+        self, guild_id: int, category: str, role_id: Optional[int]
+    ) -> bool:
+        return game_deals_db.set_subscription_role(self, guild_id, category, role_id)
+
     def game_deal_seen(self, guild_id: int, source: str, offer_id: str) -> bool:
         return game_deals_db.is_seen(self, guild_id, source, offer_id)
 

@@ -948,6 +948,7 @@
         {% if request.query_params.get('game_deals_error') == 'invalid' %}<div class="alert error">Vyber platný kanál a zkontroluj ID role.</div>{% endif %}
         {% if request.query_params.get('game_deals_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže psát.</div>{% endif %}
         {% if request.query_params.get('game_deals_error') == 'discount' %}<div class="alert error">Minimální sleva musí být mezi 10 a 95 %.</div>{% endif %}
+        {% if request.query_params.get('game_deals_error') == 'role' %}<div class="alert error">Odběrová role musí být pod botem a nesmí mít administrativní ani moderační oprávnění.</div>{% endif %}
         <div class="stats-grid">
           <article class="stat-card"><span class="stat-icon">🎁</span><div><small>Hry zdarma</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_free else 'Vypnuto' }}</strong></div></article>
           <article class="stat-card"><span class="stat-icon">🧩</span><div><small>Víkendy a DLC</small><strong>{{ 'Zapnuto' if settings.game_deals.enabled_weekend or settings.game_deals.enabled_dlc else 'Vypnuto' }}</strong></div></article>
@@ -976,6 +977,19 @@
               {% endif %}
             </label>
           </div>
+          <fieldset class="store-filter"><legend>Dobrovolné odběry</legend><small>Členové si tyto bezpečné role zapnou sami přes <code>/hry panel</code>. Role musí být pod botem a nesmí obsahovat správu serveru ani moderaci.</small>
+            <div class="form-grid">
+              {% for category, label in [('free', '🎁 Hry zdarma'), ('weekend', '🗓️ Víkendy zdarma'), ('dlc', '🧩 DLC zdarma'), ('deal', '🔥 Herní slevy')] %}
+              <label><span>{{ label }}</span>
+                {% if discord_resources_available %}
+                  <select name="subscription_role_{{ category }}_id"><option value="">Bez dobrovolné role</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == settings.game_deals['subscription_role_' ~ category ~ '_id'] %}selected{% endif %} {% if not role.assignable or not role.safe_for_self_assign %}disabled{% endif %}>@{{ role.name }}{% if not role.assignable %} — bot ji nemůže přiřadit{% elif not role.safe_for_self_assign %} — citlivé oprávnění{% endif %}</option>{% endfor %}</select>
+                {% else %}
+                  <input name="subscription_role_{{ category }}_id" value="{{ settings.game_deals['subscription_role_' ~ category ~ '_id'] }}" inputmode="numeric" placeholder="Volitelné Discord ID role">
+                {% endif %}
+              </label>
+              {% endfor %}
+            </div>
+          </fieldset>
           <label><span>Minimální sleva</span><input type="number" name="min_discount" min="10" max="95" value="{{ settings.game_deals.min_discount }}"><small>Platí pouze pro zlevněné hry. Doporučeno alespoň 60 %.</small></label>
           <div class="form-actions"><button class="button primary" type="submit">Uložit herní nabídky</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>

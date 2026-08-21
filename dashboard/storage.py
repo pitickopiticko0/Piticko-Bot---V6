@@ -33,6 +33,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "youtube_channel_name": "",
         "custom_message": "📺 Nové video: {title}\n{url}",
         "mention_role_id": "",
+        "subscription_role_free_id": "",
+        "subscription_role_weekend_id": "",
+        "subscription_role_dlc_id": "",
+        "subscription_role_deal_id": "",
         "check_interval": 300,
         "live_enabled": False,
         "live_notify_upcoming": False,
@@ -275,6 +279,10 @@ class DashboardStorage:
                 "enabled_deals": bool(_value(game_deals, "enabled_deals", 0)),
                 "channel_id": str(_value(game_deals, "channel_id", "")),
                 "mention_role_id": str(_value(game_deals, "mention_role_id", "")),
+                "subscription_role_free_id": str(_value(game_deals, "subscription_role_free_id", "")),
+                "subscription_role_weekend_id": str(_value(game_deals, "subscription_role_weekend_id", "")),
+                "subscription_role_dlc_id": str(_value(game_deals, "subscription_role_dlc_id", "")),
+                "subscription_role_deal_id": str(_value(game_deals, "subscription_role_deal_id", "")),
                 "min_discount": int(_value(game_deals, "min_discount", 60)),
                 "store_filters": [
                     item for item in str(_value(
@@ -548,6 +556,12 @@ class DashboardStorage:
             enabled_free, enabled_deals, min_discount,
             enabled_weekend, enabled_dlc, ",".join(dict.fromkeys(stores)),
         )
+        for category in ("free", "weekend", "dlc", "deal"):
+            role_id = _discord_id(
+                values.get(f"subscription_role_{category}_id"),
+                field="Role dobrovolného herního odběru",
+            )
+            db.set_game_deal_subscription_role(guild_id, category, role_id)
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:
         return await asyncio.to_thread(self._get_sheep_game_sync, int(guild_id))

@@ -185,6 +185,8 @@ POSTGRES_TABLES = (
     )""",
     """CREATE TABLE IF NOT EXISTS game_deal_settings (
         guild_id BIGINT PRIMARY KEY, channel_id BIGINT, mention_role_id BIGINT,
+        subscription_role_free_id BIGINT, subscription_role_weekend_id BIGINT,
+        subscription_role_dlc_id BIGINT, subscription_role_deal_id BIGINT,
         enabled_free INTEGER NOT NULL DEFAULT 1,
         enabled_weekend INTEGER NOT NULL DEFAULT 0,
         enabled_dlc INTEGER NOT NULL DEFAULT 0,
@@ -398,6 +400,8 @@ SQLITE_TABLES = (
     )""",
     """CREATE TABLE IF NOT EXISTS game_deal_settings (
         guild_id INTEGER PRIMARY KEY, channel_id INTEGER, mention_role_id INTEGER,
+        subscription_role_free_id INTEGER, subscription_role_weekend_id INTEGER,
+        subscription_role_dlc_id INTEGER, subscription_role_deal_id INTEGER,
         enabled_free INTEGER NOT NULL DEFAULT 1,
         enabled_weekend INTEGER NOT NULL DEFAULT 0,
         enabled_dlc INTEGER NOT NULL DEFAULT 0,
@@ -446,6 +450,10 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS enabled_weekend INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS enabled_dlc INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other'",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_free_id BIGINT",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_weekend_id BIGINT",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_dlc_id BIGINT",
+    "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_deal_id BIGINT",
 )
 
 
@@ -481,6 +489,10 @@ SQLITE_MIGRATIONS = {
         "enabled_weekend": "ALTER TABLE game_deal_settings ADD COLUMN enabled_weekend INTEGER NOT NULL DEFAULT 0",
         "enabled_dlc": "ALTER TABLE game_deal_settings ADD COLUMN enabled_dlc INTEGER NOT NULL DEFAULT 0",
         "store_filters": "ALTER TABLE game_deal_settings ADD COLUMN store_filters TEXT NOT NULL DEFAULT 'steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other'",
+        "subscription_role_free_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_free_id INTEGER",
+        "subscription_role_weekend_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_weekend_id INTEGER",
+        "subscription_role_dlc_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_dlc_id INTEGER",
+        "subscription_role_deal_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_deal_id INTEGER",
     },
 }
 
