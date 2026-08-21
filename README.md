@@ -34,6 +34,17 @@ SUPPORT_URL=https://tvoje-verejna-stranka.example/podpora
 
 Kick údaje získáš po vytvoření aplikace na [Kick Dev](https://dev.kick.com/).
 
+## Přidání bota přes dashboard
+
+Pokud je v `.env` nastavené `DISCORD_CLIENT_ID`, dashboard zobrazí tlačítko
+**Přidat bota**. Otevře výhradně oficiální Discord OAuth2 instalační okno se
+scopy `bot` a `applications.commands`. Odkaz neobsahuje token bota ani
+`DISCORD_CLIENT_SECRET` a nevyžaduje oprávnění Administrátor.
+
+Pro přihlášení do dashboardu jsou navíc nutné `DISCORD_CLIENT_SECRET` a
+`DASHBOARD_REDIRECT_URI`, která musí přesně odpovídat Redirect URL nastavené v
+Discord Developer Portal.
+
 Spuštění:
 
 ```bash
