@@ -36,6 +36,16 @@ class MemoryDatabase:
                 guild_id INTEGER, source TEXT, offer_id TEXT, seen_at TEXT,
                 PRIMARY KEY (guild_id, source, offer_id)
             );
+            CREATE TABLE game_deal_watches (
+                guild_id INTEGER, user_id INTEGER, query TEXT,
+                normalized_query TEXT, created_at TEXT,
+                PRIMARY KEY (guild_id, user_id, normalized_query)
+            );
+            CREATE TABLE game_deal_watch_notifications (
+                guild_id INTEGER, user_id INTEGER, source TEXT,
+                offer_id TEXT, notified_at TEXT,
+                PRIMARY KEY (guild_id, user_id, source, offer_id)
+            );
             """
         )
 
@@ -90,6 +100,16 @@ class GameDealsDatabaseTests(unittest.TestCase):
         self.assertFalse(row["enabled_weekend"])
         self.assertTrue(row["enabled_dlc"])
         self.assertEqual(row["store_filters"], "steam,gog")
+
+    def test_personal_game_watches_are_unique_and_track_notifications(self):
+        self.assertTrue(game_deals.add_watch(self.db, 1, 11, "  Baldur's   Gate  "))
+        self.assertFalse(game_deals.add_watch(self.db, 1, 11, "baldur's gate"))
+        watches = game_deals.list_watches(self.db, 1, 11)
+        self.assertEqual(watches[0]["query"], "  Baldur's   Gate  ")
+        self.assertFalse(game_deals.watch_was_notified(self.db, 1, 11, "gamerpower", "42"))
+        game_deals.mark_watch_notified(self.db, 1, 11, "gamerpower", "42")
+        self.assertTrue(game_deals.watch_was_notified(self.db, 1, 11, "gamerpower", "42"))
+        self.assertTrue(game_deals.remove_watch(self.db, 1, 11, "Baldur's Gate"))
 
 
 class GameDealsParserTests(unittest.TestCase):

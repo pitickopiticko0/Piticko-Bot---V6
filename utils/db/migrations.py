@@ -200,6 +200,17 @@ POSTGRES_TABLES = (
         seen_at TEXT NOT NULL,
         PRIMARY KEY (guild_id, source, offer_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_watches (
+        guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+        query TEXT NOT NULL, normalized_query TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, user_id, normalized_query)
+    )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_watch_notifications (
+        guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+        source TEXT NOT NULL, offer_id TEXT NOT NULL, notified_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, user_id, source, offer_id)
+    )""",
 )
 
 
@@ -401,6 +412,17 @@ SQLITE_TABLES = (
         guild_id INTEGER NOT NULL, source TEXT NOT NULL, offer_id TEXT NOT NULL,
         seen_at TEXT NOT NULL,
         PRIMARY KEY (guild_id, source, offer_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_watches (
+        guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+        query TEXT NOT NULL, normalized_query TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, user_id, normalized_query)
+    )""",
+    """CREATE TABLE IF NOT EXISTS game_deal_watch_notifications (
+        guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+        source TEXT NOT NULL, offer_id TEXT NOT NULL, notified_at TEXT NOT NULL,
+        PRIMARY KEY (guild_id, user_id, source, offer_id)
     )""",
 )
 

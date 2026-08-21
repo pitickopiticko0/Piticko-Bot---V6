@@ -16,7 +16,7 @@ from services.game_deals import (
     GameOffer,
     game_deals_api,
 )
-from utils.db.game_deals import DEFAULT_STORE_FILTERS
+from utils.db.game_deals import DEFAULT_STORE_FILTERS, MAX_WATCHES_PER_USER, normalize_watch_query
 from utils.database import db
 from utils.logger import logger
 from utils.service_health import mark_error, mark_success
@@ -67,6 +67,19 @@ def offer_matches_settings(row, offer: GameOffer) -> bool:
         str(_row_value(row, "store_filters", DEFAULT_STORE_FILTERS))
     )
     return bool(filters and set(offer.store_keys).intersection(filters))
+
+
+def offer_matches_watch(query: str, offer: GameOffer) -> bool:
+    """Vyhledávání je záměrně jednoduché a předvídatelné: část názvu hry."""
+    normalized = normalize_watch_query(query)
+    return bool(normalized and normalized in normalize_watch_query(offer.title))
+
+
+def game_deals_enabled(row) -> bool:
+    return row is not None and any(
+        bool(_row_value(row, key, 0))
+        for key in ("enabled_free", "enabled_weekend", "enabled_dlc", "enabled_deals")
+    )
 
 
 class OfferView(discord.ui.View):
@@ -163,6 +176,7 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             found = sent = 0
             for row in rows:
                 guild_id = int(row["guild_id"])
+                watches = await asyncio.to_thread(db.get_game_deal_watches, guild_id)
                 batches: list[tuple[str, list[GameOffer]]] = []
                 free_offers = [offer for offer in free if offer_matches_settings(row, offer)]
                 deal_offers = [offer for offer in deals if offer_matches_settings(row, offer)]
@@ -196,6 +210,7 @@ class GameDeals(commands.GroupCog, group_name="hry"):
                         ):
                             continue
                         found += 1
+                        await self._notify_watchers(guild_id, watches, offer)
                         if sent_kind >= MAX_SEND_PER_KIND:
                             continue
                         if await self._send(row, offer):
@@ -210,6 +225,55 @@ class GameDeals(commands.GroupCog, group_name="hry"):
 
             mark_success("game_deals", f"Nových nabídek: {found}, odesláno: {sent}")
             return found, sent
+
+    async def _notify_watchers(self, guild_id: int, watches, offer: GameOffer) -> None:
+        if not watches:
+            return
+        guild = self.bot.get_guild(guild_id)
+        guild_name = guild.name if guild else "Discord serveru"
+        for watch in watches:
+            if not offer_matches_watch(str(watch["normalized_query"]), offer):
+                continue
+            user_id = int(watch["user_id"])
+            already_notified = await asyncio.to_thread(
+                db.game_deal_watch_was_notified,
+                guild_id,
+                user_id,
+                offer.source,
+                offer.offer_id,
+            )
+            if already_notified:
+                continue
+            try:
+                user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+                embed = build_offer_embed(offer)
+                embed.title = f"🔔 Sledovaná hra: {offer.title}"
+                await user.send(
+                    content=(
+                        f"Na serveru **{guild_name}** jsem našel nabídku odpovídající "
+                        f"sledování **{watch['query']}**."
+                    ),
+                    embed=embed,
+                    view=OfferView(offer.url),
+                )
+            except (discord.Forbidden, discord.NotFound):
+                logger.info(
+                    "Uživateli %s nelze poslat upozornění na sledovanou hru (zavřené DM).",
+                    user_id,
+                )
+            except discord.HTTPException:
+                logger.warning(
+                    "Soukromé upozornění na hru pro uživatele %s se nepodařilo odeslat.",
+                    user_id,
+                )
+                continue
+            await asyncio.to_thread(
+                db.mark_game_deal_watch_notified,
+                guild_id,
+                user_id,
+                offer.source,
+                offer.offer_id,
+            )
 
     async def _send(self, row, offer: GameOffer) -> bool:
         channel_id = int(row["channel_id"])
@@ -364,6 +428,83 @@ class GameDeals(commands.GroupCog, group_name="hry"):
             )
         embed.set_footer(text=f"Zobrazeno {min(len(offers), 10)} z {len(offers)} nabídek · GamerPower / CheapShark")
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="sledovat", description="Pošle ti DM, až se objeví sledovaná hra.")
+    @app_commands.describe(nazev="Název hry nebo jeho část, například Baldur's Gate")
+    async def watch(self, interaction: discord.Interaction, nazev: str) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
+            return
+        query = " ".join(nazev.split())
+        if not 2 <= len(query) <= 80:
+            await interaction.response.send_message(
+                "❌ Název musí mít 2 až 80 znaků.", ephemeral=True
+            )
+            return
+        settings = await asyncio.to_thread(db.get_game_deal_settings, interaction.guild.id)
+        if not game_deals_enabled(settings):
+            await interaction.response.send_message(
+                "❌ Na tomto serveru nejsou aktivní herní nabídky. Správce je musí nejdřív nastavit přes `/hry nastavit` nebo dashboard.",
+                ephemeral=True,
+            )
+            return
+        try:
+            created = await asyncio.to_thread(
+                db.add_game_deal_watch, interaction.guild.id, interaction.user.id, query
+            )
+        except ValueError as exc:
+            await interaction.response.send_message(f"❌ {exc}", ephemeral=True)
+            return
+        if not created:
+            await interaction.response.send_message(
+                f"ℹ️ **{query}** už sleduješ na tomto serveru.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            f"✅ Sleduješ **{query}**. Pokud bude tvé soukromé zprávy od bota možné doručit, pošlu ti upozornění na novou shodnou nabídku. Limit: {MAX_WATCHES_PER_USER} her.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="sledovane", description="Ukáže tvé sledované hry na tomto serveru.")
+    async def watches(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
+            return
+        rows = await asyncio.to_thread(
+            db.get_game_deal_watches, interaction.guild.id, interaction.user.id
+        )
+        if not rows:
+            await interaction.response.send_message(
+                "🎮 Zatím nesleduješ žádnou hru. Použij `/hry sledovat`.", ephemeral=True
+            )
+            return
+        names = "\n".join(f"• {row['query']}" for row in rows)
+        embed = discord.Embed(
+            title="🔔 Tvé sledované hry",
+            description=names,
+            color=discord.Color.blurple(),
+        )
+        embed.set_footer(text=f"{len(rows)} z {MAX_WATCHES_PER_USER} sledovaných her na tomto serveru")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="nesledovat", description="Odebere hru z tvého sledování.")
+    @app_commands.describe(nazev="Přesný název, který vidíš v /hry sledovane")
+    async def unwatch(self, interaction: discord.Interaction, nazev: str) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message("❌ Použij příkaz na serveru.", ephemeral=True)
+            return
+        query = " ".join(nazev.split())
+        removed = await asyncio.to_thread(
+            db.remove_game_deal_watch, interaction.guild.id, interaction.user.id, query
+        )
+        if not removed:
+            await interaction.response.send_message(
+                f"ℹ️ **{query}** ve sledování na tomto serveru nemáš.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            f"✅ Přestal(a) jsi sledovat **{query}**.", ephemeral=True
+        )
 
     @app_commands.command(name="kontrola", description="Ručně zkontroluje nové herní nabídky.")
     @app_commands.checks.has_permissions(manage_guild=True)
