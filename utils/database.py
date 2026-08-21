@@ -287,6 +287,25 @@ class Database:
     def count_seen_game_deals(self, guild_id: int) -> int:
         return game_deals_db.count_seen(self, guild_id)
 
+    def get_game_deal_watches(self, guild_id: int, user_id: int | None = None):
+        return game_deals_db.list_watches(self, guild_id, user_id)
+
+    def add_game_deal_watch(self, guild_id: int, user_id: int, query: str) -> bool:
+        return game_deals_db.add_watch(self, guild_id, user_id, query)
+
+    def remove_game_deal_watch(self, guild_id: int, user_id: int, query: str) -> bool:
+        return game_deals_db.remove_watch(self, guild_id, user_id, query)
+
+    def game_deal_watch_was_notified(
+        self, guild_id: int, user_id: int, source: str, offer_id: str
+    ) -> bool:
+        return game_deals_db.watch_was_notified(self, guild_id, user_id, source, offer_id)
+
+    def mark_game_deal_watch_notified(
+        self, guild_id: int, user_id: int, source: str, offer_id: str
+    ) -> None:
+        game_deals_db.mark_watch_notified(self, guild_id, user_id, source, offer_id)
+
     def get_abi_rank_settings(self, guild_id: int):
         return abi_rank_db.get_settings(self, guild_id)
 

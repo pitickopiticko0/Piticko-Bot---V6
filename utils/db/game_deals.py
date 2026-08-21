@@ -1,9 +1,16 @@
 """Databázové operace pro oznámení her zdarma a ve slevě."""
 
+import re
 from typing import Any
 
 
 DEFAULT_STORE_FILTERS = "steam,epic,gog,itch,ea,ubisoft,microsoft,humble,other"
+MAX_WATCHES_PER_USER = 20
+
+
+def normalize_watch_query(value: str) -> str:
+    """Připraví název hry pro porovnávání bez rozdílu velikosti písmen a mezer."""
+    return re.sub(r"\s+", " ", value.casefold()).strip()
 
 
 def get_settings(database: Any, guild_id: int):
@@ -120,3 +127,78 @@ def count_seen(database: Any, guild_id: int) -> int:
             (guild_id,),
         ).fetchone()
         return int(row["count"] if row else 0)
+
+
+def list_watches(database: Any, guild_id: int, user_id: int | None = None):
+    query = "SELECT * FROM game_deal_watches WHERE guild_id = ?"
+    params: tuple = (guild_id,)
+    if user_id is not None:
+        query += " AND user_id = ?"
+        params = (guild_id, user_id)
+    query += " ORDER BY created_at ASC"
+    with database.connect() as conn:
+        return conn.execute(query, params).fetchall()
+
+
+def add_watch(database: Any, guild_id: int, user_id: int, query: str) -> bool:
+    normalized = normalize_watch_query(query)
+    with database.connect() as conn:
+        existing = conn.execute(
+            """SELECT 1 FROM game_deal_watches
+               WHERE guild_id = ? AND user_id = ? AND normalized_query = ?""",
+            (guild_id, user_id, normalized),
+        ).fetchone()
+        if existing is not None:
+            return False
+        count = conn.execute(
+            "SELECT COUNT(*) AS count FROM game_deal_watches WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        ).fetchone()
+        if int(count["count"] if count else 0) >= MAX_WATCHES_PER_USER:
+            raise ValueError(f"Limit je {MAX_WATCHES_PER_USER} sledovaných her.")
+        conn.execute(
+            """INSERT INTO game_deal_watches
+               (guild_id, user_id, query, normalized_query, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (guild_id, user_id, query, normalized, database.now()),
+        )
+        conn.commit()
+        return True
+
+
+def remove_watch(database: Any, guild_id: int, user_id: int, query: str) -> bool:
+    normalized = normalize_watch_query(query)
+    with database.connect() as conn:
+        cursor = conn.execute(
+            """DELETE FROM game_deal_watches
+               WHERE guild_id = ? AND user_id = ? AND normalized_query = ?""",
+            (guild_id, user_id, normalized),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def watch_was_notified(
+    database: Any, guild_id: int, user_id: int, source: str, offer_id: str
+) -> bool:
+    with database.connect() as conn:
+        row = conn.execute(
+            """SELECT 1 FROM game_deal_watch_notifications
+               WHERE guild_id = ? AND user_id = ? AND source = ? AND offer_id = ?""",
+            (guild_id, user_id, source, offer_id),
+        ).fetchone()
+        return row is not None
+
+
+def mark_watch_notified(
+    database: Any, guild_id: int, user_id: int, source: str, offer_id: str
+) -> None:
+    with database.connect() as conn:
+        conn.execute(
+            """INSERT INTO game_deal_watch_notifications
+               (guild_id, user_id, source, offer_id, notified_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (guild_id, user_id, source, offer_id) DO NOTHING""",
+            (guild_id, user_id, source, offer_id, database.now()),
+        )
+        conn.commit()
