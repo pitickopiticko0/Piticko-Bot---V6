@@ -34,6 +34,8 @@
         <span>Webhook zpráva byla úspěšně odeslána.</span>
       {% elif request.query_params.get('saved') == 'sheep-game' %}
         <span>Nastavení počítání oveček bylo úspěšně uloženo.</span>
+      {% elif request.query_params.get('saved') == 'lucky-wheel' %}
+        <span>Nastavení kola štěstí bylo úspěšně uloženo.</span>
       {% elif request.query_params.get('saved') == 'game-deals' %}
         <span>Nastavení her zdarma a slev bylo úspěšně uloženo.</span>
       {% else %}
@@ -297,6 +299,7 @@
       <button class="tab" type="button" data-tab="pc-challenge"><span>🏗️</span>PC výzva</button>
       <button class="tab" type="button" data-tab="abi-rank"><span>🎖️</span>ABI Rank</button>
       <button class="tab" type="button" data-tab="sheep-game"><span>🐑</span>Ovečky</button>
+      <button class="tab" type="button" data-tab="lucky-wheel"><span>🎡</span>Kolo štěstí</button>
       <button class="tab" type="button" data-tab="game-deals"><span>🎮</span>Hry zdarma a slevy</button>
       <button class="tab" type="button" data-tab="youtube"><span>📺</span>YouTube</button>
       <button class="tab" type="button" data-tab="twitch"><span>🟣</span>Twitch</button>
@@ -941,6 +944,20 @@
           {% if sheep_game.leaderboard %}{% for player in sheep_game.leaderboard %}<div class="toggle-row"><span><strong>{{ loop.index }}. Uživatel {{ player.user_id }}</strong><small>Správně: {{ player.valid_counts }} · přerušené řetězce: {{ player.chains_broken }}</small></span></div>{% endfor %}{% else %}<div class="empty-state"><p>Zatím nebyla správně započítána žádná ovečka.</p></div>{% endif %}
         </div>
         <small>Stejné nastavení lze provést příkazem <code>/ovecky nastavit</code>. Správci mohou řetězec vynulovat přes <code>/ovecky reset</code>. Pokud používáš AntiSpam, přidej herní kanál mezi ignorované kanály.</small>
+      </div>
+
+      <div class="tab-panel" id="lucky-wheel">
+        <div class="section-heading"><div><p class="eyebrow">VEŘEJNÝ LOSOVAČ</p><h2>🎡 Kolo štěstí</h2><p>Veřejná stránka s neomezeným losováním. Nejsou zde body, účty ani odměny.</p></div><span class="badge on">Veřejné</span></div>
+        {% if request.query_params.get('lucky_wheel_error') == 'invalid' %}<div class="alert error">Zkontroluj výseče. Každý řádek musí být ve formátu <code>emoji | název | #barva | váha</code>; povoleny jsou 2 až 12 výsečí.</div>{% endif %}
+        <form method="post" action="/server/{{ guild.id }}/lucky-wheel" class="settings-form">
+          <div class="form-grid">
+            <label><span>Název kola</span><input name="title" maxlength="80" value="{{ lucky_wheel.title }}" placeholder="Kolo štěstí"></label>
+            <label><span>Popis kola</span><input name="description" maxlength="240" value="{{ lucky_wheel.description }}" placeholder="Zatoč a nech rozhodnout náhodu."></label>
+          </div>
+          <label><span>Výseče kola</span><textarea name="entries_text" rows="10" maxlength="2400" spellcheck="false">{{ lucky_wheel.entries_text }}</textarea><small>Jeden řádek = <code>emoji | název | #barva | váha</code>. Váha 1–100 určuje velikost výseče a její šanci. Musí být 2 až 12 výsečí.</small></label>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit kolo</button><a class="button subtle" href="/kolo/{{ guild.id }}" target="_blank" rel="noopener noreferrer">Otevřít veřejné kolo ↗</a><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+        <small>Příklad: <code>🎉 | Výhra | #F5B93D | 1</code>. Kolo pouze náhodně vybere výseč; samo o sobě nepřidává Discord roli, peníze ani body.</small>
       </div>
 
       <div class="tab-panel" id="game-deals">

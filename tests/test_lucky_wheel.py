@@ -1,28 +1,36 @@
-"""Základní testy databázové ochrany kola štěstí."""
+"""Základní testy nastavení veřejného kola štěstí."""
 
 import os
 import sys
 import tempfile
+import gc
 from pathlib import Path
 
 os.environ.pop("DATABASE_URL", None)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from utils.database import Database
+from utils.db.lucky_wheel import parse_entries_text
 
 
 def run() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         database = Database(Path(temp_dir) / "wheel.db")
         database.add_guild(1, "Test server")
-        first, player = database.spin_lucky_wheel(1, 10, 20, "Test hráč")
-        assert first is True
-        assert player["points"] == 20
-        second, player = database.spin_lucky_wheel(1, 10, 100, "Test hráč")
-        assert second is False
-        assert player["points"] == 20
+        initial = database.get_lucky_wheel_settings(1)
+        assert len(initial["entries"]) == 6
+        entries = parse_entries_text(
+            "🎁 | Malá výhra | #F5B93D | 1\n🍀 | Štěstí | #45C98B | 3"
+        )
+        database.save_lucky_wheel_settings(1, "Testovací kolo", "Bez bodů", entries)
+        saved = database.get_lucky_wheel_settings(1)
+        assert saved["title"] == "Testovací kolo"
+        assert saved["entries"] == entries
         assert database.get_lucky_wheel_guild_name(1) == "Test server"
-        assert database.get_lucky_wheel_leaderboard(1)[0]["display_name"] == "Test hráč"
+        # Database používá krátkodobá sqlite spojení; na Windows je před
+        # odstraněním dočasné složky explicitně uvolníme.
+        del database
+        gc.collect()
 
     print("OK: lucky wheel")
 

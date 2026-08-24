@@ -213,12 +213,15 @@ POSTGRES_TABLES = (
         source TEXT NOT NULL, offer_id TEXT NOT NULL, notified_at TEXT NOT NULL,
         PRIMARY KEY (guild_id, user_id, source, offer_id)
     )""",
-    """CREATE TABLE IF NOT EXISTS lucky_wheel_players (
-        guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
-        display_name TEXT NOT NULL DEFAULT 'Discord uživatel',
-        points INTEGER NOT NULL DEFAULT 0, spins INTEGER NOT NULL DEFAULT 0,
-        last_spin_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        PRIMARY KEY (guild_id, user_id)
+    """CREATE TABLE IF NOT EXISTS lucky_wheel_settings (
+        guild_id BIGINT PRIMARY KEY, title TEXT NOT NULL,
+        description TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS lucky_wheel_entries (
+        guild_id BIGINT NOT NULL, position INTEGER NOT NULL,
+        emoji TEXT NOT NULL, label TEXT NOT NULL, color TEXT NOT NULL,
+        weight INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (guild_id, position)
     )""",
 )
 
@@ -435,12 +438,15 @@ SQLITE_TABLES = (
         source TEXT NOT NULL, offer_id TEXT NOT NULL, notified_at TEXT NOT NULL,
         PRIMARY KEY (guild_id, user_id, source, offer_id)
     )""",
-    """CREATE TABLE IF NOT EXISTS lucky_wheel_players (
-        guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
-        display_name TEXT NOT NULL DEFAULT 'Discord uživatel',
-        points INTEGER NOT NULL DEFAULT 0, spins INTEGER NOT NULL DEFAULT 0,
-        last_spin_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-        PRIMARY KEY (guild_id, user_id)
+    """CREATE TABLE IF NOT EXISTS lucky_wheel_settings (
+        guild_id INTEGER PRIMARY KEY, title TEXT NOT NULL,
+        description TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS lucky_wheel_entries (
+        guild_id INTEGER NOT NULL, position INTEGER NOT NULL,
+        emoji TEXT NOT NULL, label TEXT NOT NULL, color TEXT NOT NULL,
+        weight INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (guild_id, position)
     )""",
 )
 

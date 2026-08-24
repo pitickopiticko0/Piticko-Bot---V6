@@ -1,14 +1,23 @@
-"""Databázová vrstva veřejného kola štěstí.
+"""Nastavení veřejného kola štěstí bez bodů a uživatelských účtů."""
 
-Výsledek se vždy zapisuje atomicky. Samotné tlačítko v prohlížeči tedy
-nemůže obejít limit jednoho zatočení za 24 hodin.
-"""
-
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+import re
 from typing import Any
 
 
-COOLDOWN = timedelta(hours=24)
+MIN_ENTRIES = 2
+MAX_ENTRIES = 12
+DEFAULT_TITLE = "Kolo štěstí"
+DEFAULT_DESCRIPTION = "Zatoč a nech rozhodnout náhodu."
+DEFAULT_ENTRIES = (
+    {"emoji": "🎉", "label": "Super tah", "color": "#F5B93D", "weight": 1},
+    {"emoji": "🍀", "label": "Štěstí", "color": "#45C98B", "weight": 1},
+    {"emoji": "🎲", "label": "Náhoda", "color": "#5F6CFF", "weight": 1},
+    {"emoji": "✨", "label": "Paráda", "color": "#B967E8", "weight": 1},
+    {"emoji": "🔄", "label": "Zkus znovu", "color": "#FF7B52", "weight": 1},
+    {"emoji": "😄", "label": "Dobrá volba", "color": "#E85081", "weight": 1},
+)
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 def get_guild_name(database: Any, guild_id: int) -> str | None:
@@ -19,71 +28,126 @@ def get_guild_name(database: Any, guild_id: int) -> str | None:
     return str(row["guild_name"]) if row else None
 
 
-def get_player(database: Any, guild_id: int, user_id: int):
-    with database.connect() as conn:
-        return conn.execute(
-            """SELECT guild_id, user_id, points, spins, last_spin_at, updated_at
-               FROM lucky_wheel_players
-               WHERE guild_id = ? AND user_id = ?""",
-            (guild_id, user_id),
-        ).fetchone()
+def _normalize_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    emoji = " ".join(str(entry.get("emoji", "")).split())[:32]
+    label = " ".join(str(entry.get("label", "")).split())[:48]
+    color = str(entry.get("color", "")).strip()
+    try:
+        weight = int(entry.get("weight", 1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Váha výseče musí být celé číslo.") from exc
+
+    if not emoji or not label or not COLOR_RE.fullmatch(color) or not 1 <= weight <= 100:
+        raise ValueError("Každá výseč musí mít emoji, název, barvu #RRGGBB a váhu 1–100.")
+    return {"emoji": emoji, "label": label, "color": color.upper(), "weight": weight}
 
 
-def spin(database: Any, guild_id: int, user_id: int, points: int, display_name: str):
-    """Přidá body, pouze pokud hráč netočil během posledních 24 hodin.
+def validate_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = [_normalize_entry(entry) for entry in entries]
+    if not MIN_ENTRIES <= len(normalized) <= MAX_ENTRIES:
+        raise ValueError(f"Kolo musí mít {MIN_ENTRIES} až {MAX_ENTRIES} výsečí.")
+    return normalized
 
-    Vrací dvojici ``(provedeno, hráč)``. Kontrola i zápis probíhají v jednom
-    SQL příkazu, takže dvojí rychlé kliknutí neudělí odměnu dvakrát.
-    """
-    awarded_points = max(0, min(int(points), 500))
-    safe_name = " ".join(str(display_name).split())[:80] or "Discord uživatel"
-    now = datetime.now(timezone.utc)
-    now_value = now.isoformat()
-    allowed_before = (now - COOLDOWN).isoformat()
 
-    with database.connect() as conn:
-        excluded = "EXCLUDED" if database.using_postgres else "excluded"
-        cursor = conn.execute(
-                f"""INSERT INTO lucky_wheel_players
-                    (guild_id, user_id, display_name, points, spins, last_spin_at, updated_at)
-                VALUES (?, ?, ?, ?, 1, ?, ?)
-                ON CONFLICT (guild_id, user_id) DO UPDATE SET
-                    display_name = {excluded}.display_name,
-                    points = lucky_wheel_players.points + {excluded}.points,
-                    spins = lucky_wheel_players.spins + 1,
-                    last_spin_at = {excluded}.last_spin_at,
-                    updated_at = {excluded}.updated_at
-                WHERE lucky_wheel_players.last_spin_at <= ?""",
-            (
-                guild_id,
-                user_id,
-                safe_name,
-                awarded_points,
-                now_value,
-                now_value,
-                allowed_before,
-            ),
+def parse_entries_text(value: str) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for line in str(value or "").splitlines():
+        if not line.strip():
+            continue
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) != 4:
+            raise ValueError("Každý řádek musí mít formát: emoji | název | #barva | váha.")
+        entries.append(
+            {"emoji": parts[0], "label": parts[1], "color": parts[2], "weight": parts[3]}
         )
-        applied = cursor.rowcount > 0
-        player = conn.execute(
-            """SELECT guild_id, user_id, points, spins, last_spin_at, updated_at
-               FROM lucky_wheel_players
-               WHERE guild_id = ? AND user_id = ?""",
-            (guild_id, user_id),
+    return validate_entries(entries)
+
+
+def entries_to_text(entries: list[dict[str, Any]]) -> str:
+    return "\n".join(
+        f"{entry['emoji']} | {entry['label']} | {entry['color']} | {entry['weight']}"
+        for entry in entries
+    )
+
+
+def _default_settings(guild_id: int) -> dict[str, Any]:
+    entries = [dict(entry) for entry in DEFAULT_ENTRIES]
+    return {
+        "guild_id": guild_id,
+        "title": DEFAULT_TITLE,
+        "description": DEFAULT_DESCRIPTION,
+        "entries": entries,
+        "entries_text": entries_to_text(entries),
+    }
+
+
+def get_settings(database: Any, guild_id: int) -> dict[str, Any]:
+    default = _default_settings(guild_id)
+    now = datetime.now(timezone.utc).isoformat()
+    with database.connect() as conn:
+        conn.execute(
+            """INSERT INTO lucky_wheel_settings (guild_id, title, description, updated_at)
+               VALUES (?, ?, ?, ?) ON CONFLICT (guild_id) DO NOTHING""",
+            (guild_id, default["title"], default["description"], now),
+        )
+        row = conn.execute(
+            "SELECT title, description FROM lucky_wheel_settings WHERE guild_id = ?",
+            (guild_id,),
         ).fetchone()
+        entry_rows = conn.execute(
+            """SELECT emoji, label, color, weight FROM lucky_wheel_entries
+               WHERE guild_id = ? ORDER BY position ASC""",
+            (guild_id,),
+        ).fetchall()
+        if not entry_rows:
+            for position, entry in enumerate(default["entries"]):
+                conn.execute(
+                    """INSERT INTO lucky_wheel_entries
+                       (guild_id, position, emoji, label, color, weight)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (guild_id, position, entry["emoji"], entry["label"], entry["color"], entry["weight"]),
+                )
+            entry_rows = conn.execute(
+                """SELECT emoji, label, color, weight FROM lucky_wheel_entries
+                   WHERE guild_id = ? ORDER BY position ASC""",
+                (guild_id,),
+            ).fetchall()
         conn.commit()
 
-    return applied, player
+    entries = [dict(entry) for entry in entry_rows]
+    return {
+        "guild_id": guild_id,
+        "title": str(row["title"]),
+        "description": str(row["description"]),
+        "entries": entries,
+        "entries_text": entries_to_text(entries),
+    }
 
 
-def leaderboard(database: Any, guild_id: int, limit: int = 10):
-    safe_limit = max(1, min(int(limit), 20))
+def save_settings(
+    database: Any, guild_id: int, title: str, description: str, entries: list[dict[str, Any]]
+) -> None:
+    safe_entries = validate_entries(entries)
+    safe_title = " ".join(str(title or "").split())[:80] or DEFAULT_TITLE
+    safe_description = " ".join(str(description or "").split())[:240] or DEFAULT_DESCRIPTION
+    now = datetime.now(timezone.utc).isoformat()
     with database.connect() as conn:
-        return conn.execute(
-            """SELECT user_id, display_name, points, spins
-               FROM lucky_wheel_players
-               WHERE guild_id = ?
-               ORDER BY points DESC, spins DESC, updated_at ASC
-               LIMIT ?""",
-            (guild_id, safe_limit),
-        ).fetchall()
+        excluded = "EXCLUDED" if database.using_postgres else "excluded"
+        conn.execute(
+            f"""INSERT INTO lucky_wheel_settings (guild_id, title, description, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    title = {excluded}.title,
+                    description = {excluded}.description,
+                    updated_at = {excluded}.updated_at""",
+            (guild_id, safe_title, safe_description, now),
+        )
+        conn.execute("DELETE FROM lucky_wheel_entries WHERE guild_id = ?", (guild_id,))
+        for position, entry in enumerate(safe_entries):
+            conn.execute(
+                """INSERT INTO lucky_wheel_entries
+                   (guild_id, position, emoji, label, color, weight)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (guild_id, position, entry["emoji"], entry["label"], entry["color"], entry["weight"]),
+            )
+        conn.commit()

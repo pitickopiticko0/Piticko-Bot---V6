@@ -48,10 +48,9 @@ Discord Developer Portal.
 ## Veřejné kolo štěstí
 
 Příkaz `/kolo` pošle odkaz na veřejnou stránku kola pro aktuální Discord
-server. Hráč se na ní přihlásí přes Discord; systém ověří členství na daném
-serveru a dovolí jedno zatočení za 24 hodin. Výhrou jsou pouze virtuální body
-a výsledky se zobrazují v žebříčku. Nejde o peníze, Discord role ani reálné
-odměny.
+server. Každý může zatočit opakovaně bez přihlášení, bodů, účtů nebo limitu.
+Správce serveru upravuje název, popis, barvy, výseče a jejich váhy v dashboardu.
+Kolo je jen losovač: výsledek nepřidává Discord role, peníze ani reálné odměny.
 
 Pro odkaz z příkazu nastav v `.env` veřejnou adresu dashboardu:
 
@@ -59,9 +58,8 @@ Pro odkaz z příkazu nastav v `.env` veřejnou adresu dashboardu:
 DASHBOARD_PUBLIC_URL=https://tvoje-domena.example
 ```
 
-Kolo vyžaduje funkční Discord OAuth2 a HTTPS. V Discord Developer Portal musí
-být Redirect URL přesně například `https://tvoje-domena.example/auth/callback`;
-nepoužívej pro veřejný provoz nešifrované `http://`.
+Kolo Discord OAuth2 nepotřebuje. Pro celý dashboard je však HTTPS i tak
+silně doporučené, zejména pokud používáš přihlašování správců přes Discord.
 
 Spuštění:
 

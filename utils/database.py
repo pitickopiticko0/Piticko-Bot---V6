@@ -258,16 +258,13 @@ class Database:
     def get_lucky_wheel_guild_name(self, guild_id: int) -> str | None:
         return lucky_wheel_db.get_guild_name(self, guild_id)
 
-    def get_lucky_wheel_player(self, guild_id: int, user_id: int):
-        return lucky_wheel_db.get_player(self, guild_id, user_id)
+    def get_lucky_wheel_settings(self, guild_id: int):
+        return lucky_wheel_db.get_settings(self, guild_id)
 
-    def spin_lucky_wheel(
-        self, guild_id: int, user_id: int, points: int, display_name: str
-    ):
-        return lucky_wheel_db.spin(self, guild_id, user_id, points, display_name)
-
-    def get_lucky_wheel_leaderboard(self, guild_id: int, limit: int = 10):
-        return lucky_wheel_db.leaderboard(self, guild_id, limit)
+    def save_lucky_wheel_settings(
+        self, guild_id: int, title: str, description: str, entries: list[dict]
+    ) -> None:
+        lucky_wheel_db.save_settings(self, guild_id, title, description, entries)
 
     def get_game_deal_settings(self, guild_id: int):
         return game_deals_db.get_settings(self, guild_id)
