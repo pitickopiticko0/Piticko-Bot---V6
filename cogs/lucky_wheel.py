@@ -30,14 +30,12 @@ class LuckyWheel(commands.Cog):
             )
             return
 
-        # Veřejná stránka používá název pouze pro zobrazení; členství se při
-        # zatočení ověřuje samostatně přes Discord OAuth.
         db.add_guild(interaction.guild.id, interaction.guild.name)
         embed = discord.Embed(
             title="🎡 Kolo štěstí",
             description=(
-                "Zatoč si na webu o virtuální body pro tento server.\n"
-                "Každý člen má jeden pokus za **24 hodin**."
+                "Otevři veřejné kolo tohoto serveru a zatoč si bez omezení.\n"
+                "Výseče upravuje správce serveru v dashboardu."
             ),
             color=EMBED_COLOR,
         )

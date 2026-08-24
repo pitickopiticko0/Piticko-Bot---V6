@@ -40,45 +40,30 @@
 .wheel-page h2 { margin: .2rem 0 1.25rem; font-size: 1.5rem; }
 .wheel-page .eyebrow { margin: 0; color: #9ca6ff; font-size: .72rem; font-weight: 800; letter-spacing: .14em; }
 .wheel-page .muted { color: #adb2c9; }
-.wheel-player { display: flex; justify-content: center; flex-wrap: wrap; gap: .4rem; margin: 1.25rem 0 0; color: #c7cce0; }
-.wheel-player strong { color: #fff; }
-.wheel-points { display: block; width: 100%; color: #ffd561; font-weight: 800; }
 .wheel-stage { position: relative; width: min(20rem, 84vw); margin: 1.6rem auto; }
 .wheel-pointer { position: absolute; z-index: 2; top: -1.1rem; left: 50%; color: #fff; font-size: 2.2rem; transform: translateX(-50%); text-shadow: 0 4px 12px #000; }
 .wheel-visual {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  align-items: center;
   width: 100%;
   aspect-ratio: 1;
   padding: 1.7rem;
   border: .75rem solid #15182b;
   border-radius: 50%;
-  background: conic-gradient(#6a75ff 0deg 60deg, #f5b93d 60deg 120deg, #e85081 120deg 180deg, #a859e8 180deg 240deg, #44c98b 240deg 300deg, #ff7b52 300deg 360deg);
+  background: var(--wheel-gradient);
   box-shadow: inset 0 0 0 .18rem rgba(255,255,255,.35), 0 16px 45px rgba(0,0,0,.45);
   transition: transform 3s cubic-bezier(.12,.75,.12,1);
 }
 .wheel-visual::after { content: ""; position: absolute; inset: 42%; border-radius: 50%; background: #15182b; box-shadow: 0 0 0 .22rem rgba(255,255,255,.3); }
 .wheel-visual.is-spun { transform: rotate(var(--wheel-rotation, 720deg)); }
 .wheel-visual.is-spinning { transform: rotate(900deg); }
-.wheel-visual span { position: absolute; z-index: 1; top: 50%; left: 50%; padding: .32rem .5rem; border-radius: .45rem; background: rgba(13,15,25,.82); color: #fff; font-size: .78rem; font-weight: 900; }
-.wheel-visual span:nth-of-type(1) { transform: translate(-50%, -50%) translateY(-7.25rem); }
-.wheel-visual span:nth-of-type(2) { transform: translate(-50%, -50%) rotate(60deg) translateY(-7.25rem) rotate(-60deg); }
-.wheel-visual span:nth-of-type(3) { transform: translate(-50%, -50%) rotate(120deg) translateY(-7.25rem) rotate(-120deg); }
-.wheel-visual span:nth-of-type(4) { transform: translate(-50%, -50%) rotate(180deg) translateY(-7.25rem) rotate(-180deg); }
-.wheel-visual span:nth-of-type(5) { transform: translate(-50%, -50%) rotate(240deg) translateY(-7.25rem) rotate(-240deg); }
-.wheel-visual span:nth-of-type(6) { transform: translate(-50%, -50%) rotate(300deg) translateY(-7.25rem) rotate(-300deg); }
+.wheel-visual span { position: absolute; z-index: 1; top: 50%; left: 50%; max-width: 7.4rem; padding: .32rem .5rem; overflow: hidden; border-radius: .45rem; background: rgba(13,15,25,.82); color: #fff; font-size: clamp(.58rem, 2.5vw, .78rem); font-weight: 900; text-overflow: ellipsis; white-space: nowrap; transform: translate(-50%, -50%) rotate(var(--segment-angle)) translateY(-7.25rem) rotate(calc(-1 * var(--segment-angle))); }
 .wheel-notice { display: grid; gap: .25rem; max-width: 32rem; padding: 1rem; margin: 1.1rem auto; border: 1px solid rgba(132,143,192,.3); border-radius: .85rem; background: rgba(40,45,69,.55); text-align: left; }
 .wheel-notice.error { border-color: rgba(255,100,122,.55); }
 .wheel-notice.success { border-color: rgba(76,213,139,.55); }
 .wheel-notice span { color: #c6cbe0; font-size: .9rem; }
 .wheel-page .large { display: inline-flex; justify-content: center; align-items: center; min-height: 3rem; margin-top: .8rem; padding: .75rem 1.25rem; text-decoration: none; font-weight: 800; }
 .wheel-page .tiny { color: #939bb8; font-size: .76rem; }
-.wheel-leader-row { display: flex; justify-content: space-between; gap: .8rem; padding: .8rem 0; border-top: 1px solid rgba(158,169,217,.14); font-size: .9rem; }
-.wheel-leader-row span { color: #c3c8e1; white-space: nowrap; }
 @media (max-width: 760px) {
   .wheel-main { grid-template-columns: 1fr; padding-top: 1.25rem; }
-  .wheel-leader-row { display: grid; gap: .28rem; }
+  .wheel-visual span { transform: translate(-50%, -50%) rotate(var(--segment-angle)) translateY(-6rem) rotate(calc(-1 * var(--segment-angle))); }
 }

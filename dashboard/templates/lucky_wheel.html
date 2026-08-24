@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#090b12">
   <meta name="robots" content="noindex">
-  <title>Kolo štěstí · {{ guild_name }}</title>
+  <title>{{ wheel.title }} · {{ guild_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/lucky-wheel.css') }}">
 </head>
@@ -14,48 +14,33 @@
   <div class="ambient ambient-two" aria-hidden="true"></div>
   <main class="wheel-main">
     <section class="wheel-card">
-      <p class="eyebrow">VEŘEJNÁ KOMUNITNÍ HRA</p>
-      <h1>🎡 Kolo štěstí</h1>
-      <p class="muted">{{ guild_name }}</p>
+      <p class="eyebrow">VEŘEJNÉ KOLO</p>
+      <h1>🎡 {{ wheel.title }}</h1>
+      <p class="muted">{{ wheel.description }}</p>
+      <p class="tiny">Server: {{ guild_name }}</p>
 
-      {% if access_error %}
-        <div class="wheel-notice error"><strong>Nelze ověřit členství</strong><span>{{ access_error }}</span></div>
-        <a class="button primary large" href="/kolo/{{ guild_id }}/prihlasit">Přihlásit se jiným Discord účtem</a>
-      {% elif not can_spin %}
-        <div class="wheel-notice"><strong>Přihlas se přes Discord</strong><span>Potřebujeme ověřit, že jsi členem tohoto serveru. Přístupové údaje k Discordu se nikdy nezobrazují botovi.</span></div>
-        <a class="button primary large" href="/kolo/{{ guild_id }}/prihlasit">Přihlásit se a zatočit</a>
-      {% else %}
-        <div class="wheel-player">
-          <span>Hraješ jako</span><strong>{{ user.global_name or user.username }}</strong>
-          <span class="wheel-points">✨ {{ player.points if player else 0 }} bodů</span>
+      <div class="wheel-stage">
+        <span class="wheel-pointer" aria-hidden="true">▼</span>
+        <div class="wheel-visual {% if result %}is-spun{% endif %}" style="--wheel-gradient: {{ wheel_gradient }}; {% if result %}--wheel-rotation: {{ result.rotation }}deg;{% endif %}" aria-label="Kolo štěstí s {{ wheel.entries|length }} výsečemi">
+          {% for entry in wheel.entries %}
+            <span style="--segment-angle: {{ entry.position_angle }}deg">{{ entry.emoji }} {{ entry.label }}</span>
+          {% endfor %}
         </div>
-        <div class="wheel-stage">
-          <span class="wheel-pointer" aria-hidden="true">▼</span>
-          <div class="wheel-visual {% if result %}is-spun{% endif %}" {% if result %}style="--wheel-rotation: {{ result.rotation }}deg"{% endif %} aria-label="Kolo se segmenty 0, 5, 10, 20, 50 a 100 bodů">
-            <span>0</span><span>5</span><span>10</span><span>20</span><span>50</span><span>100</span>
-          </div>
-        </div>
-        {% if result %}
-          <div class="wheel-notice success"><strong>{{ result.emoji }} {{ result.label }}</strong><span>Nyní máš {{ result.total_points }} bodů. Další pokus bude dostupný za 24 hodin.</span></div>
-        {% elif cooldown_message %}
-          <div class="wheel-notice"><strong>Dnes už jsi točil</strong><span>{{ cooldown_message }}</span></div>
-        {% else %}
-          <form method="post" action="/kolo/{{ guild_id }}/tocit" data-wheel-form>
-            <button class="button primary large wheel-spin" type="submit">🎡 Zatočit</button>
-          </form>
-          <p class="tiny">Výsledek se zapisuje na serveru; opakované načtení stránky nic nezmění.</p>
-        {% endif %}
+      </div>
+      {% if result %}
+        <div class="wheel-notice success"><strong>{{ result.emoji }} {{ result.label }}</strong><span>Výsledek je čistě pro zábavu. Můžeš zatočit znovu.</span></div>
       {% endif %}
+      <form method="post" action="/kolo/{{ guild_id }}/tocit" data-wheel-form>
+        <button class="button primary large wheel-spin" type="submit">{{ '🎡 Zatočit znovu' if result else '🎡 Zatočit' }}</button>
+      </form>
+      <p class="tiny">Bez přihlášení, bodů a limitu zatočení.</p>
     </section>
 
     <section class="wheel-leaderboard">
-      <p class="eyebrow">ŽEBŘÍČEK</p><h2>Nejvíc štěstí</h2>
-      {% for entry in leaderboard %}
-        <div class="wheel-leader-row"><strong>#{{ loop.index }} · {{ entry.display_name }}</strong><span>✨ {{ entry.points }} · {{ entry.spins }}× zatočil</span></div>
-      {% else %}
-        <p class="muted">Zatím nikdo nezatočil. Buď první.</p>
-      {% endfor %}
-      <p class="tiny">Body jsou pouze virtuální a nemají peněžní hodnotu.</p>
+      <p class="eyebrow">JAK TO FUNGUJE</p><h2>Vyber náhodu</h2>
+      <p class="muted">Klikni na „Zatočit“. Kolo náhodně vybere jednu z výsečí nastavených správcem serveru.</p>
+      <p class="muted">Výseč s vyšší vahou je na kole větší a padá častěji. Výsledek nic automaticky neuděluje.</p>
+      <p class="tiny">Nastavení této stránky může měnit pouze správce daného Discord serveru v dashboardu.</p>
     </section>
   </main>
   <script src="{{ url_for('static', path='/lucky-wheel.js') }}" defer></script>
