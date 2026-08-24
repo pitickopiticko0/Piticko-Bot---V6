@@ -45,6 +45,24 @@ Pro přihlášení do dashboardu jsou navíc nutné `DISCORD_CLIENT_SECRET` a
 `DASHBOARD_REDIRECT_URI`, která musí přesně odpovídat Redirect URL nastavené v
 Discord Developer Portal.
 
+## Veřejné kolo štěstí
+
+Příkaz `/kolo` pošle odkaz na veřejnou stránku kola pro aktuální Discord
+server. Hráč se na ní přihlásí přes Discord; systém ověří členství na daném
+serveru a dovolí jedno zatočení za 24 hodin. Výhrou jsou pouze virtuální body
+a výsledky se zobrazují v žebříčku. Nejde o peníze, Discord role ani reálné
+odměny.
+
+Pro odkaz z příkazu nastav v `.env` veřejnou adresu dashboardu:
+
+```env
+DASHBOARD_PUBLIC_URL=https://tvoje-domena.example
+```
+
+Kolo vyžaduje funkční Discord OAuth2 a HTTPS. V Discord Developer Portal musí
+být Redirect URL přesně například `https://tvoje-domena.example/auth/callback`;
+nepoužívej pro veřejný provoz nešifrované `http://`.
+
 Spuštění:
 
 ```bash
