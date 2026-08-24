@@ -12,6 +12,7 @@ from utils.db import abi_rank as abi_rank_db
 from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
 from utils.db import game_deals as game_deals_db
+from utils.db import lucky_wheel as lucky_wheel_db
 from utils.db import makejpc as makejpc_db
 from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
@@ -253,6 +254,20 @@ class Database:
 
     def get_sheep_leaderboard(self, guild_id: int, limit: int = 10):
         return sheep_game_db.get_leaderboard(self, guild_id, limit)
+
+    def get_lucky_wheel_guild_name(self, guild_id: int) -> str | None:
+        return lucky_wheel_db.get_guild_name(self, guild_id)
+
+    def get_lucky_wheel_player(self, guild_id: int, user_id: int):
+        return lucky_wheel_db.get_player(self, guild_id, user_id)
+
+    def spin_lucky_wheel(
+        self, guild_id: int, user_id: int, points: int, display_name: str
+    ):
+        return lucky_wheel_db.spin(self, guild_id, user_id, points, display_name)
+
+    def get_lucky_wheel_leaderboard(self, guild_id: int, limit: int = 10):
+        return lucky_wheel_db.leaderboard(self, guild_id, limit)
 
     def get_game_deal_settings(self, guild_id: int):
         return game_deals_db.get_settings(self, guild_id)

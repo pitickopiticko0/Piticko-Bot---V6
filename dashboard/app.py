@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 import os
 import re
+import secrets
 import time
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from dashboard.storage import DashboardStorage
 from utils import kick_store
 from utils.database import db
 from utils.kick_api import KickAPIError, kick_api
+from utils.db.lucky_wheel import COOLDOWN
 from utils.twitch_api import TwitchAPIError, twitch_api
 from utils.twitch_store import twitch_store
 from utils.service_health import get_all as get_service_health
@@ -134,6 +136,15 @@ SELF_ASSIGN_FORBIDDEN_PERMISSIONS = (
 DISCORD_RESOURCE_CACHE_TTL = 20.0
 DISCORD_RESOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 DISCORD_RESOURCE_LOCKS: dict[str, asyncio.Lock] = {}
+
+LUCKY_WHEEL_PRIZES = (
+    {"points": 0, "label": "Tentokrát bez bodů", "emoji": "🍀"},
+    {"points": 5, "label": "+5 bodů", "emoji": "✨"},
+    {"points": 10, "label": "+10 bodů", "emoji": "🌟"},
+    {"points": 20, "label": "+20 bodů", "emoji": "🎉"},
+    {"points": 50, "label": "+50 bodů", "emoji": "💎"},
+    {"points": 100, "label": "+100 bodů", "emoji": "🏆"},
+)
 
 
 def current_user(request: Request) -> dict[str, Any] | None:
@@ -708,6 +719,111 @@ async def login_page(request: Request):
         name="login.html",
         context={"page_title": "Přihlášení"},
     )
+
+
+def _wheel_access_allowed(request: Request, guild_id: str) -> bool:
+    return str(request.session.get("wheel_guild_id", "")) == guild_id
+
+
+def _wheel_login_redirect(request: Request, guild_id: str) -> RedirectResponse:
+    request.session.pop("wheel_access_denied_guild_id", None)
+    request.session["wheel_requested_guild_id"] = guild_id
+    request.session["post_login_redirect"] = f"/kolo/{guild_id}"
+    return RedirectResponse("/login", status_code=303)
+
+
+@app.get("/kolo/{guild_id}", response_class=HTMLResponse)
+async def lucky_wheel_page(request: Request, guild_id: str):
+    if not guild_id.isdigit():
+        raise HTTPException(status_code=404, detail="Neplatný server.")
+
+    guild_id_int = int(guild_id)
+    guild_name = await asyncio.to_thread(db.get_lucky_wheel_guild_name, guild_id_int)
+    guild_name = guild_name or "Discord server"
+    denied = str(request.session.get("wheel_access_denied_guild_id", "")) == guild_id
+    can_spin = current_user(request) is not None and _wheel_access_allowed(request, guild_id)
+    if not can_spin and not denied:
+        return _wheel_login_redirect(request, guild_id)
+
+    user = current_user(request)
+    player = None
+    cooldown_message = None
+    if can_spin and user:
+        player = await asyncio.to_thread(
+            db.get_lucky_wheel_player, guild_id_int, int(user["id"])
+        )
+        if player and player["last_spin_at"]:
+            try:
+                next_spin = datetime.fromisoformat(str(player["last_spin_at"])) + COOLDOWN
+                remaining = next_spin - datetime.now(timezone.utc)
+                if remaining.total_seconds() > 0:
+                    hours, seconds = divmod(int(remaining.total_seconds()), 3600)
+                    minutes = max(0, seconds // 60)
+                    cooldown_message = f"Další pokus přibližně za {hours} h a {minutes} min."
+            except (TypeError, ValueError):
+                logger.warning("Kolo štěstí má neplatný čas posledního zatočení.")
+
+    result = request.session.pop("wheel_result", None)
+    if not isinstance(result, dict) or str(result.get("guild_id")) != guild_id:
+        result = None
+    leaderboard = await asyncio.to_thread(db.get_lucky_wheel_leaderboard, guild_id_int)
+    return templates.TemplateResponse(
+        request=request,
+        name="lucky_wheel.html",
+        context={
+            "guild_id": guild_id,
+            "guild_name": guild_name,
+            "user": user,
+            "player": player,
+            "can_spin": can_spin,
+            "access_error": (
+                "Tento Discord účet není členem tohoto serveru."
+                if denied else None
+            ),
+            "cooldown_message": cooldown_message,
+            "result": result,
+            "leaderboard": leaderboard,
+        },
+    )
+
+
+@app.get("/kolo/{guild_id}/prihlasit")
+async def lucky_wheel_login(request: Request, guild_id: str):
+    if not guild_id.isdigit():
+        raise HTTPException(status_code=404, detail="Neplatný server.")
+    return _wheel_login_redirect(request, guild_id)
+
+
+@app.post("/kolo/{guild_id}/tocit")
+async def spin_lucky_wheel(request: Request, guild_id: str):
+    if not guild_id.isdigit():
+        raise HTTPException(status_code=404, detail="Neplatný server.")
+    if not current_user(request) or not _wheel_access_allowed(request, guild_id):
+        return _wheel_login_redirect(request, guild_id)
+
+    user_id = int(current_user(request)["id"])
+    prize = secrets.choice(LUCKY_WHEEL_PRIZES)
+    prize_index = LUCKY_WHEEL_PRIZES.index(prize)
+    display_name = str(current_user(request).get("global_name") or current_user(request)["username"])
+    applied, player = await asyncio.to_thread(
+        db.spin_lucky_wheel,
+        int(guild_id),
+        user_id,
+        int(prize["points"]),
+        display_name,
+    )
+    if applied:
+        request.session["wheel_result"] = {
+            "guild_id": guild_id,
+            "points": int(prize["points"]),
+            "label": prize["label"],
+            "emoji": prize["emoji"],
+            # Šest štítků je na kole po 60°. Vždy skončí u šipky skutečně
+            # vybraná odměna; výsledek samotný je i tak rozhodnutý na serveru.
+            "rotation": 1800 + ((360 - prize_index * 60) % 360),
+            "total_points": int(player["points"]),
+        }
+    return RedirectResponse(f"/kolo/{guild_id}", status_code=303)
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -77,8 +77,17 @@ def require_user(request: Request):
 
 @router.get("/login")
 async def login(request: Request):
-    if get_user(request):
+    # Veřejné kolo potřebuje ověřit členství v konkrétním serveru. I už
+    # přihlášený správce proto při otevření kola projde novým OAuth během,
+    # protože do session záměrně neukládáme dlouhodobý Discord access token.
+    requested_wheel_guild = str(request.session.get("wheel_requested_guild_id", ""))
+    if get_user(request) and not requested_wheel_guild.isdigit():
         return RedirectResponse("/", status_code=303)
+
+    if get_user(request):
+        request.session.clear()
+        request.session["wheel_requested_guild_id"] = requested_wheel_guild
+        request.session["post_login_redirect"] = f"/kolo/{requested_wheel_guild}"
 
     if not is_dashboard_configured():
         return RedirectResponse("/login-error", status_code=303)
@@ -113,6 +122,10 @@ async def auth_callback(
         return RedirectResponse("/login-page", status_code=303)
 
     expected_state = request.session.pop("oauth_state", None)
+    requested_wheel_guild = str(request.session.get("wheel_requested_guild_id", ""))
+    post_login_redirect = str(request.session.get("post_login_redirect", "/"))
+    if not post_login_redirect.startswith("/kolo/"):
+        post_login_redirect = "/"
 
     if not state or not expected_state or not secrets.compare_digest(state, expected_state):
         logger.warning("Discord OAuth callback obsahoval neplatný state.")
@@ -201,6 +214,7 @@ async def auth_callback(
         guilds = []
 
     manageable_guilds = []
+    member_guild_ids = {str(guild.get("id")) for guild in guilds if guild.get("id")}
 
     for guild in guilds:
         permissions = int(guild.get("permissions", 0))
@@ -231,13 +245,22 @@ async def auth_callback(
 
     request.session["guilds"] = manageable_guilds
 
+    if requested_wheel_guild.isdigit():
+        if requested_wheel_guild in member_guild_ids:
+            request.session["wheel_guild_id"] = requested_wheel_guild
+        else:
+            request.session["wheel_access_denied_guild_id"] = requested_wheel_guild
+
     # Access token záměrně neukládáme do cookie session.
     logger.info(
         "Přihlášení do dashboardu proběhlo úspěšně; dostupných serverů: %s.",
         len(manageable_guilds),
     )
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(
+        post_login_redirect if requested_wheel_guild.isdigit() else "/",
+        status_code=303,
+    )
 
 
 @router.get("/logout")
