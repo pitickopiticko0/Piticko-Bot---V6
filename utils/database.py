@@ -18,6 +18,7 @@ from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
 from utils.db import pc_advice as pc_advice_db
 from utils.db import pc_build_challenge as pc_build_challenge_db
+from utils.db import reaction_roles as reaction_roles_db
 from utils.db import sheep_game as sheep_game_db
 from utils.db import tickets as tickets_db
 from utils.db import welcome as welcome_db
@@ -111,6 +112,35 @@ class Database:
 
     def set_autorole_enabled(self, guild_id: int, enabled: bool) -> None:
         autorole_db.set_enabled(self, guild_id, enabled)
+
+    def get_reaction_role_settings(self, guild_id: int):
+        return reaction_roles_db.get_settings(self, guild_id)
+
+    def save_reaction_role_settings(
+        self,
+        guild_id: int,
+        channel_id: int,
+        title: str,
+        description: str,
+        entries: list[dict],
+        *,
+        enabled: bool,
+    ) -> None:
+        reaction_roles_db.save_settings(
+            self,
+            guild_id,
+            channel_id,
+            title,
+            description,
+            entries,
+            enabled=enabled,
+        )
+
+    def set_reaction_role_message_id(self, guild_id: int, message_id: int) -> None:
+        reaction_roles_db.set_message_id(self, guild_id, message_id)
+
+    def get_reaction_role_mapping(self, guild_id: int, message_id: int, emoji: str):
+        return reaction_roles_db.get_mapping(self, guild_id, message_id, emoji)
 
     def get_modlog_settings(self, guild_id: int):
         return modlogs_db.get_settings(self, guild_id)
