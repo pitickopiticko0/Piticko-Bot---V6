@@ -16,6 +16,7 @@ Discord YouTube notifier připravený pro Wispbytehosting.
 - PC poradna pro sestavy, upgrady a diagnostiku v soukromých kanálech nebo veřejném fóru
 - Dobrovolná podpora provozu přes `/podpora` a externí platební stránku
 - Herní nabídky: hry zdarma, DLC, víkendy zdarma a výrazné slevy s filtry obchodů
+- Reakční role: členové si bezpečné role sami přidají nebo odeberou reakcí pod panelem
 
 ## Instalace lokálně
 
@@ -60,6 +61,20 @@ DASHBOARD_PUBLIC_URL=https://tvoje-domena.example
 
 Kolo Discord OAuth2 nepotřebuje. Pro celý dashboard je však HTTPS i tak
 silně doporučené, zejména pokud používáš přihlašování správců přes Discord.
+
+## Reakční role
+
+V dashboardu v modulu **Reakční role** nastav kanál, text panelu a dvojice
+Unicode emoji + role. Potom na Discordu použij:
+
+```text
+/reakcnirole panel
+```
+
+Bot přidá reakce k nové zprávě. Přidání reakce dá členovi odpovídající roli;
+odebrání reakce mu ji odebere. Po změně nastavení vždy vytvoř nový panel.
+Role musí být pod botem a nesmí obsahovat administrativní nebo moderační
+oprávnění.
 
 Spuštění:
 

@@ -223,6 +223,17 @@ POSTGRES_TABLES = (
         weight INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (guild_id, position)
     )""",
+    """CREATE TABLE IF NOT EXISTS reaction_role_settings (
+        guild_id BIGINT PRIMARY KEY, channel_id BIGINT NOT NULL,
+        message_id BIGINT, title TEXT NOT NULL, description TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS reaction_role_entries (
+        guild_id BIGINT NOT NULL, position INTEGER NOT NULL,
+        emoji TEXT NOT NULL, role_id BIGINT NOT NULL,
+        PRIMARY KEY (guild_id, position),
+        UNIQUE (guild_id, emoji), UNIQUE (guild_id, role_id)
+    )""",
 )
 
 
@@ -447,6 +458,17 @@ SQLITE_TABLES = (
         emoji TEXT NOT NULL, label TEXT NOT NULL, color TEXT NOT NULL,
         weight INTEGER NOT NULL DEFAULT 1,
         PRIMARY KEY (guild_id, position)
+    )""",
+    """CREATE TABLE IF NOT EXISTS reaction_role_settings (
+        guild_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL,
+        message_id INTEGER, title TEXT NOT NULL, description TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS reaction_role_entries (
+        guild_id INTEGER NOT NULL, position INTEGER NOT NULL,
+        emoji TEXT NOT NULL, role_id INTEGER NOT NULL,
+        PRIMARY KEY (guild_id, position),
+        UNIQUE (guild_id, emoji), UNIQUE (guild_id, role_id)
     )""",
 )
 

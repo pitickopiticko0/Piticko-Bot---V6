@@ -38,6 +38,8 @@
         <span>Nastavení kola štěstí bylo úspěšně uloženo.</span>
       {% elif request.query_params.get('saved') == 'game-deals' %}
         <span>Nastavení her zdarma a slev bylo úspěšně uloženo.</span>
+      {% elif request.query_params.get('saved') == 'reaction-roles' %}
+        <span>Nastavení reakčních rolí bylo uloženo. Panel odešli příkazem /reakcnirole panel.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
       {% endif %}
@@ -291,6 +293,7 @@
       <div class="module-nav-label">Moduly</div>
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
+      <button class="tab" type="button" data-tab="reaction-roles"><span>😀</span>Reakční role</button>
       <button class="tab" type="button" data-tab="modlogs"><span>📋</span>ModLogy</button>
       <button class="tab" type="button" data-tab="moderation"><span>🔨</span>Moderace</button>
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
@@ -326,6 +329,12 @@
             <div class="module-card-top"><div class="module-icon">🎭</div><span class="badge {{ 'on' if settings.autorole.enabled else 'off' }}">{{ 'Zapnuto' if settings.autorole.enabled else 'Vypnuto' }}</span></div>
             <h3>AutoRole</h3>
             <p>Automatické přidání vybrané role každému novému členovi serveru.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="reaction-roles" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">😀</div><span class="badge {{ 'on' if settings.reaction_roles.enabled and settings.reaction_roles.message_id else 'off' }}">{{ 'Aktivní' if settings.reaction_roles.enabled and settings.reaction_roles.message_id else 'Neaktivní' }}</span></div>
+            <h3>Reakční role</h3>
+            <p>Členové si sami vyberou bezpečné role kliknutím na emoji pod panelem.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="modlogs" tabindex="0" role="button">
@@ -546,6 +555,43 @@
           </label>
           <div class="form-actions"><button class="button primary" type="submit">Uložit AutoRole</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
+      </div>
+
+      <div class="tab-panel" id="reaction-roles">
+        <div class="section-heading"><div><p class="eyebrow">REAKČNÍ ROLE</p><h2>Role podle emoji</h2><p>Člen klikne na emoji pod panelem, bot mu roli přidá. Po odebrání reakce ji zase odebere.</p></div><span class="badge {{ 'on' if settings.reaction_roles.enabled and settings.reaction_roles.message_id else 'off' }}">{{ 'Aktivní' if settings.reaction_roles.enabled and settings.reaction_roles.message_id else 'Čeká na panel' }}</span></div>
+        {% if request.query_params.get('reaction_roles_error') == 'invalid' %}<div class="alert error">Vyplň kanál, alespoň jednu dvojici emoji + role a nepoužívej stejné emoji ani roli dvakrát.</div>{% endif %}
+        {% if request.query_params.get('reaction_roles_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže psát. Pro odeslání panelu navíc potřebuje Přidávat reakce.</div>{% endif %}
+        {% if request.query_params.get('reaction_roles_error') == 'role' %}<div class="alert error">Každá role musí být pod botem a nesmí mít administrativní ani moderační oprávnění.</div>{% endif %}
+        {% if request.query_params.get('reaction_roles_warning') == 'unverified' %}<div class="alert warning">Discord API je dočasně nedostupné. Nastavení bylo uloženo, ale oprávnění bot ověří až při odeslání panelu.</div>{% endif %}
+        <form method="post" action="/server/{{ guild.id }}/reaction-roles" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout reakční role</strong><small>Po uložení pošli nebo obnov panel příkazem <code>/reakcnirole panel</code>.</small></span><input type="checkbox" name="enabled" {% if settings.reaction_roles.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <div class="form-grid compact">
+            <label><span>Kanál panelu</span>
+              {% if discord_resources_available %}
+                <select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.reaction_roles.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.reaction_roles.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>
+              {% else %}
+                <input name="channel_id" value="{{ settings.reaction_roles.channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">
+              {% endif %}
+            </label>
+            <label><span>Název panelu</span><input name="title" maxlength="120" value="{{ settings.reaction_roles.title }}" placeholder="Vyber si role"></label>
+          </div>
+          <label><span>Text panelu</span><textarea name="description" rows="3" maxlength="1800" placeholder="Vyber role, které chceš mít.">{{ settings.reaction_roles.description }}</textarea></label>
+          <fieldset class="store-filter"><legend>Emoji a role</legend><small>Vyplň až osm dvojic. Použij běžná Unicode emoji, například <code>🎮</code>, <code>📣</code> nebo <code>🔔</code>.</small><div class="form-grid compact">
+            {% for position in range(8) %}
+              {% set entry = settings.reaction_roles.entries[position] if position < settings.reaction_roles.entries|length else {'emoji': '', 'role_id': ''} %}
+              <label><span>Emoji {{ position + 1 }}</span><input name="emoji" maxlength="100" value="{{ entry.emoji }}" placeholder="🎮"></label>
+              <label><span>Role {{ position + 1 }}</span>
+                {% if discord_resources_available %}
+                  <select name="role_id"><option value="">Bez role</option>{% for role in discord_roles %}<option value="{{ role.id }}" {% if role.id == entry.role_id %}selected{% endif %} {% if (not role.assignable or not role.safe_for_self_assign) and role.id != entry.role_id %}disabled{% endif %}>@{{ role.name }}{% if not role.assignable %} — bot ji nemůže přidat{% elif not role.safe_for_self_assign %} — citlivé oprávnění{% endif %}</option>{% endfor %}</select>
+                {% else %}
+                  <input name="role_id" value="{{ entry.role_id }}" inputmode="numeric" placeholder="Discord ID role">
+                {% endif %}
+              </label>
+            {% endfor %}
+          </div></fieldset>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit reakční role</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+        <small>{% if settings.reaction_roles.message_id %}Po každé změně nastavení musíš poslat nový panel příkazem <code>/reakcnirole panel</code>; starý panel pak už role nemění.{% else %}Po uložení použij na Discordu příkaz <code>/reakcnirole panel</code>. Bot vytvoří zprávu a přidá k ní emoji.{% endif %}</small>
       </div>
 
       <div class="tab-panel" id="modlogs">

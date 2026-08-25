@@ -46,6 +46,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "enabled": False,
         "role_id": "",
     },
+    "reaction_roles": {
+        "enabled": False,
+        "channel_id": "",
+        "message_id": "",
+        "title": "Vyber si role",
+        "description": "Klikni na reakci pod touto zprávou a roli ti přidám. Odebráním reakce se role zase odebere.",
+        "entries": [],
+    },
     "modlogs": {
         "enabled": False,
         "channel_id": "",
@@ -194,6 +202,16 @@ class DashboardStorage:
                 "enabled": bool(_value(autorole, "enabled", 0)),
                 "role_id": str(_value(autorole, "role_id", "")),
             })
+
+        reaction_roles = db.get_reaction_role_settings(guild_id)
+        settings["reaction_roles"].update({
+            "enabled": bool(reaction_roles["enabled"]),
+            "channel_id": str(reaction_roles["channel_id"]),
+            "message_id": str(reaction_roles["message_id"]),
+            "title": str(reaction_roles["title"]),
+            "description": str(reaction_roles["description"]),
+            "entries": list(reaction_roles["entries"]),
+        })
 
         modlogs = db.get_modlog_settings(guild_id)
         if modlogs is not None:

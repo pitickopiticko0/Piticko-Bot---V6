@@ -1365,6 +1365,88 @@ async def save_autorole(
     return RedirectResponse(f"/server/{guild_id}?{query}#autorole", status_code=303)
 
 
+@app.post("/server/{guild_id}/reaction-roles")
+async def save_reaction_roles(
+    request: Request,
+    guild_id: str,
+    enabled: str | None = Form(default=None),
+    channel_id: str = Form(default=""),
+    title: str = Form(default=""),
+    description: str = Form(default=""),
+    emoji: list[str] = Form(default=[]),
+    role_id: list[str] = Form(default=[]),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+
+    is_enabled = enabled == "on"
+    selected_channel_id = channel_id.strip()
+    entries = [
+        {"emoji": entry_emoji, "role_id": entry_role_id}
+        for entry_emoji, entry_role_id in zip(emoji, role_id)
+    ]
+    try:
+        # Ověří formát, duplicity a maximální počet; finální uložení proběhne níže.
+        from utils.db.reaction_roles import normalize_entries
+
+        normalized_entries = normalize_entries(entries)
+    except ValueError:
+        return RedirectResponse(
+            f"/server/{guild_id}?reaction_roles_error=invalid#reaction-roles",
+            status_code=303,
+        )
+
+    if not selected_channel_id.isdigit():
+        return RedirectResponse(
+            f"/server/{guild_id}?reaction_roles_error=invalid#reaction-roles",
+            status_code=303,
+        )
+
+    saved_unverified = False
+    if is_enabled:
+        resources = await get_bot_guild_resources(guild_id)
+        if not resources["available"]:
+            saved_unverified = True
+        else:
+            allowed_channels = {
+                channel["id"] for channel in resources["channels"] if channel["can_send"]
+            }
+            if selected_channel_id not in allowed_channels:
+                return RedirectResponse(
+                    f"/server/{guild_id}?reaction_roles_error=permission#reaction-roles",
+                    status_code=303,
+                )
+            safe_assignable_roles = {
+                role["id"]
+                for role in resources["roles"]
+                if role["assignable"] and role["safe_for_self_assign"]
+            }
+            selected_roles = {str(entry["role_id"]) for entry in normalized_entries}
+            if not selected_roles.issubset(safe_assignable_roles):
+                return RedirectResponse(
+                    f"/server/{guild_id}?reaction_roles_error=role#reaction-roles",
+                    status_code=303,
+                )
+
+    await asyncio.to_thread(
+        db.save_reaction_role_settings,
+        int(guild_id),
+        int(selected_channel_id),
+        title,
+        description,
+        normalized_entries,
+        enabled=is_enabled,
+    )
+    query = "saved=reaction-roles"
+    if saved_unverified:
+        query += "&reaction_roles_warning=unverified"
+    return RedirectResponse(
+        f"/server/{guild_id}?{query}#reaction-roles", status_code=303
+    )
+
+
 @app.post("/server/{guild_id}/modlogs")
 async def save_modlogs(
     request: Request,
