@@ -234,6 +234,22 @@ POSTGRES_TABLES = (
         PRIMARY KEY (guild_id, position),
         UNIQUE (guild_id, emoji), UNIQUE (guild_id, role_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS suggestion_settings (
+        guild_id BIGINT PRIMARY KEY, channel_id BIGINT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS suggestions (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL,
+        message_id BIGINT, author_id BIGINT NOT NULL, title TEXT NOT NULL,
+        description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open',
+        moderator_id BIGINT, moderator_response TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS suggestion_votes (
+        suggestion_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+        value INTEGER NOT NULL, created_at TEXT NOT NULL,
+        PRIMARY KEY (suggestion_id, user_id)
+    )""",
 )
 
 
@@ -469,6 +485,22 @@ SQLITE_TABLES = (
         emoji TEXT NOT NULL, role_id INTEGER NOT NULL,
         PRIMARY KEY (guild_id, position),
         UNIQUE (guild_id, emoji), UNIQUE (guild_id, role_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS suggestion_settings (
+        guild_id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS suggestions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL, message_id INTEGER, author_id INTEGER NOT NULL,
+        title TEXT NOT NULL, description TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open',
+        moderator_id INTEGER, moderator_response TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS suggestion_votes (
+        suggestion_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+        value INTEGER NOT NULL, created_at TEXT NOT NULL,
+        PRIMARY KEY (suggestion_id, user_id)
     )""",
 )
 

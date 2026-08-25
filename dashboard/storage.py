@@ -54,6 +54,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "description": "Klikni na reakci pod touto zprávou a roli ti přidám. Odebráním reakce se role zase odebere.",
         "entries": [],
     },
+    "suggestions": {
+        "enabled": False,
+        "channel_id": "",
+    },
     "modlogs": {
         "enabled": False,
         "channel_id": "",
@@ -211,6 +215,12 @@ class DashboardStorage:
             "title": str(reaction_roles["title"]),
             "description": str(reaction_roles["description"]),
             "entries": list(reaction_roles["entries"]),
+        })
+
+        suggestions = db.get_suggestion_settings(guild_id)
+        settings["suggestions"].update({
+            "enabled": bool(suggestions["enabled"]),
+            "channel_id": str(suggestions["channel_id"]),
         })
 
         modlogs = db.get_modlog_settings(guild_id)

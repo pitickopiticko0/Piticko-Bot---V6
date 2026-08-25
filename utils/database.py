@@ -19,6 +19,7 @@ from utils.db import modlogs as modlogs_db
 from utils.db import pc_advice as pc_advice_db
 from utils.db import pc_build_challenge as pc_build_challenge_db
 from utils.db import reaction_roles as reaction_roles_db
+from utils.db import suggestions as suggestions_db
 from utils.db import sheep_game as sheep_game_db
 from utils.db import tickets as tickets_db
 from utils.db import welcome as welcome_db
@@ -141,6 +142,36 @@ class Database:
 
     def get_reaction_role_mapping(self, guild_id: int, message_id: int, emoji: str):
         return reaction_roles_db.get_mapping(self, guild_id, message_id, emoji)
+
+    def get_suggestion_settings(self, guild_id: int):
+        return suggestions_db.get_settings(self, guild_id)
+
+    def set_suggestion_settings(self, guild_id: int, channel_id: int, enabled: bool) -> None:
+        suggestions_db.save_settings(self, guild_id, channel_id, enabled)
+
+    def create_suggestion(self, *args, **kwargs) -> int:
+        return suggestions_db.create_suggestion(self, *args, **kwargs)
+
+    def get_suggestion(self, suggestion_id: int):
+        return suggestions_db.get_suggestion(self, suggestion_id)
+
+    def get_open_suggestions(self):
+        return suggestions_db.get_open_suggestions(self)
+
+    def get_recent_suggestions(self, guild_id: int, limit: int = 20):
+        return suggestions_db.get_recent_suggestions(self, guild_id, limit)
+
+    def set_suggestion_message_id(self, suggestion_id: int, message_id: int) -> None:
+        suggestions_db.set_message_id(self, suggestion_id, message_id)
+
+    def vote_suggestion(self, suggestion_id: int, user_id: int, value: int) -> tuple[int, int]:
+        return suggestions_db.vote(self, suggestion_id, user_id, value)
+
+    def get_suggestion_vote_totals(self, suggestion_id: int) -> tuple[int, int]:
+        return suggestions_db.get_vote_totals(self, suggestion_id)
+
+    def set_suggestion_status(self, suggestion_id: int, status: str, moderator_id: int, response: str = "") -> None:
+        suggestions_db.set_status(self, suggestion_id, status, moderator_id, response)
 
     def get_modlog_settings(self, guild_id: int):
         return modlogs_db.get_settings(self, guild_id)

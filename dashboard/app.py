@@ -7,7 +7,7 @@ import re
 import secrets
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -849,6 +849,7 @@ async def server_dashboard(request: Request, guild_id: str):
     )
     sheep_game = await storage.get_sheep_game(guild_id)
     lucky_wheel = await asyncio.to_thread(db.get_lucky_wheel_settings, int(guild_id))
+    suggestions = await asyncio.to_thread(db.get_recent_suggestions, int(guild_id), 20)
 
     return templates.TemplateResponse(
         request=request,
@@ -877,6 +878,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "pc_build_challenges": pc_build_challenges,
             "sheep_game": sheep_game,
             "lucky_wheel": lucky_wheel,
+            "suggestions": suggestions,
         },
     )
 
@@ -1444,6 +1446,49 @@ async def save_reaction_roles(
         query += "&reaction_roles_warning=unverified"
     return RedirectResponse(
         f"/server/{guild_id}?{query}#reaction-roles", status_code=303
+    )
+
+
+@app.post("/server/{guild_id}/suggestions")
+async def save_suggestions(
+    request: Request,
+    guild_id: str,
+    enabled: Optional[str] = Form(default=None),
+    channel_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+
+    try:
+        channel_id_int = int(channel_id.strip())
+        if channel_id_int <= 0:
+            raise ValueError
+    except ValueError:
+        return RedirectResponse(
+            f"/server/{guild_id}?suggestions_error=invalid#suggestions", status_code=303
+        )
+
+    warning = ""
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"]:
+        channel = next(
+            (item for item in resources["channels"] if str(item.get("id")) == str(channel_id_int)),
+            None,
+        )
+        if channel is None or not channel.get("can_send", False):
+            return RedirectResponse(
+                f"/server/{guild_id}?suggestions_error=permission#suggestions", status_code=303
+            )
+    else:
+        warning = "&suggestions_warning=unverified"
+
+    await asyncio.to_thread(
+        db.set_suggestion_settings, int(guild_id), channel_id_int, bool(enabled)
+    )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=suggestions{warning}#suggestions", status_code=303
     )
 
 

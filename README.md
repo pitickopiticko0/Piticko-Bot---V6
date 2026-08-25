@@ -236,6 +236,13 @@ Odebrání:
 
 ## Poznámky
 
+## Návrhy komunity
+
+V dashboardu vyber kanál a zapni modul **Návrhy**. Členové pak použijí
+`/navrh poslat` (nebo tlačítko z `/navrh panel`) a odešlou nápad pomocí
+formuláře. Komunita hlasuje tlačítky 👍 a 👎. Správce mění stav příkazem
+`/navrh stav` na **Zvažujeme**, **Přijato**, **Zamítnuto** nebo **Hotovo**.
+
 - Bot používá RSS, takže nepotřebuje YouTube API klíč.
 - Při přidání kanálu se poslední video uloží jako již zpracované, aby bot neposlal starou notifikaci.
 - Nová videa se kontrolují podle `YOUTUBE_CHECK_INTERVAL_SECONDS` v `config.py`.
