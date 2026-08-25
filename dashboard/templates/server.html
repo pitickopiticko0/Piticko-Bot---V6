@@ -40,6 +40,8 @@
         <span>Nastavení her zdarma a slev bylo úspěšně uloženo.</span>
       {% elif request.query_params.get('saved') == 'reaction-roles' %}
         <span>Nastavení reakčních rolí bylo uloženo. Panel odešli příkazem /reakcnirole panel.</span>
+      {% elif request.query_params.get('saved') == 'suggestions' %}
+        <span>Nastavení návrhů bylo uloženo. Členové mohou použít příkaz /navrh poslat.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
       {% endif %}
@@ -294,6 +296,7 @@
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
       <button class="tab" type="button" data-tab="reaction-roles"><span>😀</span>Reakční role</button>
+      <button class="tab" type="button" data-tab="suggestions"><span>💡</span>Návrhy</button>
       <button class="tab" type="button" data-tab="modlogs"><span>📋</span>ModLogy</button>
       <button class="tab" type="button" data-tab="moderation"><span>🔨</span>Moderace</button>
       <button class="tab" type="button" data-tab="antispam"><span>🛡️</span>AntiSpam</button>
@@ -335,6 +338,12 @@
             <div class="module-card-top"><div class="module-icon">😀</div><span class="badge {{ 'on' if settings.reaction_roles.enabled and settings.reaction_roles.message_id else 'off' }}">{{ 'Aktivní' if settings.reaction_roles.enabled and settings.reaction_roles.message_id else 'Neaktivní' }}</span></div>
             <h3>Reakční role</h3>
             <p>Členové si sami vyberou bezpečné role kliknutím na emoji pod panelem.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="suggestions" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">💡</div><span class="badge {{ 'on' if settings.suggestions.enabled else 'off' }}">{{ 'Zapnuto' if settings.suggestions.enabled else 'Vypnuto' }}</span></div>
+            <h3>Návrhy komunity</h3>
+            <p>Členové mohou posílat nápady, hlasovat a sledovat rozhodnutí týmu.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="modlogs" tabindex="0" role="button">
@@ -592,6 +601,31 @@
           <div class="form-actions"><button class="button primary" type="submit">Uložit reakční role</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
         <small>{% if settings.reaction_roles.message_id %}Po každé změně nastavení musíš poslat nový panel příkazem <code>/reakcnirole panel</code>; starý panel pak už role nemění.{% else %}Po uložení použij na Discordu příkaz <code>/reakcnirole panel</code>. Bot vytvoří zprávu a přidá k ní emoji.{% endif %}</small>
+      </div>
+
+      <div class="tab-panel" id="suggestions">
+        <div class="section-heading"><div><p class="eyebrow">NÁVRHY KOMUNITY</p><h2>Nápady, hlasování a rozhodnutí</h2><p>Členové odešlou návrh přes formulář a komunita o něm může hlasovat. Správce pak změní jeho stav příkazem.</p></div><span class="badge {{ 'on' if settings.suggestions.enabled else 'off' }}">{{ 'Aktivní' if settings.suggestions.enabled else 'Neaktivní' }}</span></div>
+        {% if request.query_params.get('suggestions_error') == 'invalid' %}<div class="alert error">Vyber platný textový kanál pro návrhy.</div>{% endif %}
+        {% if request.query_params.get('suggestions_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže posílat zprávy nebo embedy.</div>{% endif %}
+        {% if request.query_params.get('suggestions_warning') == 'unverified' %}<div class="alert warning">Discord API je dočasně nedostupné. Nastavení bylo uloženo, bot oprávnění ověří při odesílání návrhu.</div>{% endif %}
+        <form method="post" action="/server/{{ guild.id }}/suggestions" class="settings-form">
+          <label class="toggle-row"><span><strong>Zapnout návrhy komunity</strong><small>Členové použijí <code>/navrh poslat</code>; jejich návrh se zveřejní ve vybraném kanálu.</small></span><input type="checkbox" name="enabled" {% if settings.suggestions.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
+          <label><span>Kanál pro návrhy</span>
+            {% if discord_resources_available %}
+              <select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if channel.id == settings.suggestions.channel_id %}selected{% endif %} {% if not channel.can_send and channel.id != settings.suggestions.channel_id %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>
+            {% else %}
+              <input name="channel_id" value="{{ settings.suggestions.channel_id }}" inputmode="numeric" placeholder="Discord ID kanálu">
+            {% endif %}
+            <small>Panel s tlačítkem můžeš volitelně poslat příkazem <code>/navrh panel</code>. Stav mění správce příkazem <code>/navrh stav</code>.</small>
+          </label>
+          <div class="form-actions"><button class="button primary" type="submit">Uložit návrhy</button><button class="button subtle" type="reset">Vrátit změny</button></div>
+        </form>
+        <h3 class="subsection-title">Poslední návrhy</h3>
+        {% if suggestions %}
+          <div class="settings-form">{% for suggestion in suggestions %}
+            <div class="toggle-row"><span><strong>#{{ suggestion.id }} · {{ suggestion.title }}</strong><small>{% if suggestion.status == 'open' %}🔵 Nový{% elif suggestion.status == 'considering' %}🟡 Zvažujeme{% elif suggestion.status == 'accepted' %}🟢 Přijato{% elif suggestion.status == 'rejected' %}🔴 Zamítnuto{% else %}✅ Hotovo{% endif %} · 👍 {{ suggestion.upvotes }} · 👎 {{ suggestion.downvotes }}<br>{{ suggestion.description[:170] }}{% if suggestion.description|length > 170 %}…{% endif %}</small></span></div>
+          {% endfor %}</div>
+        {% else %}<div class="empty-state"><h3>Zatím žádné návrhy</h3><p>Po prvním odeslaném nápadu se zde objeví přehled.</p></div>{% endif %}
       </div>
 
       <div class="tab-panel" id="modlogs">
