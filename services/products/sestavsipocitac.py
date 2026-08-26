@@ -33,10 +33,24 @@ class SestavSiPocitacProvider:
         ) as client:
             response = await client.get(self.CATEGORY_URL)
             response.raise_for_status()
+            first_page_products, page_count = self._parse_next_page(response.text)
+
+            # SSP stránkuje katalog šesti kartami, ale jednotlivé stránky má
+            # přímo na URL ``?page=2`` atd. První HTML odpověď proto obsahuje
+            # jen první várku sestav, nikoli celý katalog.
+            if first_page_products:
+                products = {product.code: product for product in first_page_products}
+                for page in range(2, page_count + 1):
+                    page_response = await client.get(self.CATEGORY_URL, params={"page": page})
+                    page_response.raise_for_status()
+                    page_products, _ = self._parse_next_page(page_response.text)
+                    products.update({product.code: product for product in page_products})
+                return list(products.values())
+
         return self._parse_page(response.text)
 
     def _parse_page(self, html: str) -> list[Product]:
-        products_from_next = self._parse_next_products(html)
+        products_from_next, _ = self._parse_next_page(html)
         if products_from_next:
             return products_from_next
 
@@ -90,10 +104,9 @@ class SestavSiPocitacProvider:
 
         return list(products.values())
 
-    def _parse_next_products(self, html: str) -> list[Product]:
-        """Vrátí sestavy z dat vložených Next.js do HTML odpovědi."""
+    def _parse_next_page(self, html: str) -> tuple[list[Product], int]:
+        """Vrátí sestavy a počet stránek z dat vložených Next.js do HTML."""
         soup = BeautifulSoup(html, "html.parser")
-        decoder = json.JSONDecoder()
 
         for script in soup.find_all("script"):
             script_text = script.string or script.get_text()
@@ -101,15 +114,7 @@ class SestavSiPocitacProvider:
                 continue
 
             payload = self._decode_next_payload(script_text)
-            marker = '"initialProducts":'
-            marker_start = payload.find(marker)
-            if marker_start < 0:
-                continue
-
-            try:
-                raw_products, _ = decoder.raw_decode(payload[marker_start + len(marker) :])
-            except json.JSONDecodeError:
-                continue
+            raw_products = self._decode_next_value(payload, "initialProducts")
 
             if not isinstance(raw_products, list):
                 continue
@@ -121,9 +126,32 @@ class SestavSiPocitacProvider:
                 if (product := self._product_from_next_data(item)) is not None
             ]
             if products:
-                return products
+                pagination = self._decode_next_value(payload, "initialPagination")
+                page_count = (
+                    pagination.get("pageCount", 1)
+                    if isinstance(pagination, dict)
+                    else 1
+                )
+                try:
+                    return products, max(1, int(page_count))
+                except (TypeError, ValueError):
+                    return products, 1
 
-        return []
+        return [], 1
+
+    @staticmethod
+    def _decode_next_value(payload: str, field_name: str) -> object | None:
+        """Načte jedno JSON pole vložené v Next.js payloadu."""
+        marker = f'"{field_name}":'
+        marker_start = payload.find(marker)
+        if marker_start < 0:
+            return None
+
+        try:
+            value, _ = json.JSONDecoder().raw_decode(payload[marker_start + len(marker) :])
+        except json.JSONDecodeError:
+            return None
+        return value
 
     @staticmethod
     def _decode_next_payload(script_text: str) -> str:
