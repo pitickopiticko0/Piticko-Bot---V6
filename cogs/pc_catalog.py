@@ -235,6 +235,18 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
     @app_commands.command(name="obnovit", description="Obnoví sestavy SestavSiPočítač ve fóru.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def refresh(self, interaction: discord.Interaction) -> None:
+        await self._run_manual_refresh(interaction)
+
+    @app_commands.command(
+        name="ssp-refresh",
+        description="Obnoví všechny sestavy SestavSiPočítač ve fóru.",
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def ssp_refresh(self, interaction: discord.Interaction) -> None:
+        """Zkratka podobná existujícímu příkazu /makejpc-refresh."""
+        await self._run_manual_refresh(interaction)
+
+    async def _run_manual_refresh(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             found, created, updated = await self.sync_guild(interaction.guild_id or 0)
