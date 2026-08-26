@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -14,8 +15,9 @@ from services.products.base import Product
 class SestavSiPocitacProvider:
     """Parser veřejného katalogu hotových sestav.
 
-    Web není klasický e-shop se stabilními produktovými kartami. Parser proto
-    vychází z odkazů na detaily a cenu hledá jen v jejich nejbližší kartě.
+    Web je postavený v Next.js. Karty nejsou v prvotním HTML, ale data sestav
+    jsou bezpečně vložená ve stránce v poli ``initialProducts``. Nečteme proto
+    vykreslené prvky závislé na JavaScriptu, nýbrž tento zdroj dat.
     """
 
     BASE_URL = "https://sestavsipocitac.cz"
@@ -34,6 +36,12 @@ class SestavSiPocitacProvider:
         return self._parse_page(response.text)
 
     def _parse_page(self, html: str) -> list[Product]:
+        products_from_next = self._parse_next_products(html)
+        if products_from_next:
+            return products_from_next
+
+        # Nouzová kompatibilita pro případ, že web jednou přejde zpět na
+        # klasické HTML produktové karty.
         soup = BeautifulSoup(html, "html.parser")
         products: dict[str, Product] = {}
 
@@ -81,3 +89,86 @@ class SestavSiPocitacProvider:
             )
 
         return list(products.values())
+
+    def _parse_next_products(self, html: str) -> list[Product]:
+        """Vrátí sestavy z dat vložených Next.js do HTML odpovědi."""
+        soup = BeautifulSoup(html, "html.parser")
+        decoder = json.JSONDecoder()
+
+        for script in soup.find_all("script"):
+            script_text = script.string or script.get_text()
+            if "initialProducts" not in script_text:
+                continue
+
+            payload = self._decode_next_payload(script_text)
+            marker = '"initialProducts":'
+            marker_start = payload.find(marker)
+            if marker_start < 0:
+                continue
+
+            try:
+                raw_products, _ = decoder.raw_decode(payload[marker_start + len(marker) :])
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(raw_products, list):
+                continue
+
+            products = [
+                product
+                for item in raw_products
+                if isinstance(item, dict)
+                if (product := self._product_from_next_data(item)) is not None
+            ]
+            if products:
+                return products
+
+        return []
+
+    @staticmethod
+    def _decode_next_payload(script_text: str) -> str:
+        """Rozbalí řetězec předaný přes ``self.__next_f.push``.
+
+        Next.js ukládá data jako JSON řetězec uvnitř JavaScriptového volání.
+        Pokud se formát změní, vrací se původní text a parser jej jen přeskočí.
+        """
+        match = re.search(r"self\.__next_f\.push\((\[1,.*\])\)\s*$", script_text, re.DOTALL)
+        if not match:
+            return script_text
+
+        try:
+            value = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return script_text
+
+        return value[1] if isinstance(value, list) and len(value) > 1 and isinstance(value[1], str) else script_text
+
+    def _product_from_next_data(self, item: dict[str, object]) -> Product | None:
+        slug = str(item.get("slug") or "").strip()
+        name = str(item.get("name") or "").strip()
+        if not slug or not name:
+            return None
+
+        price_value = item.get("priceWithVat")
+        try:
+            price = f"{int(float(str(price_value))):,}".replace(",", "\u00a0") + " Kč"
+        except (TypeError, ValueError):
+            price = "Cena neuvedena"
+
+        availability_map = {
+            "in_stock": "Skladem",
+            "out_of_stock": "Není skladem",
+            "preorder": "Předobjednávka",
+        }
+        availability_key = str(item.get("availabilityStatus") or "").strip().lower()
+        availability = availability_map.get(availability_key, "Dostupnost ověř na webu")
+
+        image_url = str(item.get("mainImageUrl") or "").strip() or None
+        return Product(
+            code=slug,
+            name=name[:180],
+            price=price,
+            availability=availability,
+            url=f"{self.CATEGORY_URL}/{slug}",
+            image_url=image_url,
+        )
