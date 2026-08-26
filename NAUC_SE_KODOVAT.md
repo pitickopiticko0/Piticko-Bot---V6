@@ -17,6 +17,178 @@ u každé změny si nejdřív řekni, **co má udělat**, **kde jsou data** a
 | `tests/` | Automatické testy důležitých částí. |
 | `.env` | Tajné hodnoty, například token bota. Tento soubor nikdy neposílej na GitHub. |
 
+## 1.1 Úplné základy Pythonu
+
+Program je jen velmi přesný návod pro počítač. Počítač neodhadne, co jsi
+„asi myslel“, proto je lepší psát jednoduchý kód po malých krocích.
+
+### Proměnné
+
+Proměnná je pojmenovaná krabička na hodnotu:
+
+```python
+jmeno = "Piticko"
+pocet_clenu = 120
+bot_bezi = True
+```
+
+- Text v uvozovkách je `str` (string).
+- Celé číslo je `int`.
+- `True` a `False` jsou logické hodnoty (`bool`).
+- Název proměnné piš anglicky, malými písmeny a s podtržítkem:
+  `channel_id`, `member_count`, `is_enabled`.
+
+```python
+pozdrav = "Ahoj " + jmeno
+zprava = f"Na serveru je {pocet_clenu} členů."
+```
+
+`f"..."` je pohodlný způsob, jak vložit proměnnou do textu.
+
+### Seznamy a slovníky
+
+Seznam obsahuje více hodnot v pořadí:
+
+```python
+barvy = ["červená", "modrá", "zelená"]
+prvni_barva = barvy[0]
+```
+
+Číslování začíná od nuly. `barvy[0]` je tedy `"červená"`.
+
+Slovník spojuje název s hodnotou:
+
+```python
+nastaveni = {
+    "enabled": True,
+    "channel_id": 123456789,
+}
+
+if nastaveni["enabled"]:
+    print("Modul je zapnutý")
+```
+
+V tomto projektu se nastavení modulu často vrací právě jako slovník.
+
+### Podmínky
+
+Podmínka rozhoduje, kterou větev programu použít:
+
+```python
+if pocet_clenu >= 100:
+    print("Velký server")
+else:
+    print("Menší server")
+```
+
+Pozor na dvojtečku `:` a odsazení. Co je odsazené čtyřmi mezerami, patří do
+podmínky. Bez správného odsazení Python kód nespustí nebo udělá něco jiného,
+než čekáš.
+
+Užitečné porovnání:
+
+| Zápis | Význam |
+| --- | --- |
+| `==` | je stejné jako |
+| `!=` | není stejné jako |
+| `>` / `<` | je větší / menší než |
+| `>=` / `<=` | je větší nebo rovno / menší nebo rovno |
+| `and` | platí obě podmínky |
+| `or` | platí alespoň jedna podmínka |
+| `not` | obrátí hodnotu |
+
+### Funkce
+
+Funkce je pojmenovaný kus programu, který můžeš použít opakovaně:
+
+```python
+def pozdrav_uzivatele(jmeno: str) -> str:
+    return f"Ahoj, {jmeno}!"
+
+text = pozdrav_uzivatele("Petr")
+```
+
+- `def` začíná běžnou funkci.
+- `jmeno` je vstup funkce.
+- `return` vrátí výsledek.
+- `: str` a `-> str` jsou nápovědy typu. Začátečník je nemusí umět, ale
+  pomáhají poznat, co funkce očekává a vrací.
+
+### Smyčky
+
+Smyčka provede stejný postup pro každou položku:
+
+```python
+role = ["YouTube", "Slevy", "Linux"]
+
+for nazev_role in role:
+    print(nazev_role)
+```
+
+Ve tvém botovi se takto projdou například role z reakčního panelu nebo
+uložené návrhy z databáze.
+
+### Importy
+
+Import připojí kód z jiného souboru nebo knihovny:
+
+```python
+import discord
+from config import EMBED_COLOR
+```
+
+První řádek zpřístupní knihovnu Discordu. Druhý načte konkrétní hodnotu z
+`config.py`. Když vidíš chybu `ModuleNotFoundError`, Python danou knihovnu
+nezná nebo není nainstalovaná ve virtuálním prostředí.
+
+### Třídy a `self`
+
+Třída seskupuje kód, který spolu souvisí. Discord modul je například třída:
+
+```python
+class General(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+```
+
+`self` znamená „tento konkrétní modul“. Díky `self.bot` mají příkazy přístup
+k běžícímu botovi. Zatím si stačí zapamatovat: u metod uvnitř třídy je `self`
+první parametr a neodstraňuje se.
+
+### `async` a `await`
+
+Discord komunikuje přes internet. Zatímco bot čeká na odpověď Discordu, nesmí
+zastavit všechny ostatní příkazy. Proto se u Discord operací používá:
+
+```python
+async def muj_prikaz(self, interaction: discord.Interaction):
+    await interaction.response.send_message("Hotovo")
+```
+
+Praktické pravidlo: když voláš Discord nebo síťovou operaci a příklad v
+projektu před ní má `await`, nech tam `await` také. Funkce, ve které používáš
+`await`, musí začínat `async def`.
+
+### Chyby jsou normální
+
+Chyba není důkaz, že na programování nemáš. Je to informace, kde program
+narazil. Čti traceback zdola nahoru:
+
+1. Poslední řádek říká typ chyby a důvod.
+2. Řádek nad ním ukazuje soubor a číslo řádku.
+3. Oprav pouze příčinu, nezkoušej naslepo mazat části kódu.
+
+Příklady:
+
+- `SyntaxError` — překlep, chybí dvojtečka, závorka nebo odsazení.
+- `NameError` — používáš název, který nebyl vytvořen.
+- `AttributeError` — objekt nemá vlastnost nebo metodu, kterou voláš.
+- `KeyError` — slovník nemá požadovaný klíč.
+- `discord.Forbidden` — bot nemá oprávnění k dané akci.
+
+Když chybu posíláš k řešení, pošli celý traceback jako text a nikdy do něj
+nevkládej tajné klíče nebo obsah `.env`.
+
 ## 2. Bezpečný postup při každé změně
 
 1. Vytvoř malou změnu, ne deset funkcí najednou.
