@@ -18,6 +18,7 @@ from utils.db import migrations as database_migrations
 from utils.db import modlogs as modlogs_db
 from utils.db import pc_advice as pc_advice_db
 from utils.db import pc_build_challenge as pc_build_challenge_db
+from utils.db import pc_catalog as pc_catalog_db
 from utils.db import reaction_roles as reaction_roles_db
 from utils.db import suggestions as suggestions_db
 from utils.db import sheep_game as sheep_game_db
@@ -329,6 +330,24 @@ class Database:
 
     def get_game_deal_settings(self, guild_id: int):
         return game_deals_db.get_settings(self, guild_id)
+
+    def get_pc_catalog_settings(self, guild_id: int):
+        return pc_catalog_db.get_settings(self, guild_id)
+
+    def get_enabled_pc_catalog_settings(self):
+        return pc_catalog_db.get_enabled_settings(self)
+
+    def set_pc_catalog_settings(self, *args, **kwargs) -> None:
+        pc_catalog_db.save_settings(self, *args, **kwargs)
+
+    def get_pc_catalog_post(self, guild_id: int, source: str, build_code: str):
+        return pc_catalog_db.get_post(self, guild_id, source, build_code)
+
+    def save_pc_catalog_post(self, *args, **kwargs) -> None:
+        pc_catalog_db.save_post(self, *args, **kwargs)
+
+    def get_pc_catalog_posts(self):
+        return pc_catalog_db.list_posts(self)
 
     def get_enabled_game_deal_settings(self):
         return game_deals_db.get_enabled(self)

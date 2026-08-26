@@ -123,6 +123,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "store_filters": ["steam", "epic", "gog", "itch", "ea", "ubisoft", "microsoft", "humble", "other"],
         "seen_count": 0,
     },
+    "pc_catalog": {
+        "enabled": False,
+        "forum_channel_id": "",
+        "mention_role_id": "",
+        "enabled_makejpc": False,
+        "enabled_sestavsipocitac": False,
+    },
     "moderation": {"auto_punishments": False},
 }
 
@@ -322,6 +329,16 @@ class DashboardStorage:
                 "seen_count": db.count_seen_game_deals(guild_id),
             })
 
+        pc_catalog = db.get_pc_catalog_settings(guild_id)
+        if pc_catalog is not None:
+            settings["pc_catalog"].update({
+                "enabled": bool(_value(pc_catalog, "enabled", 0)),
+                "forum_channel_id": str(_value(pc_catalog, "forum_channel_id", "")),
+                "mention_role_id": str(_value(pc_catalog, "mention_role_id", "")),
+                "enabled_makejpc": bool(_value(pc_catalog, "enabled_makejpc", 0)),
+                "enabled_sestavsipocitac": bool(_value(pc_catalog, "enabled_sestavsipocitac", 0)),
+            })
+
         with db.connect() as conn:
             moderation = conn.execute(
                 "SELECT auto_punishments FROM moderation_settings WHERE guild_id = ?",
@@ -347,6 +364,7 @@ class DashboardStorage:
             "abi_rank": self._save_abi_rank_sync,
             "sheep_game": self._save_sheep_game_sync,
             "game_deals": self._save_game_deals_sync,
+            "pc_catalog": self._save_pc_catalog_sync,
             "moderation": self._save_moderation_sync,
         }
         handler = handlers.get(module)
@@ -590,6 +608,22 @@ class DashboardStorage:
                 field="Role dobrovolného herního odběru",
             )
             db.set_game_deal_subscription_role(guild_id, category, role_id)
+
+    def _save_pc_catalog_sync(self, guild_id: int, values: dict[str, Any]) -> None:
+        enabled = bool(values.get("enabled"))
+        makejpc = bool(values.get("enabled_makejpc"))
+        sestavsipocitac = bool(values.get("enabled_sestavsipocitac"))
+        if enabled and not (makejpc or sestavsipocitac):
+            raise ValueError("Vyber alespoň jeden zdroj PC sestav.")
+        forum_channel_id = _discord_id(
+            values.get("forum_channel_id"), field="Fórum pro PC sestavy", required=enabled
+        )
+        mention_role_id = _discord_id(
+            values.get("mention_role_id"), field="Role pro PC sestavy"
+        )
+        db.set_pc_catalog_settings(
+            guild_id, forum_channel_id, mention_role_id, enabled, makejpc, sestavsipocitac
+        )
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:
         return await asyncio.to_thread(self._get_sheep_game_sync, int(guild_id))
