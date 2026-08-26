@@ -10,7 +10,6 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from services.products.base import Product
-from services.products.makejpc import MakeJPCProvider
 from services.products.sestavsipocitac import SestavSiPocitacProvider
 from utils.database import db
 
@@ -18,7 +17,6 @@ from utils.database import db
 log = logging.getLogger(__name__)
 
 SOURCES = {
-    "makejpc": ("Makej PC", MakeJPCProvider()),
     "sestavsipocitac": ("SestavSiPočítač", SestavSiPocitacProvider()),
 }
 
@@ -48,8 +46,8 @@ class BuildRefreshView(discord.ui.View):
         self.add_item(button)
 
 
-class PcCatalog(commands.GroupCog, group_name="sestavy"):
-    """Automaticky zveřejňuje a obnovuje PC sestavy ve fóru."""
+class PcCatalog(commands.GroupCog, group_name="ssp"):
+    """Automaticky zveřejňuje sestavy SestavSiPočítač ve fóru."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -60,6 +58,8 @@ class PcCatalog(commands.GroupCog, group_name="sestavy"):
     async def cog_load(self) -> None:
         # Načte obnovovací tlačítka i pro příspěvky vytvořené před restartem.
         for post in await asyncio.to_thread(db.get_pc_catalog_posts):
+            if str(post["source"]) not in SOURCES:
+                continue
             try:
                 self.bot.add_view(
                     BuildRefreshView(
@@ -232,7 +232,7 @@ class PcCatalog(commands.GroupCog, group_name="sestavy"):
     async def before_refresh_requests(self) -> None:
         await self.bot.wait_until_ready()
 
-    @app_commands.command(name="obnovit", description="Obnoví sledované PC sestavy ve fóru.")
+    @app_commands.command(name="obnovit", description="Obnoví sestavy SestavSiPočítač ve fóru.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def refresh(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -245,16 +245,16 @@ class PcCatalog(commands.GroupCog, group_name="sestavy"):
         except ValueError as error:
             await interaction.followup.send(f"❌ {error}", ephemeral=True)
 
-    @app_commands.command(name="stav", description="Ukáže stav sledování PC sestav.")
+    @app_commands.command(name="stav", description="Ukáže stav sledování sestav SestavSiPočítač.")
     async def status(self, interaction: discord.Interaction) -> None:
         settings = await asyncio.to_thread(db.get_pc_catalog_settings, interaction.guild_id or 0)
         if settings is None or not bool(row_value(settings, "enabled", 0)):
-            await interaction.response.send_message("ℹ️ Sledování sestav zde není zapnuté.", ephemeral=True)
+            await interaction.response.send_message("ℹ️ SestavSiPočítač zde není zapnutý.", ephemeral=True)
             return
         sources = [SOURCES[key][0] for key in SOURCES if self.source_is_enabled(settings, key)]
         await interaction.response.send_message(
-            "🖥️ **Sledování sestav je aktivní.**\n"
-            f"Zdroje: {', '.join(sources) or 'žádné'}\n"
+            "🖥️ **SestavSiPočítač je aktivní.**\n"
+            f"Zdroj: {', '.join(sources) or 'žádný'}\n"
             f"Fórum: <#{row_value(settings, 'forum_channel_id')}>", ephemeral=True,
         )
 
