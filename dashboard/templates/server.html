@@ -1116,10 +1116,10 @@
         {% if request.query_params.get('pc_catalog_error') == 'invalid' %}<div class="flash error">Vyplň platné Discord ID fóra a vyber alespoň jeden zdroj.</div>{% endif %}
         {% if request.query_params.get('pc_catalog_error') == 'permission' %}<div class="flash error">Bot do vybraného fóra nemůže vytvářet příspěvky.</div>{% endif %}
         <form method="post" action="/server/{{ guild.id }}/pc-catalog" class="settings-form">
-          <label class="toggle-row"><span><strong>Zapnout sledování sestav</strong><small>Kontrola probíhá automaticky každých 30 minut.</small></span><input type="checkbox" name="enabled" {% if settings.pc_catalog.enabled %}checked{% endif %}></label>
+          <label class="toggle-row"><span><strong>Zapnout sledování sestav</strong><small>Kontrola probíhá automaticky každých 30 minut.</small></span><input type="checkbox" name="enabled" {% if settings.pc_catalog.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           <fieldset><legend>Zdroje sestav</legend>
-            <label class="toggle-row"><span><strong>Makej PC</strong><small>Hotové počítače z MakejPC.</small></span><input type="checkbox" name="enabled_makejpc" {% if settings.pc_catalog.enabled_makejpc %}checked{% endif %}></label>
-            <label class="toggle-row"><span><strong>SestavSiPočítač</strong><small>Hotové sestavy ze sestavsipocitac.cz.</small></span><input type="checkbox" name="enabled_sestavsipocitac" {% if settings.pc_catalog.enabled_sestavsipocitac %}checked{% endif %}></label>
+            <label class="toggle-row"><span><strong>Makej PC</strong><small>Hotové počítače z MakejPC.</small></span><input type="checkbox" name="enabled_makejpc" {% if settings.pc_catalog.enabled_makejpc %}checked{% endif %}><i aria-hidden="true"></i></label>
+            <label class="toggle-row"><span><strong>SestavSiPočítač</strong><small>Hotové sestavy ze sestavsipocitac.cz.</small></span><input type="checkbox" name="enabled_sestavsipocitac" {% if settings.pc_catalog.enabled_sestavsipocitac %}checked{% endif %}><i aria-hidden="true"></i></label>
           </fieldset>
           <div class="form-grid">
             <label><span>Fórum pro sestavy</span>{% if discord_resources_available %}<select name="forum_channel_id"><option value="">Vyber fórum</option>{% for forum in discord_forums %}<option value="{{ forum.id }}" {% if forum.id == settings.pc_catalog.forum_channel_id %}selected{% endif %}># {{ forum.name }}</option>{% endfor %}</select>{% else %}<input name="forum_channel_id" value="{{ settings.pc_catalog.forum_channel_id }}" inputmode="numeric" placeholder="Discord ID fóra">{% endif %}</label>
