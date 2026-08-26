@@ -223,6 +223,9 @@ POSTGRES_TABLES = (
         forum_channel_id BIGINT NOT NULL, thread_id BIGINT NOT NULL, message_id BIGINT NOT NULL,
         updated_at TEXT NOT NULL, PRIMARY KEY (guild_id, source, build_code)
     )""",
+    """CREATE TABLE IF NOT EXISTS pc_catalog_refresh_requests (
+        guild_id BIGINT PRIMARY KEY, requested_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS lucky_wheel_settings (
         guild_id BIGINT PRIMARY KEY, title TEXT NOT NULL,
         description TEXT NOT NULL, updated_at TEXT NOT NULL
@@ -484,6 +487,9 @@ SQLITE_TABLES = (
         guild_id INTEGER NOT NULL, source TEXT NOT NULL, build_code TEXT NOT NULL,
         forum_channel_id INTEGER NOT NULL, thread_id INTEGER NOT NULL, message_id INTEGER NOT NULL,
         updated_at TEXT NOT NULL, PRIMARY KEY (guild_id, source, build_code)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_catalog_refresh_requests (
+        guild_id INTEGER PRIMARY KEY, requested_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS lucky_wheel_settings (
         guild_id INTEGER PRIMARY KEY, title TEXT NOT NULL,

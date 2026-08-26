@@ -55,6 +55,7 @@ class PcCatalog(commands.GroupCog, group_name="sestavy"):
         self.bot = bot
         self._lock = asyncio.Lock()
         self.watcher.start()
+        self.refresh_requests.start()
 
     async def cog_load(self) -> None:
         # Načte obnovovací tlačítka i pro příspěvky vytvořené před restartem.
@@ -71,6 +72,7 @@ class PcCatalog(commands.GroupCog, group_name="sestavy"):
 
     def cog_unload(self) -> None:
         self.watcher.cancel()
+        self.refresh_requests.cancel()
 
     @staticmethod
     def build_embed(source: str, product: Product) -> discord.Embed:
@@ -209,6 +211,25 @@ class PcCatalog(commands.GroupCog, group_name="sestavy"):
 
     @watcher.before_loop
     async def before_watcher(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(seconds=30)
+    async def refresh_requests(self) -> None:
+        """Provede požadavky z dashboardu bez čekání na běžný interval."""
+        async with self._lock:
+            requests = await asyncio.to_thread(db.get_pc_catalog_refresh_requests)
+            for request in requests:
+                guild_id = int(request["guild_id"])
+                try:
+                    await self.sync_guild(guild_id)
+                except Exception:
+                    # Požadavek ponecháme pro další pokus, aby se neztratil.
+                    log.exception("Obnovení sestav z dashboardu selhalo pro server %s.", guild_id)
+                    continue
+                await asyncio.to_thread(db.clear_pc_catalog_refresh_request, guild_id)
+
+    @refresh_requests.before_loop
+    async def before_refresh_requests(self) -> None:
         await self.bot.wait_until_ready()
 
     @app_commands.command(name="obnovit", description="Obnoví sledované PC sestavy ve fóru.")

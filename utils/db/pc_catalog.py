@@ -83,3 +83,28 @@ def save_post(
 def list_posts(database: Any):
     with database.connect() as conn:
         return conn.execute("SELECT * FROM pc_catalog_posts ORDER BY updated_at DESC").fetchall()
+
+
+def request_refresh(database: Any, guild_id: int) -> None:
+    excluded = "EXCLUDED" if database.using_postgres else "excluded"
+    with database.connect() as conn:
+        conn.execute(
+            f"""INSERT INTO pc_catalog_refresh_requests (guild_id, requested_at)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET requested_at = {excluded}.requested_at""",
+            (guild_id, database.now()),
+        )
+        conn.commit()
+
+
+def list_refresh_requests(database: Any):
+    with database.connect() as conn:
+        return conn.execute(
+            "SELECT guild_id FROM pc_catalog_refresh_requests ORDER BY requested_at"
+        ).fetchall()
+
+
+def clear_refresh_request(database: Any, guild_id: int) -> None:
+    with database.connect() as conn:
+        conn.execute("DELETE FROM pc_catalog_refresh_requests WHERE guild_id = ?", (guild_id,))
+        conn.commit()
