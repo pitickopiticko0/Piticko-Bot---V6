@@ -1115,6 +1115,7 @@
         <div class="section-heading"><div><p class="eyebrow">PC SESTAVY</p><h2>Sledování hotových sestav</h2><p>Bot vytvoří samostatné fórum vlákno pro každou sestavu a při kontrole upraví název, cenu a obrázek.</p></div><span class="badge {{ 'on' if settings.pc_catalog.enabled else 'off' }}">{{ 'Aktivní' if settings.pc_catalog.enabled else 'Neaktivní' }}</span></div>
         {% if request.query_params.get('pc_catalog_error') == 'invalid' %}<div class="flash error">Vyplň platné Discord ID fóra a vyber alespoň jeden zdroj.</div>{% endif %}
         {% if request.query_params.get('pc_catalog_error') == 'permission' %}<div class="flash error">Bot do vybraného fóra nemůže vytvářet příspěvky.</div>{% endif %}
+        {% if request.query_params.get('saved') == 'pc-catalog-refresh' %}<div class="flash success">✅ Obnovení bylo odesláno botovi. Kontrola začne nejpozději do 30 sekund.</div>{% endif %}
         <form method="post" action="/server/{{ guild.id }}/pc-catalog" class="settings-form">
           <label class="toggle-row"><span><strong>Zapnout sledování sestav</strong><small>Kontrola probíhá automaticky každých 30 minut.</small></span><input type="checkbox" name="enabled" {% if settings.pc_catalog.enabled %}checked{% endif %}><i aria-hidden="true"></i></label>
           <fieldset><legend>Zdroje sestav</legend>
@@ -1127,7 +1128,8 @@
           </div>
           <div class="form-actions"><button class="button primary" type="submit">Uložit sledování sestav</button><button class="button subtle" type="reset">Vrátit změny</button></div>
         </form>
-        <small>Po uložení použij na Discordu <code>/sestavy obnovit</code>. Tlačítko <strong>Obnovit sestavu</strong> funguje jen pro správce serveru.</small>
+        <form method="post" action="/server/{{ guild.id }}/pc-catalog/refresh" class="form-actions"><button class="button subtle" type="submit">🔄 Obnovit nyní</button></form>
+        <small>Obnovení z dashboardu začne nejpozději do 30 sekund. Příkaz <code>/sestavy obnovit</code> funguje ihned na Discordu. Tlačítko <strong>Obnovit sestavu</strong> funguje jen pro správce serveru.</small>
       </div>
 
       <div class="tab-panel" id="general">

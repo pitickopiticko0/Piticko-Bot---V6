@@ -2109,6 +2109,24 @@ async def save_pc_catalog(
     )
 
 
+@app.post("/server/{guild_id}/pc-catalog/refresh")
+async def refresh_pc_catalog(request: Request, guild_id: str):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    settings = await storage.get_settings(guild_id)
+    catalog = settings["pc_catalog"]
+    if not catalog["enabled"] or not catalog["forum_channel_id"]:
+        return RedirectResponse(
+            f"/server/{guild_id}?pc_catalog_error=invalid#pc-catalog", status_code=303
+        )
+    await asyncio.to_thread(db.request_pc_catalog_refresh, int(guild_id))
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=pc-catalog-refresh#pc-catalog", status_code=303
+    )
+
+
 @app.post("/server/{guild_id}/general")
 async def save_general(
     request: Request,

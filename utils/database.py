@@ -349,6 +349,15 @@ class Database:
     def get_pc_catalog_posts(self):
         return pc_catalog_db.list_posts(self)
 
+    def request_pc_catalog_refresh(self, guild_id: int) -> None:
+        pc_catalog_db.request_refresh(self, guild_id)
+
+    def get_pc_catalog_refresh_requests(self):
+        return pc_catalog_db.list_refresh_requests(self)
+
+    def clear_pc_catalog_refresh_request(self, guild_id: int) -> None:
+        pc_catalog_db.clear_refresh_request(self, guild_id)
+
     def get_enabled_game_deal_settings(self):
         return game_deals_db.get_enabled(self)
 
