@@ -2060,13 +2060,11 @@ async def save_game_deals(
     )
 
 
-@app.post("/server/{guild_id}/pc-catalog")
+@app.post("/server/{guild_id}/ssp")
 async def save_pc_catalog(
     request: Request,
     guild_id: str,
     enabled: str | None = Form(default=None),
-    enabled_makejpc: str | None = Form(default=None),
-    enabled_sestavsipocitac: str | None = Form(default=None),
     forum_channel_id: str = Form(default=""),
     mention_role_id: str = Form(default=""),
 ):
@@ -2077,39 +2075,37 @@ async def save_pc_catalog(
     active = enabled == "on"
     selected_forum = forum_channel_id.strip()
     selected_role = mention_role_id.strip()
-    source_selected = enabled_makejpc == "on" or enabled_sestavsipocitac == "on"
     if (
-        (active and (not selected_forum or not source_selected))
+        (active and not selected_forum)
         or (selected_forum and not selected_forum.isdigit())
         or (selected_role and not selected_role.isdigit())
     ):
         return RedirectResponse(
-            f"/server/{guild_id}?pc_catalog_error=invalid#pc-catalog", status_code=303
+            f"/server/{guild_id}?pc_catalog_error=invalid#ssp", status_code=303
         )
     if active:
         resources = await get_bot_guild_resources(guild_id)
         if resources["available"] and selected_forum not in {item["id"] for item in resources["forums"]}:
             return RedirectResponse(
-                f"/server/{guild_id}?pc_catalog_error=permission#pc-catalog", status_code=303
+                f"/server/{guild_id}?pc_catalog_error=permission#ssp", status_code=303
             )
     try:
         await storage.update_module(guild_id, "pc_catalog", {
             "enabled": active,
-            "enabled_makejpc": enabled_makejpc == "on",
-            "enabled_sestavsipocitac": enabled_sestavsipocitac == "on",
+            "enabled_sestavsipocitac": active,
             "forum_channel_id": selected_forum,
             "mention_role_id": selected_role,
         })
     except ValueError:
         return RedirectResponse(
-            f"/server/{guild_id}?pc_catalog_error=invalid#pc-catalog", status_code=303
+            f"/server/{guild_id}?pc_catalog_error=invalid#ssp", status_code=303
         )
     return RedirectResponse(
-        f"/server/{guild_id}?saved=pc-catalog#pc-catalog", status_code=303
+        f"/server/{guild_id}?saved=ssp#ssp", status_code=303
     )
 
 
-@app.post("/server/{guild_id}/pc-catalog/refresh")
+@app.post("/server/{guild_id}/ssp/refresh")
 async def refresh_pc_catalog(request: Request, guild_id: str):
     redirect = require_login(request)
     if redirect:
@@ -2119,11 +2115,11 @@ async def refresh_pc_catalog(request: Request, guild_id: str):
     catalog = settings["pc_catalog"]
     if not catalog["enabled"] or not catalog["forum_channel_id"]:
         return RedirectResponse(
-            f"/server/{guild_id}?pc_catalog_error=invalid#pc-catalog", status_code=303
+            f"/server/{guild_id}?pc_catalog_error=invalid#ssp", status_code=303
         )
     await asyncio.to_thread(db.request_pc_catalog_refresh, int(guild_id))
     return RedirectResponse(
-        f"/server/{guild_id}?saved=pc-catalog-refresh#pc-catalog", status_code=303
+        f"/server/{guild_id}?saved=pc-catalog-refresh#ssp", status_code=303
     )
 
 

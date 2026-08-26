@@ -127,7 +127,6 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "enabled": False,
         "forum_channel_id": "",
         "mention_role_id": "",
-        "enabled_makejpc": False,
         "enabled_sestavsipocitac": False,
     },
     "moderation": {"auto_punishments": False},
@@ -335,7 +334,6 @@ class DashboardStorage:
                 "enabled": bool(_value(pc_catalog, "enabled", 0)),
                 "forum_channel_id": str(_value(pc_catalog, "forum_channel_id", "")),
                 "mention_role_id": str(_value(pc_catalog, "mention_role_id", "")),
-                "enabled_makejpc": bool(_value(pc_catalog, "enabled_makejpc", 0)),
                 "enabled_sestavsipocitac": bool(_value(pc_catalog, "enabled_sestavsipocitac", 0)),
             })
 
@@ -611,10 +609,7 @@ class DashboardStorage:
 
     def _save_pc_catalog_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         enabled = bool(values.get("enabled"))
-        makejpc = bool(values.get("enabled_makejpc"))
         sestavsipocitac = bool(values.get("enabled_sestavsipocitac"))
-        if enabled and not (makejpc or sestavsipocitac):
-            raise ValueError("Vyber alespoň jeden zdroj PC sestav.")
         forum_channel_id = _discord_id(
             values.get("forum_channel_id"), field="Fórum pro PC sestavy", required=enabled
         )
@@ -622,7 +617,7 @@ class DashboardStorage:
             values.get("mention_role_id"), field="Role pro PC sestavy"
         )
         db.set_pc_catalog_settings(
-            guild_id, forum_channel_id, mention_role_id, enabled, makejpc, sestavsipocitac
+            guild_id, forum_channel_id, mention_role_id, enabled, False, sestavsipocitac
         )
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:
