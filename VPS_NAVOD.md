@@ -9,7 +9,7 @@ webový dashboard, lokální PostgreSQL databáze a automatické zálohy.
 2. Vlož tento příkaz:
 
 ```powershell
-ssh -i "$env:USERPROFILE\.ssh\piticko_vps_ed25519" debian@57.131.140.115
+TVÁ_IP_ADRESA_VPS
 ```
 
 3. Napiš heslo k SSH klíči (*passphrase*).
