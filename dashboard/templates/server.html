@@ -42,6 +42,12 @@
         <span>Nastavení reakčních rolí bylo uloženo. Panel odešli příkazem /reakcnirole panel.</span>
       {% elif request.query_params.get('saved') == 'suggestions' %}
         <span>Nastavení návrhů bylo uloženo. Členové mohou použít příkaz /navrh poslat.</span>
+      {% elif request.query_params.get('saved') == 'announcement' %}
+        <span>Oznámení bylo naplánováno. Bot ho odešle nejpozději 30 sekund po zvoleném čase.</span>
+      {% elif request.query_params.get('saved') == 'announcement-edit' %}
+        <span>Plánované oznámení bylo upraveno.</span>
+      {% elif request.query_params.get('saved') == 'announcement-cancel' %}
+        <span>Plánované oznámení bylo zrušeno.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
       {% endif %}
@@ -292,6 +298,7 @@
       <button class="tab active" type="button" data-tab="overview"><span>🏠</span>Přehled</button>
       <button class="tab" type="button" data-tab="appearance"><span>🖼️</span>Profil bota</button>
       <button class="tab" type="button" data-tab="webhook"><span>📣</span>Webhook zpráva</button>
+      <button class="tab" type="button" data-tab="announcements"><span>🗓️</span>Plánovaná oznámení</button>
       <div class="module-nav-label">Moduly</div>
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
@@ -345,6 +352,12 @@
             <div class="module-card-top"><div class="module-icon">💡</div><span class="badge {{ 'on' if settings.suggestions.enabled else 'off' }}">{{ 'Zapnuto' if settings.suggestions.enabled else 'Vypnuto' }}</span></div>
             <h3>Návrhy komunity</h3>
             <p>Členové mohou posílat nápady, hlasovat a sledovat rozhodnutí týmu.</p>
+            <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="announcements" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">🗓️</div><span class="badge {{ 'on' if scheduled_announcements else 'off' }}">{{ scheduled_announcements|length }} čeká</span></div>
+            <h3>Plánovaná oznámení</h3>
+            <p>Napiš zprávu dopředu a bot ji odešle do vybraného kanálu v přesný čas.</p>
             <span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="modlogs" tabindex="0" role="button">
@@ -627,6 +640,29 @@
             <div class="toggle-row"><span><strong>#{{ suggestion.id }} · {{ suggestion.title }}</strong><small>{% if suggestion.status == 'open' %}🔵 Nový{% elif suggestion.status == 'considering' %}🟡 Zvažujeme{% elif suggestion.status == 'accepted' %}🟢 Přijato{% elif suggestion.status == 'rejected' %}🔴 Zamítnuto{% else %}✅ Hotovo{% endif %} · 👍 {{ suggestion.upvotes }} · 👎 {{ suggestion.downvotes }}<br>{{ suggestion.description[:170] }}{% if suggestion.description|length > 170 %}…{% endif %}</small></span></div>
           {% endfor %}</div>
         {% else %}<div class="empty-state"><h3>Zatím žádné návrhy</h3><p>Po prvním odeslaném nápadu se zde objeví přehled.</p></div>{% endif %}
+      </div>
+
+      <div class="tab-panel" id="announcements">
+        <div class="section-heading"><div><p class="eyebrow">PLÁNOVANÁ OZNÁMENÍ</p><h2>{{ 'Upravit oznámení' if editing_announcement else 'Oznámení na čas' }}</h2><p>Bot odešle embed ve zvolený čas podle časové zóny serveru: <strong>{{ settings.general.timezone }}</strong>.</p></div><span class="badge on">Kontrola po 30 s</span></div>
+        {% if request.query_params.get('announcement_error') == 'invalid' %}<div class="alert error">Vyplň text, platnou barvu, cílový kanál a budoucí datum s časem.</div>{% endif %}
+        {% if request.query_params.get('announcement_error') == 'permission' %}<div class="alert error">Vybraný kanál není textový kanál, do kterého bot může psát.</div>{% endif %}
+        {% if request.query_params.get('announcement_error') == 'missing' %}<div class="alert error">Toto oznámení už nelze upravit nebo zrušit.</div>{% endif %}
+        <form method="post" action="{% if editing_announcement %}/server/{{ guild.id }}/announcements/{{ editing_announcement.id }}{% else %}/server/{{ guild.id }}/announcements{% endif %}" class="settings-form">
+          <div class="form-grid">
+            <label><span>Cílový kanál</span>{% if discord_resources_available %}<select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if editing_announcement and channel.id == editing_announcement.channel_id %}selected{% endif %} {% if not channel.can_send and (not editing_announcement or channel.id != editing_announcement.channel_id) %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="channel_id" value="{{ editing_announcement.channel_id if editing_announcement else '' }}" inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}</label>
+            <label><span>Datum a čas</span><input name="scheduled_for" type="datetime-local" value="{{ editing_announcement_time }}" required><small>Čas se bere v zóně {{ settings.general.timezone }}.</small></label>
+            <label><span>Nadpis (volitelné)</span><input name="title" maxlength="256" value="{{ editing_announcement.title if editing_announcement else '' }}" placeholder="Např. Dnešní turnaj"></label>
+            <label><span>Barva</span><input name="color" type="color" value="{{ editing_announcement.color if editing_announcement else '#5865F2' }}"></label>
+          </div>
+          <label><span>Text oznámení</span><textarea name="content" rows="5" maxlength="4000" required placeholder="Napiš zprávu, kterou má bot poslat.">{{ editing_announcement.content if editing_announcement else '' }}</textarea><small>Oznámení se posílá jako embed. Pro jistotu jsou v plánovaných zprávách vypnuté @everyone a hromadné zmínky.</small></label>
+          <div class="form-actions"><button class="button primary" type="submit">{{ 'Uložit úpravy' if editing_announcement else 'Naplánovat oznámení' }}</button>{% if editing_announcement %}<a class="button subtle" href="/server/{{ guild.id }}#announcements">Zrušit úpravy</a>{% else %}<button class="button subtle" type="reset">Vyčistit</button>{% endif %}</div>
+        </form>
+        <h3 class="subsection-title">Přehled oznámení</h3>
+        {% if scheduled_announcements %}
+          <div class="settings-form">{% for announcement in scheduled_announcements %}
+            <div class="toggle-row"><span><strong>{% if announcement.status == 'scheduled' %}🕒{% elif announcement.status == 'sent' %}✅{% elif announcement.status == 'cancelled' %}🚫{% else %}⚠️{% endif %} {{ announcement.title or 'Oznámení bez nadpisu' }}</strong><small>Kanál: #{{ announcement.channel_id }} · čas: {{ announcement_times.get(announcement.id, announcement.scheduled_at) }}<br>{{ announcement.content[:160] }}{% if announcement.content|length > 160 %}…{% endif %}</small></span>{% if announcement.status == 'scheduled' %}<div class="form-actions"><a class="button subtle" href="/server/{{ guild.id }}?announcement_edit={{ announcement.id }}#announcements">Upravit</a><form method="post" action="/server/{{ guild.id }}/announcements/{{ announcement.id }}/cancel"><button class="button danger" type="submit">Zrušit</button></form></div>{% endif %}</div>
+          {% endfor %}</div>
+        {% else %}<div class="empty-state"><h3>Zatím nic nečeká</h3><p>Vytvoř první plánované oznámení ve formuláři výše.</p></div>{% endif %}
       </div>
 
       <div class="tab-panel" id="modlogs">

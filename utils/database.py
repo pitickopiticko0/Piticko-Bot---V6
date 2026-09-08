@@ -20,6 +20,7 @@ from utils.db import pc_advice as pc_advice_db
 from utils.db import pc_build_challenge as pc_build_challenge_db
 from utils.db import pc_catalog as pc_catalog_db
 from utils.db import reaction_roles as reaction_roles_db
+from utils.db import scheduled_announcements as scheduled_announcements_db
 from utils.db import suggestions as suggestions_db
 from utils.db import sheep_game as sheep_game_db
 from utils.db import tickets as tickets_db
@@ -170,6 +171,30 @@ class Database:
 
     def get_suggestion_vote_totals(self, suggestion_id: int) -> tuple[int, int]:
         return suggestions_db.get_vote_totals(self, suggestion_id)
+
+    def create_scheduled_announcement(self, *args, **kwargs) -> int:
+        return scheduled_announcements_db.create(self, *args, **kwargs)
+
+    def get_scheduled_announcements(self, guild_id: int, limit: int = 50):
+        return scheduled_announcements_db.list_for_guild(self, guild_id, limit)
+
+    def get_scheduled_announcement(self, announcement_id: int, guild_id: int):
+        return scheduled_announcements_db.get_for_guild(self, announcement_id, guild_id)
+
+    def get_due_scheduled_announcements(self, now: str, limit: int = 25):
+        return scheduled_announcements_db.list_due(self, now, limit)
+
+    def update_scheduled_announcement(self, *args, **kwargs) -> bool:
+        return scheduled_announcements_db.update(self, *args, **kwargs)
+
+    def cancel_scheduled_announcement(self, announcement_id: int, guild_id: int) -> bool:
+        return scheduled_announcements_db.cancel(self, announcement_id, guild_id)
+
+    def mark_scheduled_announcement_sent(self, announcement_id: int, message_id: int) -> None:
+        scheduled_announcements_db.mark_sent(self, announcement_id, message_id)
+
+    def mark_scheduled_announcement_failed(self, announcement_id: int) -> None:
+        scheduled_announcements_db.mark_failed(self, announcement_id)
 
     def set_suggestion_status(self, suggestion_id: int, status: str, moderator_id: int, response: str = "") -> None:
         suggestions_db.set_status(self, suggestion_id, status, moderator_id, response)

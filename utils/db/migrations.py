@@ -263,6 +263,13 @@ POSTGRES_TABLES = (
         value INTEGER NOT NULL, created_at TEXT NOT NULL,
         PRIMARY KEY (suggestion_id, user_id)
     )""",
+    """CREATE TABLE IF NOT EXISTS scheduled_announcements (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL,
+        author_id BIGINT NOT NULL, title TEXT NOT NULL DEFAULT '', content TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#5865F2', scheduled_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'scheduled', message_id BIGINT,
+        created_at TEXT NOT NULL, sent_at TEXT, cancelled_at TEXT
+    )""",
 )
 
 
@@ -527,6 +534,13 @@ SQLITE_TABLES = (
         suggestion_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
         value INTEGER NOT NULL, created_at TEXT NOT NULL,
         PRIMARY KEY (suggestion_id, user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS scheduled_announcements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, channel_id INTEGER NOT NULL,
+        author_id INTEGER NOT NULL, title TEXT NOT NULL DEFAULT '', content TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#5865F2', scheduled_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'scheduled', message_id INTEGER,
+        created_at TEXT NOT NULL, sent_at TEXT, cancelled_at TEXT
     )""",
 )
 

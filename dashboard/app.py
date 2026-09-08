@@ -133,6 +133,7 @@ SELF_ASSIGN_FORBIDDEN_PERMISSIONS = (
     | (1 << 29)  # manage_webhooks
     | (1 << 40)  # moderate_members
 )
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 DISCORD_RESOURCE_CACHE_TTL = 20.0
 DISCORD_RESOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 DISCORD_RESOURCE_LOCKS: dict[str, asyncio.Lock] = {}
@@ -158,6 +159,20 @@ def get_accessible_guild(request: Request, guild_id: str) -> dict[str, Any]:
         if str(guild.get("id")) == str(guild_id):
             return guild
     raise HTTPException(status_code=403, detail="K tomuto serveru nemáš přístup.")
+
+
+def parse_scheduled_time(value: str, timezone_name: str) -> str | None:
+    """Převede čas z formuláře (v časové zóně serveru) na UTC pro databázi."""
+    try:
+        local_time = datetime.fromisoformat(value.strip())
+        if local_time.tzinfo is not None:
+            return None
+        scheduled = local_time.replace(tzinfo=ZoneInfo(timezone_name)).astimezone(timezone.utc)
+    except (TypeError, ValueError, ZoneInfoNotFoundError):
+        return None
+    if scheduled <= datetime.now(timezone.utc):
+        return None
+    return scheduled.isoformat()
 
 
 def bot_authorization() -> dict[str, str]:
@@ -850,6 +865,37 @@ async def server_dashboard(request: Request, guild_id: str):
     sheep_game = await storage.get_sheep_game(guild_id)
     lucky_wheel = await asyncio.to_thread(db.get_lucky_wheel_settings, int(guild_id))
     suggestions = await asyncio.to_thread(db.get_recent_suggestions, int(guild_id), 20)
+    scheduled_announcements = await asyncio.to_thread(
+        db.get_scheduled_announcements, int(guild_id), 50
+    )
+    announcement_times: dict[int, str] = {}
+    for announcement in scheduled_announcements:
+        try:
+            scheduled = datetime.fromisoformat(str(announcement["scheduled_at"]))
+            if scheduled.tzinfo is None:
+                scheduled = scheduled.replace(tzinfo=timezone.utc)
+            announcement_times[int(announcement["id"])] = scheduled.astimezone(
+                ZoneInfo(settings["general"]["timezone"])
+            ).strftime("%d.%m.%Y v %H:%M")
+        except (TypeError, ValueError, ZoneInfoNotFoundError):
+            announcement_times[int(announcement["id"])] = str(announcement["scheduled_at"])
+    editing_announcement = None
+    editing_announcement_time = ""
+    editing_id = request.query_params.get("announcement_edit", "")
+    if editing_id.isdigit():
+        editing_announcement = await asyncio.to_thread(
+            db.get_scheduled_announcement, int(editing_id), int(guild_id)
+        )
+        if editing_announcement is not None:
+            try:
+                scheduled = datetime.fromisoformat(str(editing_announcement["scheduled_at"]))
+                if scheduled.tzinfo is None:
+                    scheduled = scheduled.replace(tzinfo=timezone.utc)
+                editing_announcement_time = scheduled.astimezone(
+                    ZoneInfo(settings["general"]["timezone"])
+                ).strftime("%Y-%m-%dT%H:%M")
+            except (TypeError, ValueError, ZoneInfoNotFoundError):
+                editing_announcement = None
 
     return templates.TemplateResponse(
         request=request,
@@ -879,6 +925,10 @@ async def server_dashboard(request: Request, guild_id: str):
             "sheep_game": sheep_game,
             "lucky_wheel": lucky_wheel,
             "suggestions": suggestions,
+            "scheduled_announcements": scheduled_announcements,
+            "announcement_times": announcement_times,
+            "editing_announcement": editing_announcement,
+            "editing_announcement_time": editing_announcement_time,
         },
     )
 
@@ -1489,6 +1539,128 @@ async def save_suggestions(
     )
     return RedirectResponse(
         f"/server/{guild_id}?saved=suggestions{warning}#suggestions", status_code=303
+    )
+
+
+async def save_scheduled_announcement(
+    request: Request,
+    guild_id: str,
+    channel_id: str = Form(default=""),
+    title: str = Form(default=""),
+    content: str = Form(default=""),
+    color: str = Form(default="#5865F2"),
+    scheduled_for: str = Form(default=""),
+    announcement_id: int | None = None,
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+
+    selected_channel_id = channel_id.strip()
+    safe_title = " ".join(title.split())[:256]
+    safe_content = content.strip()[:4000]
+    safe_color = color.strip()
+    settings = await storage.get_settings(guild_id)
+    scheduled_at = parse_scheduled_time(scheduled_for, settings["general"]["timezone"])
+    if (
+        not selected_channel_id.isdigit()
+        or not safe_content
+        or len(safe_content) > 4000
+        or not HEX_COLOR_RE.fullmatch(safe_color)
+        or scheduled_at is None
+    ):
+        suffix = "&announcement_edit=" + str(announcement_id) if announcement_id else ""
+        return RedirectResponse(
+            f"/server/{guild_id}?announcement_error=invalid{suffix}#announcements", status_code=303
+        )
+
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"]:
+        allowed_channels = {
+            item["id"] for item in resources["channels"] if item["can_send"]
+        }
+        if selected_channel_id not in allowed_channels:
+            suffix = "&announcement_edit=" + str(announcement_id) if announcement_id else ""
+            return RedirectResponse(
+                f"/server/{guild_id}?announcement_error=permission{suffix}#announcements", status_code=303
+            )
+
+    if announcement_id is None:
+        user = current_user(request) or {}
+        user_id = str(user.get("id", "0"))
+        if not user_id.isdigit():
+            raise HTTPException(status_code=401, detail="Chybí identita přihlášeného uživatele.")
+        await asyncio.to_thread(
+            db.create_scheduled_announcement,
+            int(guild_id), int(selected_channel_id), int(user_id),
+            safe_title, safe_content, safe_color, scheduled_at,
+        )
+        saved = "announcement"
+    else:
+        updated = await asyncio.to_thread(
+            db.update_scheduled_announcement,
+            announcement_id, int(guild_id), int(selected_channel_id),
+            safe_title, safe_content, safe_color, scheduled_at,
+        )
+        if not updated:
+            return RedirectResponse(
+                f"/server/{guild_id}?announcement_error=missing#announcements", status_code=303
+            )
+        saved = "announcement-edit"
+    return RedirectResponse(
+        f"/server/{guild_id}?saved={saved}#announcements", status_code=303
+    )
+
+
+@app.post("/server/{guild_id}/announcements")
+async def create_scheduled_announcement(
+    request: Request,
+    guild_id: str,
+    channel_id: str = Form(default=""),
+    title: str = Form(default=""),
+    content: str = Form(default=""),
+    color: str = Form(default="#5865F2"),
+    scheduled_for: str = Form(default=""),
+):
+    return await save_scheduled_announcement(
+        request, guild_id, channel_id, title, content, color, scheduled_for
+    )
+
+
+@app.post("/server/{guild_id}/announcements/{announcement_id}")
+async def edit_scheduled_announcement(
+    request: Request,
+    guild_id: str,
+    announcement_id: int,
+    channel_id: str = Form(default=""),
+    title: str = Form(default=""),
+    content: str = Form(default=""),
+    color: str = Form(default="#5865F2"),
+    scheduled_for: str = Form(default=""),
+):
+    return await save_scheduled_announcement(
+        request, guild_id, channel_id, title, content, color, scheduled_for, announcement_id
+    )
+
+
+@app.post("/server/{guild_id}/announcements/{announcement_id}/cancel")
+async def cancel_scheduled_announcement(
+    request: Request, guild_id: str, announcement_id: int
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    cancelled = await asyncio.to_thread(
+        db.cancel_scheduled_announcement, announcement_id, int(guild_id)
+    )
+    if not cancelled:
+        return RedirectResponse(
+            f"/server/{guild_id}?announcement_error=missing#announcements", status_code=303
+        )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=announcement-cancel#announcements", status_code=303
     )
 
 
