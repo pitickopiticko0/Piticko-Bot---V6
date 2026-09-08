@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import discord
 from discord.ext import commands, tasks
@@ -22,6 +23,35 @@ def parse_color(value: str) -> discord.Color:
         return discord.Color(int(str(value).lstrip("#"), 16))
     except (TypeError, ValueError):
         return discord.Color(EMBED_COLOR)
+
+
+def row_value(row, key: str, default=None):
+    try:
+        value = row[key]
+    except (KeyError, IndexError, TypeError):
+        return default
+    return default if value is None else value
+
+
+def next_scheduled_time(announcement, now: datetime) -> str | None:
+    """Spočítá další lokální termín; neuteče kvůli přechodu na letní čas."""
+    repeat_kind = str(row_value(announcement, "repeat_kind", "once"))
+    if repeat_kind not in {"daily", "weekly"}:
+        return None
+    try:
+        scheduled = datetime.fromisoformat(str(announcement["scheduled_at"]))
+        if scheduled.tzinfo is None:
+            scheduled = scheduled.replace(tzinfo=timezone.utc)
+        timezone_name = str(row_value(announcement, "timezone_name", "Europe/Prague"))
+        local = scheduled.astimezone(ZoneInfo(timezone_name))
+    except (TypeError, ValueError, ZoneInfoNotFoundError):
+        return None
+
+    step = timedelta(days=1 if repeat_kind == "daily" else 7)
+    next_local = local + step
+    while next_local.astimezone(timezone.utc) <= now:
+        next_local += step
+    return next_local.astimezone(timezone.utc).isoformat()
 
 
 class ScheduledAnnouncements(commands.Cog):
@@ -87,10 +117,18 @@ class ScheduledAnnouncements(commands.Cog):
                     # Krátký výpadek Discordu neznamená ztrátu zprávy; zkusí se znovu.
                     log.exception("Dočasná chyba při odesílání plánovaného oznámení %s.", announcement_id)
                 else:
-                    await asyncio.to_thread(
-                        db.mark_scheduled_announcement_sent, announcement_id, message.id
-                    )
-                    log.info("Odesláno plánované oznámení %s.", announcement_id)
+                    next_time = next_scheduled_time(announcement, datetime.now(timezone.utc))
+                    if next_time is None:
+                        await asyncio.to_thread(
+                            db.mark_scheduled_announcement_sent, announcement_id, message.id
+                        )
+                        log.info("Odesláno jednorázové oznámení %s.", announcement_id)
+                    else:
+                        await asyncio.to_thread(
+                            db.reschedule_scheduled_announcement,
+                            announcement_id, message.id, next_time,
+                        )
+                        log.info("Odesláno opakované oznámení %s; další termín %s.", announcement_id, next_time)
 
     @sender.before_loop
     async def before_sender(self) -> None:

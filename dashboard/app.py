@@ -1550,6 +1550,7 @@ async def save_scheduled_announcement(
     content: str = Form(default=""),
     color: str = Form(default="#5865F2"),
     scheduled_for: str = Form(default=""),
+    repeat_kind: str = Form(default="once"),
     announcement_id: int | None = None,
 ):
     redirect = require_login(request)
@@ -1561,6 +1562,7 @@ async def save_scheduled_announcement(
     safe_title = " ".join(title.split())[:256]
     safe_content = content.strip()[:4000]
     safe_color = color.strip()
+    safe_repeat_kind = repeat_kind.strip()
     settings = await storage.get_settings(guild_id)
     scheduled_at = parse_scheduled_time(scheduled_for, settings["general"]["timezone"])
     if (
@@ -1568,6 +1570,7 @@ async def save_scheduled_announcement(
         or not safe_content
         or len(safe_content) > 4000
         or not HEX_COLOR_RE.fullmatch(safe_color)
+        or safe_repeat_kind not in {"once", "daily", "weekly"}
         or scheduled_at is None
     ):
         suffix = "&announcement_edit=" + str(announcement_id) if announcement_id else ""
@@ -1595,6 +1598,7 @@ async def save_scheduled_announcement(
             db.create_scheduled_announcement,
             int(guild_id), int(selected_channel_id), int(user_id),
             safe_title, safe_content, safe_color, scheduled_at,
+            safe_repeat_kind, settings["general"]["timezone"],
         )
         saved = "announcement"
     else:
@@ -1602,6 +1606,7 @@ async def save_scheduled_announcement(
             db.update_scheduled_announcement,
             announcement_id, int(guild_id), int(selected_channel_id),
             safe_title, safe_content, safe_color, scheduled_at,
+            safe_repeat_kind, settings["general"]["timezone"],
         )
         if not updated:
             return RedirectResponse(
@@ -1622,9 +1627,10 @@ async def create_scheduled_announcement(
     content: str = Form(default=""),
     color: str = Form(default="#5865F2"),
     scheduled_for: str = Form(default=""),
+    repeat_kind: str = Form(default="once"),
 ):
     return await save_scheduled_announcement(
-        request, guild_id, channel_id, title, content, color, scheduled_for
+        request, guild_id, channel_id, title, content, color, scheduled_for, repeat_kind
     )
 
 
@@ -1638,9 +1644,11 @@ async def edit_scheduled_announcement(
     content: str = Form(default=""),
     color: str = Form(default="#5865F2"),
     scheduled_for: str = Form(default=""),
+    repeat_kind: str = Form(default="once"),
 ):
     return await save_scheduled_announcement(
-        request, guild_id, channel_id, title, content, color, scheduled_for, announcement_id
+        request, guild_id, channel_id, title, content, color, scheduled_for,
+        repeat_kind, announcement_id,
     )
 
 

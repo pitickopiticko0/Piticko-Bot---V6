@@ -59,6 +59,20 @@ def main() -> None:
         assert scheduled_announcements.cancel(database, announcement_id, 123)
         assert scheduled_announcements.list_due(database, "2031-01-01T00:00:00+00:00") == []
 
+        repeating_id = scheduled_announcements.create(
+            database,
+            123, 456, 789, "Denní test", "Text", "#5865F2",
+            "2030-01-01T10:00:00+00:00", "daily", "Europe/Prague",
+        )
+        scheduled_announcements.reschedule(
+            database, repeating_id, 987, "2030-01-02T10:00:00+00:00"
+        )
+        repeating = scheduled_announcements.get_for_guild(database, repeating_id, 123)
+        assert repeating["status"] == "scheduled"
+        assert repeating["repeat_kind"] == "daily"
+        assert repeating["timezone_name"] == "Europe/Prague"
+        assert repeating["scheduled_at"] == "2030-01-02T10:00:00+00:00"
+
     print("OK: scheduled announcements")
 
 

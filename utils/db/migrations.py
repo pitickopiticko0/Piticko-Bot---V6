@@ -267,6 +267,7 @@ POSTGRES_TABLES = (
         id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL,
         author_id BIGINT NOT NULL, title TEXT NOT NULL DEFAULT '', content TEXT NOT NULL,
         color TEXT NOT NULL DEFAULT '#5865F2', scheduled_at TEXT NOT NULL,
+        repeat_kind TEXT NOT NULL DEFAULT 'once', timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague',
         status TEXT NOT NULL DEFAULT 'scheduled', message_id BIGINT,
         created_at TEXT NOT NULL, sent_at TEXT, cancelled_at TEXT
     )""",
@@ -539,6 +540,7 @@ SQLITE_TABLES = (
         id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, channel_id INTEGER NOT NULL,
         author_id INTEGER NOT NULL, title TEXT NOT NULL DEFAULT '', content TEXT NOT NULL,
         color TEXT NOT NULL DEFAULT '#5865F2', scheduled_at TEXT NOT NULL,
+        repeat_kind TEXT NOT NULL DEFAULT 'once', timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague',
         status TEXT NOT NULL DEFAULT 'scheduled', message_id INTEGER,
         created_at TEXT NOT NULL, sent_at TEXT, cancelled_at TEXT
     )""",
@@ -568,6 +570,8 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_weekend_id BIGINT",
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_dlc_id BIGINT",
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_deal_id BIGINT",
+    "ALTER TABLE scheduled_announcements ADD COLUMN IF NOT EXISTS repeat_kind TEXT NOT NULL DEFAULT 'once'",
+    "ALTER TABLE scheduled_announcements ADD COLUMN IF NOT EXISTS timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague'",
 )
 
 
@@ -607,6 +611,10 @@ SQLITE_MIGRATIONS = {
         "subscription_role_weekend_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_weekend_id INTEGER",
         "subscription_role_dlc_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_dlc_id INTEGER",
         "subscription_role_deal_id": "ALTER TABLE game_deal_settings ADD COLUMN subscription_role_deal_id INTEGER",
+    },
+    "scheduled_announcements": {
+        "repeat_kind": "ALTER TABLE scheduled_announcements ADD COLUMN repeat_kind TEXT NOT NULL DEFAULT 'once'",
+        "timezone_name": "ALTER TABLE scheduled_announcements ADD COLUMN timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague'",
     },
 }
 

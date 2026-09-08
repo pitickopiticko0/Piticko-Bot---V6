@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+REPEAT_KINDS = {"once", "daily", "weekly"}
+
+
+def normalize_repeat_kind(value: str) -> str:
+    return value if value in REPEAT_KINDS else "once"
+
 
 def create(
     database: Any,
@@ -14,6 +20,8 @@ def create(
     content: str,
     color: str,
     scheduled_at: str,
+    repeat_kind: str = "once",
+    timezone_name: str = "Europe/Prague",
 ) -> int:
     values = (
         guild_id,
@@ -23,11 +31,14 @@ def create(
         content.strip()[:4000],
         color.strip()[:7],
         scheduled_at,
+        normalize_repeat_kind(repeat_kind),
+        timezone_name.strip()[:64] or "Europe/Prague",
         database.now(),
     )
     query = """INSERT INTO scheduled_announcements
-        (guild_id, channel_id, author_id, title, content, color, scheduled_at, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
+        (guild_id, channel_id, author_id, title, content, color, scheduled_at,
+         repeat_kind, timezone_name, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
     with database.connect() as conn:
         if database.using_postgres:
             row = conn.execute(query + " RETURNING id", values).fetchone()
@@ -80,15 +91,19 @@ def update(
     content: str,
     color: str,
     scheduled_at: str,
+    repeat_kind: str = "once",
+    timezone_name: str = "Europe/Prague",
 ) -> bool:
     with database.connect() as conn:
         cursor = conn.execute(
             """UPDATE scheduled_announcements
-               SET channel_id = ?, title = ?, content = ?, color = ?, scheduled_at = ?
+               SET channel_id = ?, title = ?, content = ?, color = ?, scheduled_at = ?,
+                   repeat_kind = ?, timezone_name = ?
                WHERE id = ? AND guild_id = ? AND status = 'scheduled'""",
             (
                 channel_id, title.strip()[:256], content.strip()[:4000], color.strip()[:7],
-                scheduled_at, announcement_id, guild_id,
+                scheduled_at, normalize_repeat_kind(repeat_kind),
+                timezone_name.strip()[:64] or "Europe/Prague", announcement_id, guild_id,
             ),
         )
         conn.commit()
@@ -114,6 +129,18 @@ def mark_sent(database: Any, announcement_id: int, message_id: int) -> None:
                SET status = 'sent', message_id = ?, sent_at = ?
                WHERE id = ? AND status = 'scheduled'""",
             (message_id, database.now(), announcement_id),
+        )
+        conn.commit()
+
+
+def reschedule(database: Any, announcement_id: int, message_id: int, scheduled_at: str) -> None:
+    """Posune opakované oznámení na další termín po úspěšném odeslání."""
+    with database.connect() as conn:
+        conn.execute(
+            """UPDATE scheduled_announcements
+               SET message_id = ?, sent_at = ?, scheduled_at = ?
+               WHERE id = ? AND status = 'scheduled'""",
+            (message_id, database.now(), scheduled_at, announcement_id),
         )
         conn.commit()
 

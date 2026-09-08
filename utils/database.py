@@ -193,6 +193,11 @@ class Database:
     def mark_scheduled_announcement_sent(self, announcement_id: int, message_id: int) -> None:
         scheduled_announcements_db.mark_sent(self, announcement_id, message_id)
 
+    def reschedule_scheduled_announcement(
+        self, announcement_id: int, message_id: int, scheduled_at: str
+    ) -> None:
+        scheduled_announcements_db.reschedule(self, announcement_id, message_id, scheduled_at)
+
     def mark_scheduled_announcement_failed(self, announcement_id: int) -> None:
         scheduled_announcements_db.mark_failed(self, announcement_id)
 

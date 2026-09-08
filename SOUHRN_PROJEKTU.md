@@ -30,8 +30,9 @@ V dashboardu je modul **Plánovaná oznámení**.
 
 1. Vybereš textový kanál.
 2. Napíšeš nadpis, text, barvu a datum s časem.
-3. Bot oznámení uloží do databáze a po nastaveném čase ho pošle jako embed.
-4. Oznámení lze před odesláním upravit nebo zrušit.
+3. Zvolíš, zda se má poslat jednou, každý den nebo každý týden.
+4. Bot oznámení uloží do databáze a po nastaveném čase ho pošle jako embed.
+5. Oznámení lze před odesláním upravit nebo zrušit.
 
 Čas se zadává v časové zóně nastavené pro server, běžně `Europe/Prague`. Bot kontroluje termíny každých 30 sekund. V plánovaných zprávách jsou záměrně vypnuté hromadné zmínky `@everyone` a role, aby se nedaly omylem pingnout všichni členové.
 
