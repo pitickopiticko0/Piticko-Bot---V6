@@ -11,6 +11,7 @@ from utils.db import antispam as antispam_db
 from utils.db import abi_rank as abi_rank_db
 from utils.db import autorole as autorole_db
 from utils.db import dashboard as dashboard_db
+from utils.db import events as events_db
 from utils.db import game_deals as game_deals_db
 from utils.db import lucky_wheel as lucky_wheel_db
 from utils.db import makejpc as makejpc_db
@@ -200,6 +201,33 @@ class Database:
 
     def mark_scheduled_announcement_failed(self, announcement_id: int) -> None:
         scheduled_announcements_db.mark_failed(self, announcement_id)
+
+    def create_community_event(self, *args, **kwargs) -> int:
+        return events_db.create(self, *args, **kwargs)
+
+    def get_community_event(self, event_id: int, guild_id: int | None = None):
+        return events_db.get(self, event_id, guild_id)
+
+    def get_community_events(self, guild_id: int, limit: int = 30):
+        return events_db.list_for_guild(self, guild_id, limit)
+
+    def get_pending_community_events(self):
+        return events_db.list_pending(self)
+
+    def get_active_community_events(self):
+        return events_db.list_active(self)
+
+    def publish_community_event(self, event_id: int, message_id: int) -> None:
+        events_db.set_published(self, event_id, message_id)
+
+    def cancel_community_event(self, event_id: int, guild_id: int) -> bool:
+        return events_db.cancel(self, event_id, guild_id)
+
+    def join_community_event(self, event_id: int, user_id: int) -> bool:
+        return events_db.join(self, event_id, user_id)
+
+    def count_community_event_participants(self, event_id: int) -> int:
+        return events_db.count_participants(self, event_id)
 
     def set_suggestion_status(self, suggestion_id: int, status: str, moderator_id: int, response: str = "") -> None:
         suggestions_db.set_status(self, suggestion_id, status, moderator_id, response)

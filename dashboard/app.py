@@ -868,6 +868,7 @@ async def server_dashboard(request: Request, guild_id: str):
     scheduled_announcements = await asyncio.to_thread(
         db.get_scheduled_announcements, int(guild_id), 50
     )
+    community_events = await asyncio.to_thread(db.get_community_events, int(guild_id), 30)
     announcement_times: dict[int, str] = {}
     for announcement in scheduled_announcements:
         try:
@@ -926,6 +927,7 @@ async def server_dashboard(request: Request, guild_id: str):
             "lucky_wheel": lucky_wheel,
             "suggestions": suggestions,
             "scheduled_announcements": scheduled_announcements,
+            "community_events": community_events,
             "announcement_times": announcement_times,
             "editing_announcement": editing_announcement,
             "editing_announcement_time": editing_announcement_time,
@@ -1670,6 +1672,53 @@ async def cancel_scheduled_announcement(
     return RedirectResponse(
         f"/server/{guild_id}?saved=announcement-cancel#announcements", status_code=303
     )
+
+
+@app.post("/server/{guild_id}/events")
+async def create_community_event(
+    request: Request,
+    guild_id: str,
+    channel_id: str = Form(default=""),
+    title: str = Form(default=""),
+    description: str = Form(default=""),
+    event_at: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    settings = await storage.get_settings(guild_id)
+    selected_channel = channel_id.strip()
+    safe_title = " ".join(title.split())[:200]
+    safe_description = description.strip()[:2000]
+    scheduled_at = parse_scheduled_time(event_at, settings["general"]["timezone"])
+    if not selected_channel.isdigit() or len(safe_title) < 3 or scheduled_at is None:
+        return RedirectResponse(f"/server/{guild_id}?event_error=invalid#events", status_code=303)
+    resources = await get_bot_guild_resources(guild_id)
+    if resources["available"] and selected_channel not in {
+        item["id"] for item in resources["channels"] if item["can_send"]
+    }:
+        return RedirectResponse(f"/server/{guild_id}?event_error=permission#events", status_code=303)
+    user = current_user(request) or {}
+    user_id = str(user.get("id", "0"))
+    if not user_id.isdigit():
+        raise HTTPException(status_code=401, detail="Chybí identita přihlášeného uživatele.")
+    await asyncio.to_thread(
+        db.create_community_event, int(guild_id), int(selected_channel), int(user_id),
+        safe_title, safe_description, scheduled_at,
+    )
+    return RedirectResponse(f"/server/{guild_id}?saved=event#events", status_code=303)
+
+
+@app.post("/server/{guild_id}/events/{event_id}/cancel")
+async def cancel_community_event(request: Request, guild_id: str, event_id: int):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    cancelled = await asyncio.to_thread(db.cancel_community_event, event_id, int(guild_id))
+    query = "saved=event-cancel" if cancelled else "event_error=missing"
+    return RedirectResponse(f"/server/{guild_id}?{query}#events", status_code=303)
 
 
 @app.post("/server/{guild_id}/modlogs")

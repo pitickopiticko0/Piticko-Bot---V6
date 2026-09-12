@@ -48,6 +48,10 @@
         <span>Plánované oznámení bylo upraveno.</span>
       {% elif request.query_params.get('saved') == 'announcement-cancel' %}
         <span>Plánované oznámení bylo zrušeno.</span>
+      {% elif request.query_params.get('saved') == 'event' %}
+        <span>Akce byla vytvořena. Bot ji zveřejní v kanálu nejpozději do 20 sekund.</span>
+      {% elif request.query_params.get('saved') == 'event-cancel' %}
+        <span>Akce byla zrušena.</span>
       {% else %}
         <span>Nastavení modulu {{ request.query_params.get('saved') }} bylo úspěšně aktualizováno.</span>
       {% endif %}
@@ -299,6 +303,7 @@
       <button class="tab" type="button" data-tab="appearance"><span>🖼️</span>Profil bota</button>
       <button class="tab" type="button" data-tab="webhook"><span>📣</span>Webhook zpráva</button>
       <button class="tab" type="button" data-tab="announcements"><span>🗓️</span>Plánovaná oznámení</button>
+      <button class="tab" type="button" data-tab="events"><span>📅</span>Kalendář akcí</button>
       <div class="module-nav-label">Moduly</div>
       <button class="tab" type="button" data-tab="welcome"><span>👋</span>Welcome</button>
       <button class="tab" type="button" data-tab="autorole"><span>🎭</span>AutoRole</button>
@@ -359,6 +364,10 @@
             <h3>Plánovaná oznámení</h3>
             <p>Napiš zprávu dopředu a bot ji odešle do vybraného kanálu v přesný čas.</p>
             <span class="module-link">Otevřít modul →</span>
+          </article>
+          <article class="module-card" data-open-tab="events" tabindex="0" role="button">
+            <div class="module-card-top"><div class="module-icon">📅</div><span class="badge {{ 'on' if community_events else 'off' }}">{{ community_events|length }} akcí</span></div>
+            <h3>Kalendář akcí</h3><p>Vytvoř akci a členové se přihlásí tlačítkem přímo na Discordu.</p><span class="module-link">Otevřít modul →</span>
           </article>
           <article class="module-card" data-open-tab="modlogs" tabindex="0" role="button">
             <div class="module-card-top"><div class="module-icon">📋</div><span class="badge {{ 'on' if settings.modlogs.enabled else 'off' }}">{{ 'Zapnuto' if settings.modlogs.enabled else 'Vypnuto' }}</span></div>
@@ -664,6 +673,26 @@
             <div class="toggle-row"><span><strong>{% if announcement.status == 'scheduled' %}🕒{% elif announcement.status == 'sent' %}✅{% elif announcement.status == 'cancelled' %}🚫{% else %}⚠️{% endif %} {{ announcement.title or 'Oznámení bez nadpisu' }}</strong><small>Kanál: #{{ announcement.channel_id }} · čas: {{ announcement_times.get(announcement.id, announcement.scheduled_at) }} · {% if announcement.repeat_kind == 'daily' %}každý den{% elif announcement.repeat_kind == 'weekly' %}každý týden{% else %}jednou{% endif %}<br>{{ announcement.content[:160] }}{% if announcement.content|length > 160 %}…{% endif %}</small></span>{% if announcement.status == 'scheduled' %}<div class="form-actions"><a class="button subtle" href="/server/{{ guild.id }}?announcement_edit={{ announcement.id }}#announcements">Upravit</a><form method="post" action="/server/{{ guild.id }}/announcements/{{ announcement.id }}/cancel"><button class="button danger" type="submit">Zrušit</button></form></div>{% endif %}</div>
           {% endfor %}</div>
         {% else %}<div class="empty-state"><h3>Zatím nic nečeká</h3><p>Vytvoř první plánované oznámení ve formuláři výše.</p></div>{% endif %}
+      </div>
+
+      <div class="tab-panel" id="events">
+        <div class="section-heading"><div><p class="eyebrow">KALENDÁŘ AKCÍ</p><h2>Akce komunity</h2><p>Vytvoř akci, bot ji pošle do Discordu a členové se přihlásí tlačítkem.</p></div><span class="badge on">Zveřejnění do 20 s</span></div>
+        {% if request.query_params.get('event_error') == 'invalid' %}<div class="alert error">Vyber kanál, napiš název akce a nastav budoucí datum s časem.</div>{% endif %}
+        {% if request.query_params.get('event_error') == 'permission' %}<div class="alert error">Bot do vybraného kanálu nemůže psát.</div>{% endif %}
+        {% if request.query_params.get('event_error') == 'missing' %}<div class="alert error">Tato akce už není aktivní.</div>{% endif %}
+        <form method="post" action="/server/{{ guild.id }}/events" class="settings-form">
+          <div class="form-grid">
+            <label><span>Kanál pro akci</span>{% if discord_resources_available %}<select name="channel_id"><option value="">Vyber kanál</option>{% for channel in discord_channels %}<option value="{{ channel.id }}" {% if not channel.can_send %}disabled{% endif %}># {{ channel.name }}{% if not channel.can_send %} — bot nemůže psát{% endif %}</option>{% endfor %}</select>{% else %}<input name="channel_id" inputmode="numeric" placeholder="Discord ID kanálu">{% endif %}</label>
+            <label><span>Datum a čas akce</span><input name="event_at" type="datetime-local" required><small>Čas: {{ settings.general.timezone }}.</small></label>
+            <label><span>Název akce</span><input name="title" maxlength="200" required placeholder="Např. Společné hraní CS2"></label>
+          </div>
+          <label><span>Popis (volitelné)</span><textarea name="description" rows="4" maxlength="2000" placeholder="Co se bude dít, pro koho akce je a co si mají členové připravit."></textarea></label>
+          <div class="form-actions"><button class="button primary" type="submit">Vytvořit akci</button><button class="button subtle" type="reset">Vyčistit</button></div>
+        </form>
+        <h3 class="subsection-title">Přehled akcí</h3>
+        {% if community_events %}<div class="settings-form">{% for event in community_events %}
+          <div class="toggle-row"><span><strong>{% if event.status == 'active' %}📅{% elif event.status == 'pending' %}🕒{% elif event.status == 'cancelled' %}🚫{% else %}⚠️{% endif %} {{ event.title }}</strong><small>Termín (UTC): {{ event.event_at }} · přihlášeno: {{ event.participant_count }}<br>{{ event.description[:160] if event.description else 'Bez popisu.' }}{% if event.description|length > 160 %}…{% endif %}</small></span>{% if event.status in ['pending', 'active'] %}<div class="form-actions"><form method="post" action="/server/{{ guild.id }}/events/{{ event.id }}/cancel"><button class="button danger" type="submit">Zrušit</button></form></div>{% endif %}</div>
+        {% endfor %}</div>{% else %}<div class="empty-state"><h3>Zatím žádné akce</h3><p>První akci vytvoříš formulářem výše.</p></div>{% endif %}
       </div>
 
       <div class="tab-panel" id="modlogs">

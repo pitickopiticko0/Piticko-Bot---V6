@@ -271,6 +271,16 @@ POSTGRES_TABLES = (
         status TEXT NOT NULL DEFAULT 'scheduled', message_id BIGINT,
         created_at TEXT NOT NULL, sent_at TEXT, cancelled_at TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS community_events (
+        id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL,
+        host_id BIGINT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL,
+        event_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', message_id BIGINT,
+        created_at TEXT NOT NULL, published_at TEXT, cancelled_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS community_event_participants (
+        event_id BIGINT NOT NULL, user_id BIGINT NOT NULL, joined_at TEXT NOT NULL,
+        PRIMARY KEY (event_id, user_id)
+    )""",
 )
 
 
@@ -543,6 +553,16 @@ SQLITE_TABLES = (
         repeat_kind TEXT NOT NULL DEFAULT 'once', timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague',
         status TEXT NOT NULL DEFAULT 'scheduled', message_id INTEGER,
         created_at TEXT NOT NULL, sent_at TEXT, cancelled_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS community_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, channel_id INTEGER NOT NULL,
+        host_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL,
+        event_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', message_id INTEGER,
+        created_at TEXT NOT NULL, published_at TEXT, cancelled_at TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS community_event_participants (
+        event_id INTEGER NOT NULL, user_id INTEGER NOT NULL, joined_at TEXT NOT NULL,
+        PRIMARY KEY (event_id, user_id)
     )""",
 )
 
