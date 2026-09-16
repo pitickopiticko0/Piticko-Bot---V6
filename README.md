@@ -8,6 +8,7 @@ Discord YouTube notifier připravený pro Wispbytehosting.
 - `/ping`, `/status`, `/help`
 - `/youtube add`, `/youtube remove`, `/youtube list`, `/youtube check`, `/youtube test`
 - YouTube RSS notifikace
+- Hudba ve voice kanálu z jednotlivých odkazů YouTube a YouTube Music
 - SQLite ochrana proti duplicitám
 - Profesionální embedy s tlačítkem
 - Logování do konzole i souboru
@@ -22,6 +23,13 @@ Discord YouTube notifier připravený pro Wispbytehosting.
 
 ```bash
 pip install -r requirements.txt
+```
+
+Pro hlasové přehrávání musí být na VPS dostupný také **FFmpeg**. Na Debianu:
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg
 ```
 
 Zkopíruj `.env.example` na `.env` a vlož token:
@@ -186,6 +194,24 @@ uchování. Systemd služba běží jako uživatel `debian`, proto musí být re
 uložený v jeho `~/.config/rclone/rclone.conf`.
 
 ## Použití
+
+## Hudba ve voice kanálu
+
+Připoj se do voice kanálu a vlož odkaz na jednu veřejnou skladbu nebo video z
+YouTube či YouTube Music:
+
+```text
+/hudba play odkaz:https://music.youtube.com/watch?v=...
+/hudba fronta
+/hudba preskocit
+/hudba pauza
+/hudba pokracovat
+/hudba zastavit
+```
+
+Bot nepodporuje playlisty ani hudbu z neveřejných odkazů. Přehrává pouze stream
+z vloženého odkazu a soubory neukládá na disk. Používej jen obsah, který smíš
+na Discordu přehrávat.
 
 Herní nabídky se nastavují v dashboardu nebo příkazem:
 

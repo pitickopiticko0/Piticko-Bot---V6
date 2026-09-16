@@ -61,6 +61,11 @@ class General(commands.Cog):
         embed.add_field(name="/youtube check", value="Ručně zkontroluje nová videa", inline=False)
         embed.add_field(name="/youtube test", value="Pošle testovací embed", inline=False)
         embed.add_field(
+            name="/hudba play · /hudba fronta · /hudba preskocit · /hudba zastavit",
+            value="Přehraje jeden odkaz z YouTube nebo YouTube Music ve voice kanálu",
+            inline=False,
+        )
+        embed.add_field(
             name="/alzadny-kontrola",
             value="Bezpečně otestuje relevantní AlzaDny nabídky",
             inline=False,
