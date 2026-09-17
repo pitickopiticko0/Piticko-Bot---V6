@@ -1197,6 +1197,7 @@
 
       <div class="tab-panel" id="buildz">
         <div class="section-heading"><div><p class="eyebrow">BUILDZ.GG</p><h2>Sestavy z Buildz.gg</h2><p>Buildz.gg používá zcela vlastní fórum a vlastní volitelnou roli. Při prvním zapnutí se stávající nabídka jen uloží jako výchozí stav; příspěvek vznikne až pro nově přidanou sestavu.</p></div><span class="badge {{ 'on' if settings.pc_catalog.enabled_buildz else 'off' }}">{{ 'Aktivní' if settings.pc_catalog.enabled_buildz else 'Neaktivní' }}</span></div>
+        {% if settings.pc_catalog.enabled_buildz and not settings.pc_catalog.buildz_forum_channel_id %}<div class="flash error">Buildz.gg zatím nemá vlastní fórum. Vyber ho a ulož nastavení, jinak kontrola Buildz.gg neběží.</div>{% endif %}
         {% if request.query_params.get('pc_catalog_error') == 'invalid' %}<div class="flash error">Vyplň platné Discord ID fóra.</div>{% endif %}
         {% if request.query_params.get('pc_catalog_error') == 'permission' %}<div class="flash error">Bot do vybraného fóra nemůže vytvářet příspěvky.</div>{% endif %}
         {% if request.query_params.get('saved') == 'buildz' %}<div class="flash success">✅ Nastavení Buildz.gg bylo uloženo.</div>{% endif %}
