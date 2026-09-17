@@ -413,6 +413,14 @@ class Database:
     def delete_pc_catalog_post(self, guild_id: int, source: str, build_code: str) -> None:
         pc_catalog_db.delete_post(self, guild_id, source, build_code)
 
+    def get_pc_catalog_seen_codes(self, guild_id: int, source: str) -> set[str]:
+        return pc_catalog_db.get_seen_codes(self, guild_id, source)
+
+    def add_pc_catalog_seen_codes(
+        self, guild_id: int, source: str, build_codes: set[str]
+    ) -> None:
+        pc_catalog_db.add_seen_codes(self, guild_id, source, build_codes)
+
     def request_pc_catalog_refresh(self, guild_id: int) -> None:
         pc_catalog_db.request_refresh(self, guild_id)
 

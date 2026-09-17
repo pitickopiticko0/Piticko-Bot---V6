@@ -2293,7 +2293,8 @@ async def save_game_deals(
 async def save_pc_catalog(
     request: Request,
     guild_id: str,
-    enabled: str | None = Form(default=None),
+    enabled_sestavsipocitac: str | None = Form(default=None),
+    enabled_buildz: str | None = Form(default=None),
     forum_channel_id: str = Form(default=""),
     mention_role_id: str = Form(default=""),
 ):
@@ -2301,7 +2302,9 @@ async def save_pc_catalog(
     if redirect:
         return redirect
     get_accessible_guild(request, guild_id)
-    active = enabled == "on"
+    ssp_active = enabled_sestavsipocitac == "on"
+    buildz_active = enabled_buildz == "on"
+    active = ssp_active or buildz_active
     selected_forum = forum_channel_id.strip()
     selected_role = mention_role_id.strip()
     if (
@@ -2321,7 +2324,8 @@ async def save_pc_catalog(
     try:
         await storage.update_module(guild_id, "pc_catalog", {
             "enabled": active,
-            "enabled_sestavsipocitac": active,
+            "enabled_sestavsipocitac": ssp_active,
+            "enabled_buildz": buildz_active,
             "forum_channel_id": selected_forum,
             "mention_role_id": selected_role,
         })

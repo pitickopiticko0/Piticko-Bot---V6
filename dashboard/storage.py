@@ -128,6 +128,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "forum_channel_id": "",
         "mention_role_id": "",
         "enabled_sestavsipocitac": False,
+        "enabled_buildz": False,
     },
     "moderation": {"auto_punishments": False},
 }
@@ -335,6 +336,7 @@ class DashboardStorage:
                 "forum_channel_id": str(_value(pc_catalog, "forum_channel_id", "")),
                 "mention_role_id": str(_value(pc_catalog, "mention_role_id", "")),
                 "enabled_sestavsipocitac": bool(_value(pc_catalog, "enabled_sestavsipocitac", 0)),
+                "enabled_buildz": bool(_value(pc_catalog, "enabled_buildz", 0)),
             })
 
         with db.connect() as conn:
@@ -608,8 +610,9 @@ class DashboardStorage:
             db.set_game_deal_subscription_role(guild_id, category, role_id)
 
     def _save_pc_catalog_sync(self, guild_id: int, values: dict[str, Any]) -> None:
-        enabled = bool(values.get("enabled"))
         sestavsipocitac = bool(values.get("enabled_sestavsipocitac"))
+        buildz = bool(values.get("enabled_buildz"))
+        enabled = sestavsipocitac or buildz
         forum_channel_id = _discord_id(
             values.get("forum_channel_id"), field="Fórum pro PC sestavy", required=enabled
         )
@@ -617,7 +620,8 @@ class DashboardStorage:
             values.get("mention_role_id"), field="Role pro PC sestavy"
         )
         db.set_pc_catalog_settings(
-            guild_id, forum_channel_id, mention_role_id, enabled, False, sestavsipocitac
+            guild_id, forum_channel_id, mention_role_id,
+            enabled, False, sestavsipocitac, buildz,
         )
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:

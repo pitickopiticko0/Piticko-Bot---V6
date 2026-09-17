@@ -15,7 +15,7 @@ def get_enabled_settings(database: Any):
         return conn.execute(
             """SELECT * FROM pc_catalog_settings
                WHERE enabled = 1 AND forum_channel_id IS NOT NULL
-               AND (enabled_makejpc = 1 OR enabled_sestavsipocitac = 1)
+               AND (enabled_makejpc = 1 OR enabled_sestavsipocitac = 1 OR enabled_buildz = 1)
                ORDER BY guild_id"""
         ).fetchall()
 
@@ -28,24 +28,26 @@ def save_settings(
     enabled: bool,
     enabled_makejpc: bool,
     enabled_sestavsipocitac: bool,
+    enabled_buildz: bool,
 ) -> None:
     excluded = "EXCLUDED" if database.using_postgres else "excluded"
     with database.connect() as conn:
         conn.execute(
             f"""INSERT INTO pc_catalog_settings
                 (guild_id, forum_channel_id, mention_role_id, enabled,
-                 enabled_makejpc, enabled_sestavsipocitac, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                 enabled_makejpc, enabled_sestavsipocitac, enabled_buildz, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET
                     forum_channel_id = {excluded}.forum_channel_id,
                     mention_role_id = {excluded}.mention_role_id,
                     enabled = {excluded}.enabled,
                     enabled_makejpc = {excluded}.enabled_makejpc,
                     enabled_sestavsipocitac = {excluded}.enabled_sestavsipocitac,
+                    enabled_buildz = {excluded}.enabled_buildz,
                     updated_at = {excluded}.updated_at""",
             (
                 guild_id, forum_channel_id, mention_role_id, int(enabled),
-                int(enabled_makejpc), int(enabled_sestavsipocitac), database.now(),
+                int(enabled_makejpc), int(enabled_sestavsipocitac), int(enabled_buildz), database.now(),
             ),
         )
         conn.commit()
@@ -101,6 +103,35 @@ def delete_post(database: Any, guild_id: int, source: str, build_code: str) -> N
                WHERE guild_id = ? AND source = ? AND build_code = ?""",
             (guild_id, source, build_code),
         )
+        conn.commit()
+
+
+def get_seen_codes(database: Any, guild_id: int, source: str) -> set[str]:
+    with database.connect() as conn:
+        rows = conn.execute(
+            """SELECT build_code FROM pc_catalog_seen_builds
+               WHERE guild_id = ? AND source = ?""",
+            (guild_id, source),
+        ).fetchall()
+    return {str(row["build_code"]) for row in rows}
+
+
+def add_seen_codes(
+    database: Any, guild_id: int, source: str, build_codes: set[str]
+) -> None:
+    if not build_codes:
+        return
+    excluded = "EXCLUDED" if database.using_postgres else "excluded"
+    with database.connect() as conn:
+        for build_code in build_codes:
+            conn.execute(
+                f"""INSERT INTO pc_catalog_seen_builds
+                    (guild_id, source, build_code, seen_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT (guild_id, source, build_code) DO UPDATE SET
+                        seen_at = {excluded}.seen_at""",
+                (guild_id, source, build_code, database.now()),
+            )
         conn.commit()
 
 

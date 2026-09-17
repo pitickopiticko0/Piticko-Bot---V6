@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from services.products.base import Product
+from services.products.buildz import BuildzProvider
 from services.products.sestavsipocitac import SestavSiPocitacProvider
 from utils.database import db
 
@@ -18,6 +19,7 @@ log = logging.getLogger(__name__)
 
 SOURCES = {
     "sestavsipocitac": ("SestavSiPočítač", SestavSiPocitacProvider()),
+    "buildz": ("Buildz.gg", BuildzProvider()),
 }
 
 
@@ -47,7 +49,7 @@ class BuildRefreshView(discord.ui.View):
 
 
 class PcCatalog(commands.GroupCog, group_name="ssp"):
-    """Automaticky zveřejňuje sestavy SestavSiPočítač ve fóru."""
+    """Automaticky zveřejňuje sestavy sledovaných PC katalogů ve fóru."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -208,7 +210,40 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
                     "žádné fórum příspěvky nebyly smazány."
                 )
             found += len(products)
+            current_codes = {product.code for product in products}
+            posts = await asyncio.to_thread(
+                db.get_pc_catalog_posts_for_source, guild_id, source
+            )
+            posted_codes = {str(post["build_code"]) for post in posts}
+
+            # Buildz má při prvním spuštění stovky sestav. Nezahlcujeme proto
+            # fórum starou nabídkou; uložíme ji jako výchozí stav a zveřejníme
+            # až sestavy přidané na web později.
+            seen_codes: set[str] = set()
+            if source == "buildz":
+                seen_codes = await asyncio.to_thread(
+                    db.get_pc_catalog_seen_codes, guild_id, source
+                )
+                if not seen_codes and not posted_codes:
+                    await asyncio.to_thread(
+                        db.add_pc_catalog_seen_codes,
+                        guild_id,
+                        source,
+                        current_codes,
+                    )
+                    log.info(
+                        "Buildz.gg: uloženo %s aktuálních sestav jako výchozí stav.",
+                        len(current_codes),
+                    )
+                    continue
+
             for product in products:
+                if (
+                    source == "buildz"
+                    and product.code in seen_codes
+                    and product.code not in posted_codes
+                ):
+                    continue
                 result = await self.publish_or_update(
                     guild_id, forum, source, product,
                     int(mention_role_id) if mention_role_id else None,
@@ -217,8 +252,15 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
                     created += 1
                 else:
                     updated += 1
+                if source == "buildz" and product.code not in seen_codes:
+                    await asyncio.to_thread(
+                        db.add_pc_catalog_seen_codes,
+                        guild_id,
+                        source,
+                        {product.code},
+                    )
             removed += await self._remove_missing_posts(
-                guild_id, source, {product.code for product in products}
+                guild_id, source, current_codes
             )
         return found, created, updated, removed
 
@@ -275,14 +317,14 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
     async def before_refresh_requests(self) -> None:
         await self.bot.wait_until_ready()
 
-    @app_commands.command(name="obnovit", description="Obnoví sestavy SestavSiPočítač ve fóru.")
+    @app_commands.command(name="obnovit", description="Obnoví sledované sestavy ve fóru.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def refresh(self, interaction: discord.Interaction) -> None:
         await self._run_manual_refresh(interaction)
 
     @app_commands.command(
         name="ssp-refresh",
-        description="Obnoví všechny sestavy SestavSiPočítač ve fóru.",
+        description="Obnoví všechny sledované sestavy ve fóru.",
     )
     @app_commands.checks.has_permissions(manage_guild=True)
     async def ssp_refresh(self, interaction: discord.Interaction) -> None:
@@ -301,15 +343,15 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
         except ValueError as error:
             await interaction.followup.send(f"❌ {error}", ephemeral=True)
 
-    @app_commands.command(name="stav", description="Ukáže stav sledování sestav SestavSiPočítač.")
+    @app_commands.command(name="stav", description="Ukáže stav sledování PC katalogu.")
     async def status(self, interaction: discord.Interaction) -> None:
         settings = await asyncio.to_thread(db.get_pc_catalog_settings, interaction.guild_id or 0)
         if settings is None or not bool(row_value(settings, "enabled", 0)):
-            await interaction.response.send_message("ℹ️ SestavSiPočítač zde není zapnutý.", ephemeral=True)
+            await interaction.response.send_message("ℹ️ PC katalog zde není zapnutý.", ephemeral=True)
             return
         sources = [SOURCES[key][0] for key in SOURCES if self.source_is_enabled(settings, key)]
         await interaction.response.send_message(
-            "🖥️ **SestavSiPočítač je aktivní.**\n"
+            "🖥️ **PC katalog je aktivní.**\n"
             f"Zdroj: {', '.join(sources) or 'žádný'}\n"
             f"Fórum: <#{row_value(settings, 'forum_channel_id')}>", ephemeral=True,
         )

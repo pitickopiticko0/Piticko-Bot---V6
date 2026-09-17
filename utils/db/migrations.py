@@ -216,12 +216,17 @@ POSTGRES_TABLES = (
     """CREATE TABLE IF NOT EXISTS pc_catalog_settings (
         guild_id BIGINT PRIMARY KEY, forum_channel_id BIGINT, mention_role_id BIGINT,
         enabled INTEGER NOT NULL DEFAULT 0, enabled_makejpc INTEGER NOT NULL DEFAULT 0,
-        enabled_sestavsipocitac INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+        enabled_sestavsipocitac INTEGER NOT NULL DEFAULT 0, enabled_buildz INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS pc_catalog_posts (
         guild_id BIGINT NOT NULL, source TEXT NOT NULL, build_code TEXT NOT NULL,
         forum_channel_id BIGINT NOT NULL, thread_id BIGINT NOT NULL, message_id BIGINT NOT NULL,
         updated_at TEXT NOT NULL, PRIMARY KEY (guild_id, source, build_code)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_catalog_seen_builds (
+        guild_id BIGINT NOT NULL, source TEXT NOT NULL, build_code TEXT NOT NULL,
+        seen_at TEXT NOT NULL, PRIMARY KEY (guild_id, source, build_code)
     )""",
     """CREATE TABLE IF NOT EXISTS pc_catalog_refresh_requests (
         guild_id BIGINT PRIMARY KEY, requested_at TEXT NOT NULL
@@ -499,12 +504,17 @@ SQLITE_TABLES = (
     """CREATE TABLE IF NOT EXISTS pc_catalog_settings (
         guild_id INTEGER PRIMARY KEY, forum_channel_id INTEGER, mention_role_id INTEGER,
         enabled INTEGER NOT NULL DEFAULT 0, enabled_makejpc INTEGER NOT NULL DEFAULT 0,
-        enabled_sestavsipocitac INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL
+        enabled_sestavsipocitac INTEGER NOT NULL DEFAULT 0, enabled_buildz INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS pc_catalog_posts (
         guild_id INTEGER NOT NULL, source TEXT NOT NULL, build_code TEXT NOT NULL,
         forum_channel_id INTEGER NOT NULL, thread_id INTEGER NOT NULL, message_id INTEGER NOT NULL,
         updated_at TEXT NOT NULL, PRIMARY KEY (guild_id, source, build_code)
+    )""",
+    """CREATE TABLE IF NOT EXISTS pc_catalog_seen_builds (
+        guild_id INTEGER NOT NULL, source TEXT NOT NULL, build_code TEXT NOT NULL,
+        seen_at TEXT NOT NULL, PRIMARY KEY (guild_id, source, build_code)
     )""",
     """CREATE TABLE IF NOT EXISTS pc_catalog_refresh_requests (
         guild_id INTEGER PRIMARY KEY, requested_at TEXT NOT NULL
@@ -592,6 +602,7 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE game_deal_settings ADD COLUMN IF NOT EXISTS subscription_role_deal_id BIGINT",
     "ALTER TABLE scheduled_announcements ADD COLUMN IF NOT EXISTS repeat_kind TEXT NOT NULL DEFAULT 'once'",
     "ALTER TABLE scheduled_announcements ADD COLUMN IF NOT EXISTS timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague'",
+    "ALTER TABLE pc_catalog_settings ADD COLUMN IF NOT EXISTS enabled_buildz INTEGER NOT NULL DEFAULT 0",
 )
 
 
@@ -635,6 +646,9 @@ SQLITE_MIGRATIONS = {
     "scheduled_announcements": {
         "repeat_kind": "ALTER TABLE scheduled_announcements ADD COLUMN repeat_kind TEXT NOT NULL DEFAULT 'once'",
         "timezone_name": "ALTER TABLE scheduled_announcements ADD COLUMN timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague'",
+    },
+    "pc_catalog_settings": {
+        "enabled_buildz": "ALTER TABLE pc_catalog_settings ADD COLUMN enabled_buildz INTEGER NOT NULL DEFAULT 0",
     },
 }
 
