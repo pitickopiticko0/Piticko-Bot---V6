@@ -245,6 +245,55 @@ class Products(commands.Cog):
 
         return True
 
+    async def _delete_thread(self, thread_id: int, *, reason: str) -> bool:
+        """Smaže fórum vlákno; při chybě vazbu ponechá pro příští pokus."""
+        try:
+            channel = self.bot.get_channel(thread_id)
+            if channel is None:
+                channel = await self.bot.fetch_channel(thread_id)
+            if not isinstance(channel, discord.Thread):
+                raise LookupError("Uložený kanál není fórum vlákno")
+            await channel.delete(reason=reason)
+            return True
+        except discord.NotFound:
+            # Vlákno už někdo smazal ručně, proto je bezpečné zahodit vazbu.
+            return True
+        except (LookupError, discord.Forbidden, discord.HTTPException):
+            log.exception("Nelze smazat zastaralé MakejPC vlákno %s.", thread_id)
+            return False
+
+    async def _remove_missing_products(
+        self,
+        forum: discord.ForumChannel,
+        current_codes: set[str],
+    ) -> int:
+        """Odstraní jen příspěvky pro produkty potvrzeně chybějící na webu."""
+        removed = 0
+        mappings = await asyncio.to_thread(
+            makejpc_forum_store.list_for_forum, forum.id
+        )
+        retained_codes: set[str] = set()
+        for mapping in mappings:
+            code = str(mapping["product_code"])
+            if code in current_codes:
+                continue
+            deleted = await self._delete_thread(
+                int(mapping["thread_id"]),
+                reason="Sestava už není v nabídce MakejPC.",
+            )
+            if not deleted:
+                retained_codes.add(code)
+                continue
+            await asyncio.to_thread(makejpc_forum_store.delete, code)
+            removed += 1
+
+        # Zdroj poskytl kompletní seznam, proto odstraníme také zastaralé
+        # údaje z dashboardu. Nejde o další Discord příspěvky.
+        stored_codes = await asyncio.to_thread(db.get_makejpc_product_codes)
+        for code in stored_codes - current_codes - retained_codes:
+            await asyncio.to_thread(db.delete_makejpc_product, code)
+        return removed
+
     async def run_check(
         self,
         *,
@@ -268,6 +317,10 @@ class Products(commands.Cog):
                 raise RuntimeError(
                     "MakejPC parser nenašel žádné produkty."
                 )
+            current_codes = {product.code for product in products}
+            removed = await self._remove_missing_products(forum, current_codes)
+            if removed:
+                log.info("MakejPC: odstraněno %s zastaralých fórum příspěvků.", removed)
 
             known_count = db.count_makejpc_products()
 
@@ -345,6 +398,10 @@ class Products(commands.Cog):
                 raise RuntimeError(
                     "MakejPC parser nenašel žádné produkty."
                 )
+            current_codes = {product.code for product in products}
+            removed = await self._remove_missing_products(forum, current_codes)
+            if removed:
+                log.info("MakejPC: odstraněno %s zastaralých fórum příspěvků.", removed)
 
             changed = 0
             unchanged = 0

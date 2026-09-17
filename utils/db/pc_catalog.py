@@ -85,6 +85,25 @@ def list_posts(database: Any):
         return conn.execute("SELECT * FROM pc_catalog_posts ORDER BY updated_at DESC").fetchall()
 
 
+def list_posts_for_source(database: Any, guild_id: int, source: str):
+    with database.connect() as conn:
+        return conn.execute(
+            """SELECT * FROM pc_catalog_posts
+               WHERE guild_id = ? AND source = ?""",
+            (guild_id, source),
+        ).fetchall()
+
+
+def delete_post(database: Any, guild_id: int, source: str, build_code: str) -> None:
+    with database.connect() as conn:
+        conn.execute(
+            """DELETE FROM pc_catalog_posts
+               WHERE guild_id = ? AND source = ? AND build_code = ?""",
+            (guild_id, source, build_code),
+        )
+        conn.commit()
+
+
 def request_refresh(database: Any, guild_id: int) -> None:
     excluded = "EXCLUDED" if database.using_postgres else "excluded"
     with database.connect() as conn:

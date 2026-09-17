@@ -17,7 +17,7 @@ class MakeJPCProvider:
     BASE_URL = "https://www.makejpc.cz"
     CATEGORY_URL = f"{BASE_URL}/pocitace/"
 
-    def __init__(self, max_pages: int = 5):
+    def __init__(self, max_pages: int = 50):
         self.max_pages = max(1, max_pages)
 
     async def fetch_products(self) -> list[Product]:
@@ -36,7 +36,10 @@ class MakeJPCProvider:
             follow_redirects=True,
             timeout=httpx.Timeout(30.0),
         ) as client:
-            for page in range(1, self.max_pages + 1):
+            # Jednu stránku navíc načteme schválně: kdyby katalog přerostl
+            # bezpečný limit, nesmíme vrátit neúplný seznam a smazat platné
+            # příspěvky ve fóru.
+            for page in range(1, self.max_pages + 2):
                 url = self.CATEGORY_URL if page == 1 else f"{self.CATEGORY_URL}strana-{page}/"
                 response = await client.get(url)
 
@@ -61,6 +64,12 @@ class MakeJPCProvider:
                 # Pokud další stránka nepřinesla nic nového, nemá smysl pokračovat.
                 if page > 1 and added == 0:
                     break
+
+                if page > self.max_pages:
+                    raise RuntimeError(
+                        "MakejPC katalog má více než "
+                        f"{self.max_pages} stránek; seznam není úplný."
+                    )
 
         return list(products.values())
 

@@ -143,23 +143,70 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
         )
         return "created"
 
-    async def sync_guild(self, guild_id: int) -> tuple[int, int, int]:
+    async def _remove_missing_posts(
+        self,
+        guild_id: int,
+        source: str,
+        current_codes: set[str],
+    ) -> int:
+        """Smaže pouze vlákna sestav, které potvrzeně zmizely ze zdroje."""
+        removed = 0
+        posts = await asyncio.to_thread(
+            db.get_pc_catalog_posts_for_source, guild_id, source
+        )
+        for post in posts:
+            code = str(post["build_code"])
+            if code in current_codes:
+                continue
+            try:
+                channel = self.bot.get_channel(int(post["thread_id"]))
+                if channel is None:
+                    channel = await self.bot.fetch_channel(int(post["thread_id"]))
+                if not isinstance(channel, discord.Thread):
+                    raise LookupError("Uložený kanál není fórum vlákno")
+                await channel.delete(
+                    reason=f"Sestava už není v nabídce {SOURCES[source][0]}."
+                )
+            except discord.NotFound:
+                # Vlákno už bylo ručně smazané; vyčistíme jen interní vazbu.
+                pass
+            except (LookupError, discord.Forbidden, discord.HTTPException):
+                log.exception(
+                    "Nelze smazat zastaralý příspěvek %s/%s na serveru %s.",
+                    source, code, guild_id,
+                )
+                continue
+
+            await asyncio.to_thread(
+                db.delete_pc_catalog_post, guild_id, source, code
+            )
+            removed += 1
+        return removed
+
+    async def sync_guild(self, guild_id: int) -> tuple[int, int, int, int]:
         settings = await asyncio.to_thread(db.get_pc_catalog_settings, guild_id)
         if settings is None or not bool(row_value(settings, "enabled", 0)):
-            return 0, 0, 0
+            return 0, 0, 0, 0
         forum_id = row_value(settings, "forum_channel_id")
         if not forum_id:
-            return 0, 0, 0
+            return 0, 0, 0, 0
         forum = await self.get_forum(int(forum_id))
         if forum is None:
             raise ValueError("Nastavený kanál není dostupné Discord fórum.")
 
-        found = created = updated = 0
+        found = created = updated = removed = 0
         mention_role_id = row_value(settings, "mention_role_id")
         for source in SOURCES:
             if not self.source_is_enabled(settings, source):
                 continue
             products = await self.fetch_source(source)
+            # Prázdný seznam obvykle znamená změněný parser. V takovém případě
+            # nesmíme omylem smazat celé fórum.
+            if not products:
+                raise RuntimeError(
+                    f"{SOURCES[source][0]} parser nenašel žádné sestavy; "
+                    "žádné fórum příspěvky nebyly smazány."
+                )
             found += len(products)
             for product in products:
                 result = await self.publish_or_update(
@@ -170,7 +217,10 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
                     created += 1
                 else:
                     updated += 1
-        return found, created, updated
+            removed += await self._remove_missing_posts(
+                guild_id, source, {product.code for product in products}
+            )
+        return found, created, updated, removed
 
     async def refresh_from_button(
         self, interaction: discord.Interaction, source: str, build_code: str
@@ -182,17 +232,10 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            products = await self.fetch_source(source)
-            product = next((item for item in products if item.code == build_code), None)
-            if product is None:
-                await interaction.followup.send(
-                    "⚠️ Sestava už nebyla na webu nalezena. Původní fórum příspěvek jsem nemažal.",
-                    ephemeral=True,
-                )
-                return
-            found, created, updated = await self.sync_guild(interaction.guild.id)
+            found, created, updated, removed = await self.sync_guild(interaction.guild.id)
             await interaction.followup.send(
-                f"✅ Obnoveno. Nalezeno: **{found}**, upraveno: **{updated}**, nové: **{created}**.",
+                f"✅ Obnoveno. Nalezeno: **{found}**, upraveno: **{updated}**, "
+                f"nové: **{created}**, smazané: **{removed}**.",
                 ephemeral=True,
             )
         except Exception:
@@ -249,9 +292,10 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
     async def _run_manual_refresh(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            found, created, updated = await self.sync_guild(interaction.guild_id or 0)
+            found, created, updated, removed = await self.sync_guild(interaction.guild_id or 0)
             await interaction.followup.send(
-                f"✅ Kontrola dokončena. Nalezeno: **{found}**, nové: **{created}**, upraveno: **{updated}**.",
+                f"✅ Kontrola dokončena. Nalezeno: **{found}**, nové: **{created}**, "
+                f"upraveno: **{updated}**, smazané: **{removed}**.",
                 ephemeral=True,
             )
         except ValueError as error:

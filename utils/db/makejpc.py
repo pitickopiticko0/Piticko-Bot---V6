@@ -89,3 +89,18 @@ def get_products(database: Any):
             FROM makejpc_products
             ORDER BY created_at DESC
         """).fetchall()
+
+
+def get_product_codes(database: Any) -> set[str]:
+    with database.connect() as conn:
+        rows = conn.execute("SELECT product_code FROM makejpc_products").fetchall()
+    return {str(row["product_code"]) for row in rows}
+
+
+def delete_product(database: Any, product_code: str) -> None:
+    with database.connect() as conn:
+        conn.execute(
+            "DELETE FROM makejpc_products WHERE product_code = ?",
+            (product_code,),
+        )
+        conn.commit()

@@ -101,6 +101,20 @@ class MakeJPCForumStore:
 
         return dict(row) if row else None
 
+    def list_for_forum(self, forum_id: int) -> list[dict[str, Any]]:
+        """Vrátí pouze vazby příspěvků patřících do jednoho fóra."""
+        with self.connect() as conn:
+            placeholder = "%s" if self.using_postgres else "?"
+            rows = conn.execute(
+                f"""
+                SELECT product_code, forum_id, thread_id, message_id
+                FROM makejpc_forum_posts
+                WHERE forum_id = {placeholder}
+                """,
+                (forum_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def save(
         self,
         product_code: str,

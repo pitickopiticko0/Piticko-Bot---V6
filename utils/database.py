@@ -407,6 +407,12 @@ class Database:
     def get_pc_catalog_posts(self):
         return pc_catalog_db.list_posts(self)
 
+    def get_pc_catalog_posts_for_source(self, guild_id: int, source: str):
+        return pc_catalog_db.list_posts_for_source(self, guild_id, source)
+
+    def delete_pc_catalog_post(self, guild_id: int, source: str, build_code: str) -> None:
+        pc_catalog_db.delete_post(self, guild_id, source, build_code)
+
     def request_pc_catalog_refresh(self, guild_id: int) -> None:
         pc_catalog_db.request_refresh(self, guild_id)
 
@@ -756,6 +762,12 @@ class Database:
 
     def get_makejpc_products(self):
         return makejpc_db.get_products(self)
+
+    def get_makejpc_product_codes(self) -> set[str]:
+        return makejpc_db.get_product_codes(self)
+
+    def delete_makejpc_product(self, product_code: str) -> None:
+        makejpc_db.delete_product(self, product_code)
 
     def stats(self):
         with self.connect() as conn:
