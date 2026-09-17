@@ -215,6 +215,7 @@ POSTGRES_TABLES = (
     )""",
     """CREATE TABLE IF NOT EXISTS pc_catalog_settings (
         guild_id BIGINT PRIMARY KEY, forum_channel_id BIGINT, mention_role_id BIGINT,
+        buildz_forum_channel_id BIGINT, buildz_mention_role_id BIGINT,
         enabled INTEGER NOT NULL DEFAULT 0, enabled_makejpc INTEGER NOT NULL DEFAULT 0,
         enabled_sestavsipocitac INTEGER NOT NULL DEFAULT 0, enabled_buildz INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
@@ -503,6 +504,7 @@ SQLITE_TABLES = (
     )""",
     """CREATE TABLE IF NOT EXISTS pc_catalog_settings (
         guild_id INTEGER PRIMARY KEY, forum_channel_id INTEGER, mention_role_id INTEGER,
+        buildz_forum_channel_id INTEGER, buildz_mention_role_id INTEGER,
         enabled INTEGER NOT NULL DEFAULT 0, enabled_makejpc INTEGER NOT NULL DEFAULT 0,
         enabled_sestavsipocitac INTEGER NOT NULL DEFAULT 0, enabled_buildz INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
@@ -603,6 +605,8 @@ POSTGRES_MIGRATIONS = (
     "ALTER TABLE scheduled_announcements ADD COLUMN IF NOT EXISTS repeat_kind TEXT NOT NULL DEFAULT 'once'",
     "ALTER TABLE scheduled_announcements ADD COLUMN IF NOT EXISTS timezone_name TEXT NOT NULL DEFAULT 'Europe/Prague'",
     "ALTER TABLE pc_catalog_settings ADD COLUMN IF NOT EXISTS enabled_buildz INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE pc_catalog_settings ADD COLUMN IF NOT EXISTS buildz_forum_channel_id BIGINT",
+    "ALTER TABLE pc_catalog_settings ADD COLUMN IF NOT EXISTS buildz_mention_role_id BIGINT",
 )
 
 
@@ -649,6 +653,8 @@ SQLITE_MIGRATIONS = {
     },
     "pc_catalog_settings": {
         "enabled_buildz": "ALTER TABLE pc_catalog_settings ADD COLUMN enabled_buildz INTEGER NOT NULL DEFAULT 0",
+        "buildz_forum_channel_id": "ALTER TABLE pc_catalog_settings ADD COLUMN buildz_forum_channel_id INTEGER",
+        "buildz_mention_role_id": "ALTER TABLE pc_catalog_settings ADD COLUMN buildz_mention_role_id INTEGER",
     },
 }
 

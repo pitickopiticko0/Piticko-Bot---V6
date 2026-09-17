@@ -127,6 +127,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "enabled": False,
         "forum_channel_id": "",
         "mention_role_id": "",
+        "buildz_forum_channel_id": "",
+        "buildz_mention_role_id": "",
         "enabled_sestavsipocitac": False,
         "enabled_buildz": False,
     },
@@ -335,6 +337,8 @@ class DashboardStorage:
                 "enabled": bool(_value(pc_catalog, "enabled", 0)),
                 "forum_channel_id": str(_value(pc_catalog, "forum_channel_id", "")),
                 "mention_role_id": str(_value(pc_catalog, "mention_role_id", "")),
+                "buildz_forum_channel_id": str(_value(pc_catalog, "buildz_forum_channel_id", "")),
+                "buildz_mention_role_id": str(_value(pc_catalog, "buildz_mention_role_id", "")),
                 "enabled_sestavsipocitac": bool(_value(pc_catalog, "enabled_sestavsipocitac", 0)),
                 "enabled_buildz": bool(_value(pc_catalog, "enabled_buildz", 0)),
             })
@@ -612,16 +616,22 @@ class DashboardStorage:
     def _save_pc_catalog_sync(self, guild_id: int, values: dict[str, Any]) -> None:
         sestavsipocitac = bool(values.get("enabled_sestavsipocitac"))
         buildz = bool(values.get("enabled_buildz"))
-        enabled = sestavsipocitac or buildz
         forum_channel_id = _discord_id(
-            values.get("forum_channel_id"), field="Fórum pro PC sestavy", required=enabled
+            values.get("forum_channel_id"), field="Fórum pro SestavSiPočítač", required=False
         )
         mention_role_id = _discord_id(
-            values.get("mention_role_id"), field="Role pro PC sestavy"
+            values.get("mention_role_id"), field="Role pro SestavSiPočítač"
+        )
+        buildz_forum_channel_id = _discord_id(
+            values.get("buildz_forum_channel_id"), field="Fórum pro Buildz.gg", required=False
+        )
+        buildz_mention_role_id = _discord_id(
+            values.get("buildz_mention_role_id"), field="Role pro Buildz.gg"
         )
         db.set_pc_catalog_settings(
             guild_id, forum_channel_id, mention_role_id,
-            enabled, False, sestavsipocitac, buildz,
+            buildz_forum_channel_id, buildz_mention_role_id,
+            sestavsipocitac or buildz, False, sestavsipocitac, buildz,
         )
 
     async def get_sheep_game(self, guild_id: str) -> dict[str, Any]:

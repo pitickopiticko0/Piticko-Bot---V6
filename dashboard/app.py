@@ -2294,7 +2294,6 @@ async def save_pc_catalog(
     request: Request,
     guild_id: str,
     enabled_sestavsipocitac: str | None = Form(default=None),
-    enabled_buildz: str | None = Form(default=None),
     forum_channel_id: str = Form(default=""),
     mention_role_id: str = Form(default=""),
 ):
@@ -2303,31 +2302,32 @@ async def save_pc_catalog(
         return redirect
     get_accessible_guild(request, guild_id)
     ssp_active = enabled_sestavsipocitac == "on"
-    buildz_active = enabled_buildz == "on"
-    active = ssp_active or buildz_active
     selected_forum = forum_channel_id.strip()
     selected_role = mention_role_id.strip()
     if (
-        (active and not selected_forum)
+        (ssp_active and not selected_forum)
         or (selected_forum and not selected_forum.isdigit())
         or (selected_role and not selected_role.isdigit())
     ):
         return RedirectResponse(
             f"/server/{guild_id}?pc_catalog_error=invalid#ssp", status_code=303
         )
-    if active:
+    if ssp_active:
         resources = await get_bot_guild_resources(guild_id)
         if resources["available"] and selected_forum not in {item["id"] for item in resources["forums"]}:
             return RedirectResponse(
                 f"/server/{guild_id}?pc_catalog_error=permission#ssp", status_code=303
             )
     try:
+        current = await storage.get_settings(guild_id)
+        catalog = current["pc_catalog"]
         await storage.update_module(guild_id, "pc_catalog", {
-            "enabled": active,
             "enabled_sestavsipocitac": ssp_active,
-            "enabled_buildz": buildz_active,
+            "enabled_buildz": catalog["enabled_buildz"],
             "forum_channel_id": selected_forum,
             "mention_role_id": selected_role,
+            "buildz_forum_channel_id": catalog["buildz_forum_channel_id"],
+            "buildz_mention_role_id": catalog["buildz_mention_role_id"],
         })
     except ValueError:
         return RedirectResponse(
@@ -2335,6 +2335,55 @@ async def save_pc_catalog(
         )
     return RedirectResponse(
         f"/server/{guild_id}?saved=ssp#ssp", status_code=303
+    )
+
+
+@app.post("/server/{guild_id}/buildz")
+async def save_buildz_catalog(
+    request: Request,
+    guild_id: str,
+    enabled_buildz: str | None = Form(default=None),
+    buildz_forum_channel_id: str = Form(default=""),
+    buildz_mention_role_id: str = Form(default=""),
+):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    get_accessible_guild(request, guild_id)
+    buildz_active = enabled_buildz == "on"
+    selected_forum = buildz_forum_channel_id.strip()
+    selected_role = buildz_mention_role_id.strip()
+    if (
+        (buildz_active and not selected_forum)
+        or (selected_forum and not selected_forum.isdigit())
+        or (selected_role and not selected_role.isdigit())
+    ):
+        return RedirectResponse(
+            f"/server/{guild_id}?pc_catalog_error=invalid#buildz", status_code=303
+        )
+    if buildz_active:
+        resources = await get_bot_guild_resources(guild_id)
+        if resources["available"] and selected_forum not in {item["id"] for item in resources["forums"]}:
+            return RedirectResponse(
+                f"/server/{guild_id}?pc_catalog_error=permission#buildz", status_code=303
+            )
+    try:
+        current = await storage.get_settings(guild_id)
+        catalog = current["pc_catalog"]
+        await storage.update_module(guild_id, "pc_catalog", {
+            "enabled_sestavsipocitac": catalog["enabled_sestavsipocitac"],
+            "enabled_buildz": buildz_active,
+            "forum_channel_id": catalog["forum_channel_id"],
+            "mention_role_id": catalog["mention_role_id"],
+            "buildz_forum_channel_id": selected_forum,
+            "buildz_mention_role_id": selected_role,
+        })
+    except ValueError:
+        return RedirectResponse(
+            f"/server/{guild_id}?pc_catalog_error=invalid#buildz", status_code=303
+        )
+    return RedirectResponse(
+        f"/server/{guild_id}?saved=buildz#buildz", status_code=303
     )
 
 
@@ -2346,7 +2395,7 @@ async def refresh_pc_catalog(request: Request, guild_id: str):
     get_accessible_guild(request, guild_id)
     settings = await storage.get_settings(guild_id)
     catalog = settings["pc_catalog"]
-    if not catalog["enabled"] or not catalog["forum_channel_id"]:
+    if not catalog["enabled"]:
         return RedirectResponse(
             f"/server/{guild_id}?pc_catalog_error=invalid#ssp", status_code=303
         )

@@ -14,8 +14,10 @@ def get_enabled_settings(database: Any):
     with database.connect() as conn:
         return conn.execute(
             """SELECT * FROM pc_catalog_settings
-               WHERE enabled = 1 AND forum_channel_id IS NOT NULL
-               AND (enabled_makejpc = 1 OR enabled_sestavsipocitac = 1 OR enabled_buildz = 1)
+               WHERE enabled = 1 AND (
+                    (enabled_sestavsipocitac = 1 AND forum_channel_id IS NOT NULL)
+                    OR (enabled_buildz = 1 AND buildz_forum_channel_id IS NOT NULL)
+               )
                ORDER BY guild_id"""
         ).fetchall()
 
@@ -25,6 +27,8 @@ def save_settings(
     guild_id: int,
     forum_channel_id: int | None,
     mention_role_id: int | None,
+    buildz_forum_channel_id: int | None,
+    buildz_mention_role_id: int | None,
     enabled: bool,
     enabled_makejpc: bool,
     enabled_sestavsipocitac: bool,
@@ -34,19 +38,23 @@ def save_settings(
     with database.connect() as conn:
         conn.execute(
             f"""INSERT INTO pc_catalog_settings
-                (guild_id, forum_channel_id, mention_role_id, enabled,
+                (guild_id, forum_channel_id, mention_role_id,
+                 buildz_forum_channel_id, buildz_mention_role_id, enabled,
                  enabled_makejpc, enabled_sestavsipocitac, enabled_buildz, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET
                     forum_channel_id = {excluded}.forum_channel_id,
                     mention_role_id = {excluded}.mention_role_id,
+                    buildz_forum_channel_id = {excluded}.buildz_forum_channel_id,
+                    buildz_mention_role_id = {excluded}.buildz_mention_role_id,
                     enabled = {excluded}.enabled,
                     enabled_makejpc = {excluded}.enabled_makejpc,
                     enabled_sestavsipocitac = {excluded}.enabled_sestavsipocitac,
                     enabled_buildz = {excluded}.enabled_buildz,
                     updated_at = {excluded}.updated_at""",
             (
-                guild_id, forum_channel_id, mention_role_id, int(enabled),
+                guild_id, forum_channel_id, mention_role_id,
+                buildz_forum_channel_id, buildz_mention_role_id, int(enabled),
                 int(enabled_makejpc), int(enabled_sestavsipocitac), int(enabled_buildz), database.now(),
             ),
         )

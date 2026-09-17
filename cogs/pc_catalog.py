@@ -97,6 +97,18 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
     def source_is_enabled(settings, source: str) -> bool:
         return bool(row_value(settings, f"enabled_{source}", 0))
 
+    @staticmethod
+    def source_forum_id(settings, source: str):
+        if source == "buildz":
+            return row_value(settings, "buildz_forum_channel_id")
+        return row_value(settings, "forum_channel_id")
+
+    @staticmethod
+    def source_mention_role_id(settings, source: str):
+        if source == "buildz":
+            return row_value(settings, "buildz_mention_role_id")
+        return row_value(settings, "mention_role_id")
+
     async def fetch_source(self, source: str) -> list[Product]:
         return await SOURCES[source][1].fetch_products()
 
@@ -115,6 +127,27 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
     ) -> str:
         post = await asyncio.to_thread(db.get_pc_catalog_post, guild_id, source, product.code)
         view = BuildRefreshView(self, guild_id, source, product.code)
+        # Discord neumí přesunout existující fórum vlákno do jiného fóra.
+        # Když správce změní fórum zdroje, staré vlákno nejdřív odstraníme a
+        # stejnou sestavu vytvoříme v novém fóru.
+        if post is not None and int(post["forum_channel_id"]) != forum.id:
+            try:
+                old_thread = self.bot.get_channel(int(post["thread_id"]))
+                if old_thread is None:
+                    old_thread = await self.bot.fetch_channel(int(post["thread_id"]))
+                if not isinstance(old_thread, discord.Thread):
+                    raise LookupError("Uložený kanál není fórum vlákno")
+                await old_thread.delete(
+                    reason=f"Sestava přesunuta do jiného fóra pro {SOURCES[source][0]}."
+                )
+            except discord.NotFound:
+                pass
+            except (LookupError, discord.Forbidden, discord.HTTPException) as error:
+                raise RuntimeError(
+                    f"Nelze přesunout sestavu {product.code} do nového fóra. "
+                    "Bot nemůže smazat původní vlákno."
+                ) from error
+            post = None
         if post is not None:
             try:
                 channel = self.bot.get_channel(int(post["thread_id"]))
@@ -189,18 +222,20 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
         settings = await asyncio.to_thread(db.get_pc_catalog_settings, guild_id)
         if settings is None or not bool(row_value(settings, "enabled", 0)):
             return 0, 0, 0, 0
-        forum_id = row_value(settings, "forum_channel_id")
-        if not forum_id:
-            return 0, 0, 0, 0
-        forum = await self.get_forum(int(forum_id))
-        if forum is None:
-            raise ValueError("Nastavený kanál není dostupné Discord fórum.")
-
         found = created = updated = removed = 0
-        mention_role_id = row_value(settings, "mention_role_id")
         for source in SOURCES:
             if not self.source_is_enabled(settings, source):
                 continue
+            forum_id = self.source_forum_id(settings, source)
+            if not forum_id:
+                log.warning("Zdroj %s je zapnutý, ale nemá nastavené vlastní Discord fórum.", source)
+                continue
+            forum = await self.get_forum(int(forum_id))
+            if forum is None:
+                raise ValueError(
+                    f"Nastavené fórum pro {SOURCES[source][0]} není dostupné Discord fórum."
+                )
+            mention_role_id = self.source_mention_role_id(settings, source)
             products = await self.fetch_source(source)
             # Prázdný seznam obvykle znamená změněný parser. V takovém případě
             # nesmíme omylem smazat celé fórum.
@@ -349,11 +384,14 @@ class PcCatalog(commands.GroupCog, group_name="ssp"):
         if settings is None or not bool(row_value(settings, "enabled", 0)):
             await interaction.response.send_message("ℹ️ PC katalog zde není zapnutý.", ephemeral=True)
             return
-        sources = [SOURCES[key][0] for key in SOURCES if self.source_is_enabled(settings, key)]
+        sources = [
+            f"{SOURCES[key][0]}: <#{self.source_forum_id(settings, key)}>"
+            for key in SOURCES
+            if self.source_is_enabled(settings, key) and self.source_forum_id(settings, key)
+        ]
         await interaction.response.send_message(
             "🖥️ **PC katalog je aktivní.**\n"
-            f"Zdroj: {', '.join(sources) or 'žádný'}\n"
-            f"Fórum: <#{row_value(settings, 'forum_channel_id')}>", ephemeral=True,
+            f"Zdroje a fóra: {'; '.join(sources) or 'žádné'}", ephemeral=True,
         )
 
 
