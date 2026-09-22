@@ -148,7 +148,11 @@ class SestavSiPocitacProvider:
             return None
 
         try:
-            value, _ = json.JSONDecoder().raw_decode(payload[marker_start + len(marker) :])
+            # ``raw_decode`` na rozdíl od ``json.loads`` nepřeskakuje úvodní
+            # mezery. Next.js mezi dvojtečku a hodnotu běžně vkládá mezeru,
+            # proto by bez ``lstrip`` parser tiše přešel celou stránku.
+            raw_value = payload[marker_start + len(marker) :].lstrip()
+            value, _ = json.JSONDecoder().raw_decode(raw_value)
         except json.JSONDecodeError:
             return None
         return value

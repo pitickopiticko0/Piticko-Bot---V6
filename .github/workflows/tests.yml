@@ -1,0 +1,31 @@
+name: Test bot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Python 3.13 tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Načíst zdrojový kód
+        uses: actions/checkout@v7
+
+      - name: Nastavit Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Nainstalovat závislosti
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Spustit automatické testy
+        run: python -m unittest discover -s tests -p "test_*.py"
